@@ -1,32 +1,28 @@
-# React + TypeScript + Vite
+# Hệ thống Quản lý Trung tâm Thể thao (Sports Center Management System)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+**Công nghệ:** Sử dụng React JS (Vite + TypeScript) cho hiệu năng tốt và hỗ trợ type chặt chẽ.
 
-Currently, two official plugins are available:
+**Kiến trúc (Không dùng MVVM):** Mình đã thiết lập cấu trúc thư mục tiêu chuẩn của React theo Component-based và Hooks thay vì MVVM (Model-View-ViewModel):
+- `src/components/`: Chứa các thành phần UI dùng lại (Button, Input, Form...).
+- `src/pages/`: Chứa các giao diện trang (Dashboard, Schedule, Member, Payment...).
+- `src/services/`: Chứa các hàm giao tiếp API (thay cho Model/ViewModel gửi request).
+- `src/hooks/`: Chứa logic nghiệp vụ được tách ra (thay thế phần xử lý logic của ViewModel).
+- `src/context/`: Quản lý state toàn cục.
+- `src/utils/`: Chứa các hàm hỗ trợ format.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 👥 Các Actor (Vai trò)
+- **Center Manager** – Quản lý trung tâm
+- **Coach** – Huấn luyện viên
+- **Member** – Học viên / Thành viên
+- **Receptionist** – Nhân viên lễ tân
 
-## React Compiler
+## 🔄 Các luồng chính (Main Flows)
+- **Flow 1**: User and membership management
+- **Flow 2**: Class booking and schedule management
+- **Flow 3**: Payment and report management
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+## 🚀 Hướng dẫn chạy dự án
+```bash
+npm install
+npm run dev
 ```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
