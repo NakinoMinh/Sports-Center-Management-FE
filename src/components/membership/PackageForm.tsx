@@ -3,6 +3,7 @@ import { Save } from "lucide-react";
 import type {
   MembershipDuration,
   MembershipPackageInput,
+  MembershipTier,
 } from "../../types/membership";
 
 export type PackageFormValues = MembershipPackageInput;
@@ -22,6 +23,9 @@ export function PackageForm({
 }: PackageFormProps) {
   const prefix = useId();
   const [name, setName] = useState(initialValues?.name ?? "");
+  const [tier, setTier] = useState<MembershipTier>(
+    initialValues?.tier ?? "BASIC",
+  );
   const [price, setPrice] = useState(
     initialValues ? String(initialValues.price) : "",
   );
@@ -52,6 +56,7 @@ export function PackageForm({
     if (Object.keys(nextErrors).length) return;
     onSubmit({
       name: name.trim(),
+      tier,
       price: amount,
       durationMonths,
       benefits: benefitList,
@@ -66,6 +71,19 @@ export function PackageForm({
         </p>
       )}
       <div className="field-grid">
+        <label className="field field-full">
+          <span>Hạng quyền lợi</span>
+          <select
+            value={tier}
+            onChange={(event) => setTier(event.target.value as MembershipTier)}
+          >
+            <option value="BASIC">Basic</option>
+            <option value="PREMIUM">Premium</option>
+          </select>
+          <small>
+            Hạng quyết định nâng/hạ gói, độc lập với thời hạn tháng, quý, năm.
+          </small>
+        </label>
         <div className="field field-full">
           <label htmlFor={`${prefix}-name`}>
             Tên gói tập <span aria-hidden="true">*</span>

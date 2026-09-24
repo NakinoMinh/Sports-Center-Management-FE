@@ -3,18 +3,28 @@ import type { User } from "./auth";
 export type MembershipActor = Omit<User, "passwordHash">;
 export type MembershipDuration = 1 | 3 | 12;
 export type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CARD";
-export type MembershipOrderKind = "REGISTER" | "RENEW";
+export type MembershipTier = "BASIC" | "PREMIUM";
+export type MembershipOrderKind =
+  "REGISTER" | "RENEW" | "UPGRADE" | "DOWNGRADE";
 export type SubscriptionDisplayStatus =
-  "ACTIVE" | "UPCOMING" | "EXPIRED" | "PENDING";
+  | "ACTIVE"
+  | "UPCOMING"
+  | "EXPIRED"
+  | "PENDING_PAYMENT"
+  | "SCHEDULED_DOWNGRADE"
+  | "REPLACED"
+  | "CANCELED";
 
 export interface MembershipPackageInput {
   name: string;
   price: number;
   durationMonths: MembershipDuration;
   benefits: string[];
+  tier?: MembershipTier;
 }
 
 export interface MembershipPackage extends MembershipPackageInput {
+  tier: MembershipTier;
   id: string;
   isActive: boolean;
   createdAt: string;
@@ -38,9 +48,13 @@ export interface MembershipQuote extends MembershipOrderInput {
   amount: number;
   startDate: string;
   endDate: string;
+  tier: MembershipTier;
+  packagePrice: number;
+  previousSubscriptionId?: string;
+  previousPackagePrice?: number;
 }
 
-/** PENDING reserves a proposed period only; it does not grant access. */
+/** PENDING_PAYMENT does not grant access. CONFIRMED is paid; dates determine ACTIVE/scheduled/expired. */
 export interface MemberSubscription {
   id: string;
   memberId: string;
@@ -52,7 +66,11 @@ export interface MemberSubscription {
   startDate: string;
   endDate: string;
   kind: MembershipOrderKind;
-  status: "CONFIRMED" | "PENDING";
+  tier: MembershipTier;
+  packagePrice: number;
+  previousSubscriptionId?: string;
+  replacedOn?: string;
+  status: "CONFIRMED" | "PENDING_PAYMENT" | "CANCELED";
   invoiceId: string;
   createdAt: string;
 }
@@ -62,12 +80,28 @@ export interface MembershipInvoice extends MembershipQuote {
   id: string;
   number: string;
   subscriptionId: string;
-  status: "PAID" | "PENDING";
+  status: "PAID" | "PENDING_PAYMENT" | "CANCELED";
   createdAt: string;
   createdBy: string;
+  paidAt?: string;
+  paidBy?: string;
+  paidByName?: string;
+  canceledAt?: string;
+  canceledBy?: string;
 }
 
 export interface MembershipOrder {
   subscription: MemberSubscription;
   invoice: MembershipInvoice;
+}
+
+export interface CounterRegistrationInput {
+  fullName: string;
+  email: string;
+  phone: string;
+  username: string;
+  password: string;
+  packageId: string;
+  paymentMethod: PaymentMethod;
+  expectedPrice: number;
 }

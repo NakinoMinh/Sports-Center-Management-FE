@@ -1,5 +1,6 @@
 import { mockDb } from "./mockDb";
-import type { UserRole } from "../types/auth";
+import bcrypt from "bcryptjs";
+import type { User, UserRole } from "../types/auth";
 import type {
   MemberSubscription,
   MembershipActor,
@@ -10,12 +11,14 @@ import type {
   MembershipPackageInput,
   MembershipQuote,
   SubscriptionDisplayStatus,
+  CounterRegistrationInput,
+  MembershipOrderKind,
 } from "../types/membership";
 
 export const MEMBERSHIP_STORAGE_KEY = "scms_memberships_v1";
 
 interface MembershipState {
-  version: 1;
+  version: 2;
   packages: MembershipPackage[];
   subscriptions: MemberSubscription[];
   invoices: MembershipInvoice[];
@@ -75,6 +78,7 @@ function initialState(): MembershipState {
   const packages: MembershipPackage[] = [
     {
       id: "pkg_monthly",
+      tier: "BASIC",
       name: "Gói Tháng",
       price: 450000,
       durationMonths: 1,
@@ -89,6 +93,7 @@ function initialState(): MembershipState {
     },
     {
       id: "pkg_quarterly",
+      tier: "BASIC",
       name: "Gói Quý",
       price: 1200000,
       durationMonths: 3,
@@ -103,6 +108,7 @@ function initialState(): MembershipState {
     },
     {
       id: "pkg_yearly",
+      tier: "BASIC",
       name: "Gói Năm",
       price: 4200000,
       durationMonths: 12,
@@ -116,8 +122,22 @@ function initialState(): MembershipState {
       updatedAt: createdAt,
     },
   ];
+  packages.push(
+    ...packages.map((pkg) => ({
+      ...pkg,
+      id: `${pkg.id}_premium`,
+      tier: "PREMIUM" as const,
+      name: `${pkg.name} Premium`,
+      price: pkg.price * 2,
+      benefits: [
+        ...pkg.benefits,
+        "Tư vấn huấn luyện cá nhân",
+        "Ưu tiên hỗ trợ Premium",
+      ],
+    })),
+  );
   const state: MembershipState = {
-    version: 1,
+    version: 2,
     packages,
     subscriptions: [],
     invoices: [],
@@ -135,6 +155,8 @@ function initialState(): MembershipState {
       memberEmail: member.email,
       packageId: packages[0].id,
       packageName: packages[0].name,
+      tier: packages[0].tier,
+      packagePrice: packages[0].price,
       durationMonths: 1,
       benefits: [...packages[0].benefits],
       amount: packages[0].price,
@@ -148,6 +170,8 @@ function initialState(): MembershipState {
       memberId: member.id,
       packageId: quote.packageId,
       packageName: quote.packageName,
+      tier: quote.tier,
+      packagePrice: quote.packagePrice,
       durationMonths: quote.durationMonths,
       benefits: [...quote.benefits],
       amount: quote.amount,
@@ -186,16 +210,27 @@ function readState(): MembershipState {
     return state;
   }
   try {
-    const state = JSON.parse(stored) as MembershipState;
+    const state = JSON.parse(stored);
     if (
-      state.version !== 1 ||
+      ![1, 2].includes(state.version) ||
       !Array.isArray(state.packages) ||
       !Array.isArray(state.subscriptions) ||
       !Array.isArray(state.invoices)
     ) {
       throw new Error("Invalid state");
     }
-    return state;
+    if (state.version === 1) {
+      // Old catalogs describe duration, not rank. Preserve prices/history and assign BASIC.
+      for (const pkg of state.packages) pkg.tier ??= "BASIC";
+      for (const item of [...state.subscriptions, ...state.invoices]) {
+        item.tier ??= "BASIC";
+        item.packagePrice ??= item.amount;
+        if (item.status === "PENDING") item.status = "PENDING_PAYMENT";
+      }
+      state.version = 2;
+      // Migration is persisted on the next write; reads never overwrite old history.
+    }
+    return state as MembershipState;
   } catch {
     // Never silently overwrite existing orders or invoices when storage is invalid.
     throw new Error(
@@ -254,6 +289,8 @@ function normalizePackage(
   }
   if (![1, 3, 12].includes(input.durationMonths))
     throw new Error("Thời hạn gói tập phải là 1, 3 hoặc 12 tháng.");
+  if (input.tier && !["BASIC", "PREMIUM"].includes(input.tier))
+    throw new Error("Hạng gói tập không hợp lệ.");
   if (
     !benefits.length ||
     benefits.length > 12 ||
@@ -268,6 +305,7 @@ function normalizePackage(
     price: input.price,
     durationMonths: input.durationMonths,
     benefits: [...new Set(benefits)],
+    tier: input.tier ?? "BASIC",
   };
 }
 
@@ -275,10 +313,44 @@ export function getSubscriptionStatus(
   subscription: MemberSubscription,
   today = todayDate(),
 ): SubscriptionDisplayStatus {
-  if (subscription.status === "PENDING") return "PENDING";
-  if (subscription.startDate > today) return "UPCOMING";
+  if (subscription.status === "CANCELED") return "CANCELED";
+  if (subscription.status === "PENDING_PAYMENT") return "PENDING_PAYMENT";
+  if (subscription.replacedOn && subscription.replacedOn <= today)
+    return "REPLACED";
+  if (subscription.startDate > today)
+    return subscription.kind === "DOWNGRADE"
+      ? "SCHEDULED_DOWNGRADE"
+      : "UPCOMING";
   if (subscription.endDate < today) return "EXPIRED";
   return "ACTIVE";
+}
+
+export const orderKindLabels: Record<MembershipOrderKind, string> = {
+  REGISTER: "Đăng ký mới",
+  RENEW: "Gia hạn",
+  UPGRADE: "Nâng gói",
+  DOWNGRADE: "Hạ gói theo lịch",
+};
+
+/** Resolve the action from entitlements, never from the button or a caller-provided kind. */
+export function resolveOrderKind(
+  subscriptions: MemberSubscription[],
+  pkg: MembershipPackage,
+): MembershipOrderKind {
+  const confirmed = subscriptions.filter(
+    (s) => s.status === "CONFIRMED" && !s.replacedOn,
+  );
+  const active = confirmed.find((s) => getSubscriptionStatus(s) === "ACTIVE");
+  const future = [...confirmed]
+    .filter((s) => s.endDate >= todayDate())
+    .sort((a, b) => b.endDate.localeCompare(a.endDate))[0];
+  const reference = active ?? future;
+  if (!reference) return confirmed.length ? "RENEW" : "REGISTER";
+  if (reference.packageId === pkg.id || reference.tier === pkg.tier)
+    return "RENEW";
+  if (reference.tier === "PREMIUM") return "DOWNGRADE";
+  // Without an active period, the higher tier begins after the prepaid future periods.
+  return active ? "UPGRADE" : "RENEW";
 }
 
 function buildQuote(
@@ -295,15 +367,16 @@ function buildQuote(
     throw new Error("Gói tập này hiện không mở đăng ký.");
   if (!["CASH", "BANK_TRANSFER", "CARD"].includes(input.paymentMethod))
     throw new Error("Phương thức thanh toán không hợp lệ.");
-  if (!["REGISTER", "RENEW"].includes(input.kind))
+  if (!["REGISTER", "RENEW", "UPGRADE", "DOWNGRADE"].includes(input.kind))
     throw new Error("Loại đăng ký không hợp lệ.");
   const memberSubscriptions = state.subscriptions.filter(
     (item) => item.memberId === member.id,
   );
   if (
-    memberSubscriptions.some((item) => item.status === "PENDING") ||
+    memberSubscriptions.some((item) => item.status === "PENDING_PAYMENT") ||
     state.invoices.some(
-      (item) => item.memberId === member.id && item.status === "PENDING",
+      (item) =>
+        item.memberId === member.id && item.status === "PENDING_PAYMENT",
     )
   ) {
     throw new Error(
@@ -311,42 +384,61 @@ function buildQuote(
     );
   }
   const confirmed = memberSubscriptions.filter(
-    (item) => item.status === "CONFIRMED",
+    (item) => item.status === "CONFIRMED" && !item.replacedOn,
   );
   const today = todayDate();
   const latestEnd = confirmed.reduce(
     (latest, item) => (item.endDate > latest ? item.endDate : latest),
     "",
   );
-  if (input.kind === "REGISTER" && latestEnd >= today)
+  const kind = resolveOrderKind(memberSubscriptions, selectedPackage);
+  const current = confirmed.find((s) => getSubscriptionStatus(s) === "ACTIVE");
+  if (
+    kind === "UPGRADE" &&
+    current &&
+    selectedPackage.price <= current.packagePrice
+  )
     throw new Error(
-      "Thành viên đã có gói còn hạn. Vui lòng chọn Gia hạn để cộng dồn thời gian.",
-    );
-  if (input.kind === "RENEW" && !confirmed.length)
-    throw new Error(
-      "Thành viên chưa có gói tập để gia hạn. Vui lòng chọn Đăng ký mới.",
+      "Giá gói nâng cấp phải lớn hơn giá gói hiện tại. Vui lòng chọn kỳ hạn phù hợp hoặc liên hệ quản lý để cấu hình giá.",
     );
   const startDate =
-    input.kind === "RENEW" && latestEnd >= today
+    kind !== "UPGRADE" && latestEnd >= today
       ? addDateDays(latestEnd, 1)
       : today;
   return {
-    ...input,
+    memberId: input.memberId,
+    packageId: input.packageId,
+    paymentMethod: input.paymentMethod,
+    kind,
     memberName: member.fullName || member.username,
     memberEmail: member.email,
     packageName: selectedPackage.name,
     durationMonths: selectedPackage.durationMonths,
     benefits: [...selectedPackage.benefits],
-    amount: selectedPackage.price,
+    tier: selectedPackage.tier,
+    packagePrice: selectedPackage.price,
+    amount:
+      kind === "UPGRADE" && current
+        ? selectedPackage.price - current.packagePrice
+        : selectedPackage.price,
+    ...(kind === "UPGRADE" && current
+      ? {
+          previousSubscriptionId: current.id,
+          previousPackagePrice: current.packagePrice,
+        }
+      : {}),
     startDate,
-    endDate: addDateDays(
-      addMonthsClamped(startDate, selectedPackage.durationMonths),
-      -1,
-    ),
+    endDate:
+      kind === "UPGRADE" && current
+        ? current.endDate
+        : addDateDays(
+            addMonthsClamped(startDate, selectedPackage.durationMonths),
+            -1,
+          ),
   };
 }
 
-/** Synchronous mock adapter. Replace this boundary with API calls when the BE is ready. */
+/** Local mock adapter. Replace this boundary with API calls when the BE is ready. */
 export const membershipService = {
   listPackages(
     actor: MembershipActor,
@@ -383,11 +475,19 @@ export const membershipService = {
     if (packageId) {
       const index = state.packages.findIndex((item) => item.id === packageId);
       if (index === -1) throw new Error("Không tìm thấy gói tập.");
+      if (
+        values.tier !== state.packages[index].tier &&
+        state.subscriptions.some((s) => s.packageId === packageId)
+      )
+        throw new Error(
+          "Gói đã có lịch sử đăng ký không thể đổi hạng. Hãy tạo gói mới để bảo toàn quy tắc nâng/hạ gói.",
+        );
       result = { ...state.packages[index], ...values, updatedAt: now };
       state.packages[index] = result;
     } else {
       result = {
         ...values,
+        tier: values.tier ?? "BASIC",
         id: crypto.randomUUID(),
         isActive: true,
         createdAt: now,
@@ -492,7 +592,7 @@ export const membershipService = {
       id: invoiceId,
       number: `HD-${todayDate().replaceAll("-", "")}-${invoiceId.slice(0, 8).toUpperCase()}`,
       subscriptionId,
-      status: "PENDING",
+      status: "PENDING_PAYMENT",
       createdAt,
       createdBy: actor.id,
     };
@@ -501,13 +601,16 @@ export const membershipService = {
       memberId: quote.memberId,
       packageId: quote.packageId,
       packageName: quote.packageName,
+      tier: quote.tier,
+      packagePrice: quote.packagePrice,
+      previousSubscriptionId: quote.previousSubscriptionId,
       durationMonths: quote.durationMonths,
       benefits: [...quote.benefits],
       amount: quote.amount,
       startDate: quote.startDate,
       endDate: quote.endDate,
       kind: quote.kind,
-      status: "PENDING",
+      status: "PENDING_PAYMENT",
       invoiceId,
       createdAt,
     };
@@ -516,5 +619,174 @@ export const membershipService = {
     // One write makes creating the reservation and invoice atomic in this mock adapter.
     saveState(state);
     return { subscription, invoice };
+  },
+
+  confirmCashPayment(
+    actor: MembershipActor,
+    invoiceId: string,
+    receivedAmount: number,
+  ): MembershipOrder {
+    const cashier = authorize(actor, STAFF_ROLES);
+    const state = readState();
+    const invoice = state.invoices.find((i) => i.id === invoiceId);
+    if (!invoice || invoice.status !== "PENDING_PAYMENT")
+      throw new Error(
+        "Hóa đơn không còn chờ thanh toán. Vui lòng tải lại danh sách.",
+      );
+    if (invoice.paymentMethod !== "CASH")
+      throw new Error("Chỉ được xác nhận giao dịch tiền mặt tại màn hình này.");
+    if (
+      !Number.isSafeInteger(receivedAmount) ||
+      receivedAmount !== invoice.amount
+    )
+      throw new Error("Số tiền đã thu phải bằng số tiền trên hóa đơn.");
+    const member = assertMemberAccess(actor, invoice.memberId);
+    if (member.isLocked) throw new Error("Tài khoản thành viên đang bị khóa.");
+    const subscription = state.subscriptions.find(
+      (s) => s.id === invoice.subscriptionId,
+    );
+    if (!subscription || subscription.status !== "PENDING_PAYMENT")
+      throw new Error("Yêu cầu gói tập không hợp lệ.");
+    const today = todayDate();
+    if (invoice.kind === "UPGRADE") {
+      const previous = state.subscriptions.find(
+        (s) => s.id === invoice.previousSubscriptionId,
+      );
+      if (!previous || getSubscriptionStatus(previous) !== "ACTIVE")
+        throw new Error(
+          "Gói gốc không còn hiệu lực. Hãy hủy yêu cầu nâng gói cũ và lập yêu cầu mới; chưa xác nhận thu tiền.",
+        );
+      previous.replacedOn = today;
+      subscription.startDate = today;
+      invoice.startDate = today;
+    } else if (invoice.startDate < today) {
+      // Never spend a member's period waiting for the cashier. Price/benefit snapshots stay frozen.
+      subscription.startDate = today;
+      subscription.endDate = addDateDays(
+        addMonthsClamped(today, invoice.durationMonths),
+        -1,
+      );
+      invoice.startDate = subscription.startDate;
+      invoice.endDate = subscription.endDate;
+    }
+    const overlap = state.subscriptions.some(
+      (s) =>
+        s.id !== subscription.id &&
+        s.memberId === subscription.memberId &&
+        s.status === "CONFIRMED" &&
+        !s.replacedOn &&
+        s.startDate <= subscription.endDate &&
+        s.endDate >= subscription.startDate,
+    );
+    if (overlap)
+      throw new Error(
+        "Kỳ sử dụng bị trùng với gói đã xác nhận. Hãy hủy yêu cầu và lập lại.",
+      );
+    invoice.status = "PAID";
+    invoice.paidAt = new Date().toISOString();
+    invoice.paidBy = cashier.id;
+    invoice.paidByName = cashier.fullName;
+    subscription.status = "CONFIRMED";
+    // One write: receipt and access change together; a repeated click cannot collect twice.
+    saveState(state);
+    return { invoice, subscription };
+  },
+
+  cancelPendingOrder(actor: MembershipActor, invoiceId: string): void {
+    authorize(actor, MEMBER_ROLES);
+    const state = readState();
+    const invoice = state.invoices.find((i) => i.id === invoiceId);
+    if (!invoice) throw new Error("Không tìm thấy hóa đơn.");
+    assertMemberAccess(actor, invoice.memberId);
+    if (invoice.status !== "PENDING_PAYMENT")
+      throw new Error("Chỉ được hủy yêu cầu chưa thanh toán.");
+    const sub = state.subscriptions.find(
+      (s) => s.id === invoice.subscriptionId,
+    );
+    if (!sub || sub.status !== "PENDING_PAYMENT")
+      throw new Error("Yêu cầu không hợp lệ.");
+    sub.status = "CANCELED";
+    invoice.status = "CANCELED";
+    invoice.canceledAt = new Date().toISOString();
+    invoice.canceledBy = actor.id;
+    saveState(state);
+  },
+
+  async registerMemberAtCounter(
+    actor: MembershipActor,
+    input: CounterRegistrationInput,
+  ): Promise<{ member: MembershipActor; order: MembershipOrder }> {
+    authorize(actor, STAFF_ROLES);
+    const fullName = input.fullName.trim();
+    const email = input.email.trim().toLowerCase();
+    const username = input.username.trim();
+    const phone = input.phone.replace(/[\s.-]/g, "");
+    if (fullName.length < 2 || fullName.length > 80)
+      throw new Error("Họ tên phải có từ 2 đến 80 ký tự.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
+      throw new Error("Email không hợp lệ.");
+    if (!/^[a-zA-Z0-9_]{3,30}$/.test(username))
+      throw new Error("Tên đăng nhập gồm 3–30 chữ, số hoặc dấu gạch dưới.");
+    if (!/^(0\d{9}|\+84\d{9})$/.test(phone))
+      throw new Error("Số điện thoại gồm 10 chữ số hoặc dạng +84.");
+    if (
+      input.password.length < 8 ||
+      new TextEncoder().encode(input.password).length > 72
+    )
+      throw new Error("Mật khẩu phải từ 8 ký tự và tối đa 72 byte.");
+    if (!input.packageId)
+      throw new Error("Bắt buộc chọn gói tập khi đăng ký tại quầy.");
+    const passwordHash = await bcrypt.hash(input.password, 10);
+    // Re-read after hashing: validation must still hold when the writes happen.
+    authorize(actor, STAFF_ROLES);
+    const users = mockDb.getUsers();
+    if (users.some((u) => u.email.toLowerCase() === email))
+      throw new Error("Email đã được đăng ký. Hãy chọn thành viên hiện có.");
+    if (users.some((u) => u.username.toLowerCase() === username.toLowerCase()))
+      throw new Error("Tên đăng nhập đã tồn tại.");
+    const state = readState();
+    const pkg = state.packages.find(
+      (p) => p.id === input.packageId && p.isActive,
+    );
+    if (!pkg) throw new Error("Gói tập này hiện không mở đăng ký.");
+    if (pkg.price !== input.expectedPrice)
+      throw new Error(
+        "Giá gói vừa thay đổi. Hãy đóng form, tải lại danh sách và chọn lại gói.",
+      );
+    if (!["CASH", "BANK_TRANSFER", "CARD"].includes(input.paymentMethod))
+      throw new Error("Phương thức thanh toán không hợp lệ.");
+    const user: User = {
+      id: crypto.randomUUID(),
+      fullName,
+      email,
+      username,
+      phone,
+      passwordHash,
+      role: "MEMBER",
+      createdAt: new Date().toISOString(),
+      failedAttempts: 0,
+      isLocked: false,
+    };
+    const { passwordHash: _passwordHash, ...member } = user;
+    // Two localStorage keys cannot be transactional. Compensate on failure; BE must use a DB transaction.
+    mockDb.saveUsers([...users, user]);
+    try {
+      const order = membershipService.createMembershipOrder(actor, {
+        memberId: member.id,
+        packageId: pkg.id,
+        paymentMethod: input.paymentMethod,
+        kind: "REGISTER",
+      });
+      return { member, order };
+    } catch (error) {
+      try {
+        mockDb.saveUsers(users);
+      } catch {
+        throw new Error(
+          "Không lưu được gói và không thể hoàn tác tài khoản. Liên hệ quản lý để kiểm tra trước khi thử lại.",
+        );
+      }
+      throw error;
+    }
   },
 };

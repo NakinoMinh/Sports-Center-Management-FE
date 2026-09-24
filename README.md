@@ -95,6 +95,14 @@ Mật khẩu mặc định của các tài khoản dưới đây là `Pass@1234`
 
 Bạn cũng có thể tạo tài khoản Member mới tại màn hình đăng ký. Dữ liệu của bản demo hiện lưu ở LocalStorage của trình duyệt, nên mỗi trình duyệt hoặc profile có dữ liệu riêng.
 
+### Luồng gói tập và xác nhận tiền mặt
+
+- **Receptionist → Đăng ký & gia hạn tại quầy:** chọn Member hiện có hoặc bấm **Đăng ký thành viên mới tại quầy**. Tạo Member tại quầy bắt buộc chọn gói; chỉ tạo yêu cầu chờ thanh toán, không tự kích hoạt.
+- **Receptionist / Center Manager → Xác nhận tiền mặt** (`/payments/cash`): tìm hóa đơn, kiểm tra thông tin, nhập đúng số tiền và tích xác nhận đã thu. Hóa đơn chuyển từ `PENDING_PAYMENT` sang `PAID`; gói hoạt động ngay hoặc chờ đúng ngày bắt đầu.
+- **Member → Gói tập của tôi:** cùng gói tự chuyển sang gia hạn, không trùng kỳ và không mất ngày còn lại. Basic → Premium thu **toàn bộ chênh lệch giá hai gói**, giữ hạn hiện tại. Premium → Basic lên lịch sau kỳ đã thanh toán, không hạ ngay.
+- Hạng Basic/Premium độc lập thời hạn tháng/quý/năm. Với dữ liệu cũ, các gói được giữ nguyên và mặc định Basic; Manager tạo gói Premium để thử nâng/hạ, không cần xóa dữ liệu.
+- Chuyển khoản/thẻ chưa có đối soát. Mọi thanh toán và phân quyền hiện chỉ mô phỏng FE, không thay thế kiểm tra tại BE. Hướng dẫn chi tiết và trường hợp biên: [Sprint 1 — phần FE của Minh](docs/SPRINT1_MINH.md).
+
 ### 6. Kiểm tra code trước khi commit
 
 ```bash
