@@ -16,6 +16,7 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { DashboardPreview } from "./pages/DashboardPreview";
 import { MembershipPackagesPage } from "./pages/manager/MembershipPackagesPage";
 import { MembershipPage } from "./pages/membership/MembershipPage";
+import { CashPaymentsPage } from "./pages/membership/CashPaymentsPage";
 import type { UserRole } from "./types/auth";
 import "./App.css";
 import "./styles/workspace.css";
@@ -41,11 +42,14 @@ function OwnedScreen({
   role,
   children,
 }: {
-  role: UserRole;
+  role: UserRole | UserRole[];
   children: ReactNode;
 }) {
   const { currentUser } = useAuth();
-  if (currentUser?.role !== role)
+  if (
+    !currentUser ||
+    !(Array.isArray(role) ? role : [role]).includes(currentUser.role)
+  )
     return (
       <div className="panel access-message">
         <span className="eyebrow">Quyền truy cập</span>
@@ -74,6 +78,14 @@ export default function App() {
           <Route path="/login" element={<AuthPage tab="login" />} />
           <Route path="/register" element={<AuthPage tab="register" />} />
           <Route element={<WorkspaceLayout />}>
+            <Route
+              path="/payments/cash"
+              element={
+                <OwnedScreen role={["RECEPTIONIST", "CENTER_MANAGER"]}>
+                  <CashPaymentsPage />
+                </OwnedScreen>
+              }
+            />
             <Route
               path="/manager/packages"
               element={

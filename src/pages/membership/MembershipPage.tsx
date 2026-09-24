@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
 import {
   ArrowRight,
   CalendarDays,
@@ -19,6 +20,8 @@ import { Dialog } from "../../components/common/Dialog";
 import {
   membershipService,
   getSubscriptionStatus,
+  resolveOrderKind,
+  orderKindLabels,
 } from "../../services/membershipService";
 import type {
   MemberSubscription,
@@ -30,17 +33,21 @@ import type {
 } from "../../types/membership";
 import { durationLabel, formatDate, formatMoney } from "../../utils/format";
 import { InvoiceDocument } from "../../components/membership/InvoiceDocument";
+import { CounterRegistrationForm } from "../../components/membership/CounterRegistrationForm";
 
 const paymentLabels: Record<PaymentMethod, string> = {
   CASH: "Tiền mặt tại quầy",
-  BANK_TRANSFER: "Chuyển khoản",
-  CARD: "Thẻ tại quầy",
+  BANK_TRANSFER: "Chuyển khoản (chưa kết nối)",
+  CARD: "Thẻ tại quầy (chưa kết nối)",
 };
 const statusLabels = {
   ACTIVE: "Đang hoạt động",
   UPCOMING: "Sắp bắt đầu",
   EXPIRED: "Đã hết hạn",
-  PENDING: "Chờ thanh toán",
+  PENDING_PAYMENT: "Chờ thanh toán",
+  SCHEDULED_DOWNGRADE: "Đã lên lịch hạ gói",
+  REPLACED: "Đã nâng gói",
+  CANCELED: "Đã hủy",
 };
 type Snapshot = {
   packages: MembershipPackage[];
@@ -66,12 +73,17 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
   const [quoteError, setQuoteError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [invoice, setInvoice] = useState<MembershipInvoice | null>(null);
+  const [registering, setRegistering] = useState(false);
+  const [canceling, setCanceling] = useState(false);
   const isCounter = mode === "receptionist";
   const memberId = isCounter ? selectedMember : (currentUser?.id ?? "");
 
   const refresh = useCallback(() => {
     if (!currentUser) return;
     try {
+      const invoices = memberId
+        ? membershipService.listInvoices(currentUser, memberId)
+        : [];
       setSnapshot({
         packages: membershipService.listPackages(currentUser),
         members: isCounter
@@ -80,10 +92,13 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
         subscriptions: memberId
           ? membershipService.getMemberSubscriptions(currentUser, memberId)
           : [],
-        invoices: memberId
-          ? membershipService.listInvoices(currentUser, memberId)
-          : [],
+        invoices,
       });
+      setInvoice((opened) =>
+        opened
+          ? (invoices.find((item) => item.id === opened.id) ?? null)
+          : null,
+      );
       setError("");
     } catch (err) {
       setSnapshot(emptySnapshot);
@@ -103,9 +118,11 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
     refresh();
     window.addEventListener("storage", refresh);
     window.addEventListener("focus", refresh);
+    const timer = window.setInterval(refresh, 60000);
     return () => {
       window.removeEventListener("storage", refresh);
       window.removeEventListener("focus", refresh);
+      window.clearInterval(timer);
     };
   }, [refresh]);
 
@@ -116,7 +133,7 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
     .filter((sub) => getSubscriptionStatus(sub) === "ACTIVE")
     .sort((a, b) => b.endDate.localeCompare(a.endDate))[0];
   const pending = snapshot.subscriptions.find(
-    (sub) => sub.status === "PENDING",
+    (sub) => sub.status === "PENDING_PAYMENT",
   );
   const kind = confirmed.length ? "RENEW" : "REGISTER";
   const member = snapshot.members.find((item) => item.id === memberId);
@@ -131,7 +148,7 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
         membershipService.quoteMembershipOrder(currentUser, {
           memberId,
           packageId: pkg.id,
-          kind,
+          kind: resolveOrderKind(snapshot.subscriptions, pkg),
           paymentMethod: "CASH",
         }),
       );
@@ -210,7 +227,19 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
       )}
       {isCounter && (
         <section className="panel member-picker">
-          <div>
+          <div className="counter-actions">
+            <button
+              className="button primary"
+              disabled={loading || !!error}
+              onClick={() => setRegistering(true)}
+            >
+              Đăng ký thành viên mới tại quầy
+            </button>
+            <Link className="button secondary" to="/payments/cash">
+              Xác nhận thu tiền mặt
+            </Link>
+          </div>
+          <div className="member-picker-heading">
             <Users size={21} />
             <div>
               <h2>Thành viên cần hỗ trợ</h2>
@@ -325,6 +354,15 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
           )}
           {(!isCounter || memberId) && (
             <>
+              <div className="info-note">
+                <p>
+                  Cùng hạng: gia hạn nối tiếp, không mất ngày còn lại. Basic →
+                  Premium: nâng gói ngay sau thanh toán, thu toàn bộ chênh lệch
+                  giá và giữ ngày hết hạn. Premium → Basic: lên lịch sau kỳ đã
+                  thanh toán, không hạ ngay. Nếu đã trả trước kỳ sau, nâng gói
+                  chỉ áp dụng kỳ hiện tại; các kỳ sau giữ nguyên.
+                </p>
+              </div>
               <div className="section-heading">
                 <div>
                   <span className="eyebrow">CHỌN BƯỚC TIẾP THEO</span>
@@ -356,6 +394,9 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                       {durationLabel(pkg.durationMonths)}
                     </span>
                     <h3>{pkg.name}</h3>
+                    <span className="tier-label">
+                      {pkg.tier === "PREMIUM" ? "Premium" : "Basic"}
+                    </span>
                     <div className="package-price">
                       {formatMoney(pkg.price)}
                       <small>/ {durationLabel(pkg.durationMonths)}</small>
@@ -378,7 +419,11 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                       disabled={!!pending || !memberId || !!error}
                       onClick={() => selectPackage(pkg)}
                     >
-                      {kind === "RENEW" ? "Gia hạn gói này" : "Đăng ký gói này"}
+                      {
+                        orderKindLabels[
+                          resolveOrderKind(snapshot.subscriptions, pkg)
+                        ]
+                      }
                       <ArrowRight size={16} />
                     </button>
                   </article>
@@ -428,16 +473,20 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                                 <td>
                                   <strong>{sub.packageName}</strong>
                                   <small>
-                                    {sub.kind === "RENEW"
-                                      ? "Gia hạn"
-                                      : "Đăng ký mới"}{" "}
-                                    · {durationLabel(sub.durationMonths)}
+                                    {orderKindLabels[sub.kind]} ·{" "}
+                                    {durationLabel(sub.durationMonths)}
                                   </small>
                                 </td>
                                 <td>
                                   {formatDate(sub.startDate)} –{" "}
                                   {formatDate(sub.endDate)}
-                                  {sub.status === "PENDING" && (
+                                  {sub.replacedOn && (
+                                    <small>
+                                      Đã thay thế từ{" "}
+                                      {formatDate(sub.replacedOn)}
+                                    </small>
+                                  )}
+                                  {sub.status === "PENDING_PAYMENT" && (
                                     <small>
                                       Thời gian dự kiến, chưa kích hoạt
                                     </small>
@@ -501,11 +550,7 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
       )}
       {quote && (
         <Dialog
-          title={
-            quote.kind === "RENEW"
-              ? "Xác nhận gia hạn gói tập"
-              : "Xác nhận đăng ký gói tập"
-          }
+          title={`Xác nhận: ${orderKindLabels[quote.kind]}`}
           description="Kiểm tra thông tin trước khi tạo hóa đơn chờ thanh toán."
           onClose={() => {
             if (!submitting) setQuote(null);
@@ -579,6 +624,28 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
               ))}
             </select>
           </label>
+          {quote.kind === "UPGRADE" && (
+            <div className="info-note">
+              <p>
+                Phí nâng gói = {formatMoney(quote.packagePrice)} −{" "}
+                {formatMoney(quote.previousPackagePrice ?? 0)} ={" "}
+                <strong>{formatMoney(quote.amount)}</strong>. Thu toàn bộ chênh
+                lệch, không tính theo số ngày còn lại. Ngày hết hạn vẫn là{" "}
+                {formatDate(quote.endDate)}; đây không phải mua thêm{" "}
+                {quote.durationMonths} tháng.
+              </p>
+            </div>
+          )}
+          {quote.kind === "DOWNGRADE" && (
+            <div className="info-note">
+              <p>
+                Scheduled Downgrade: giữ quyền lợi gói đã thanh toán đến hết kỳ.
+                Gói Basic chỉ bắt đầu từ {formatDate(quote.startDate)}, sau khi
+                đã xác nhận thanh toán. Nếu có các kỳ trả trước, lịch hạ nằm sau
+                toàn bộ các kỳ đó.
+              </p>
+            </div>
+          )}
           <div className="info-note">
             <Clock3 size={18} />
             <p>
@@ -610,11 +677,91 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                 <FileText size={17} />
                 In / Lưu PDF
               </button>
+              {invoice.status === "PENDING_PAYMENT" && (
+                <button
+                  className="button danger"
+                  onClick={() => setCanceling(true)}
+                >
+                  Hủy yêu cầu chưa thanh toán
+                </button>
+              )}
+              {isCounter &&
+                invoice.status === "PENDING_PAYMENT" &&
+                invoice.paymentMethod === "CASH" && (
+                  <Link
+                    className="button secondary"
+                    to={`/payments/cash?invoice=${invoice.id}`}
+                  >
+                    Đến xác nhận thu tiền
+                  </Link>
+                )}
             </>
           }
         >
           <InvoiceDocument invoice={invoice} />
         </Dialog>
+      )}
+      {canceling && invoice && currentUser && (
+        <Dialog
+          title="Hủy yêu cầu chưa thanh toán?"
+          onClose={() => setCanceling(false)}
+          footer={
+            <>
+              <button
+                className="button secondary"
+                onClick={() => setCanceling(false)}
+              >
+                Giữ yêu cầu
+              </button>
+              <button
+                className="button danger"
+                onClick={() => {
+                  try {
+                    membershipService.cancelPendingOrder(
+                      currentUser,
+                      invoice.id,
+                    );
+                    setInvoice(null);
+                    setCanceling(false);
+                    refresh();
+                    setNotice(
+                      "Đã hủy yêu cầu chưa thanh toán. Gói đang hoạt động không thay đổi.",
+                    );
+                  } catch (err) {
+                    setCanceling(false);
+                    setInvoice(null);
+                    refresh();
+                    setError(
+                      err instanceof Error ? err.message : "Không thể hủy.",
+                    );
+                  }
+                }}
+              >
+                Xác nhận hủy
+              </button>
+            </>
+          }
+        >
+          <p>
+            Chỉ hủy hóa đơn {invoice.number} và kỳ dự kiến đi kèm. Không hoàn
+            tiền và không ảnh hưởng gói đã thanh toán.
+          </p>
+        </Dialog>
+      )}
+      {registering && currentUser && (
+        <CounterRegistrationForm
+          actor={currentUser}
+          packages={snapshot.packages}
+          onClose={() => setRegistering(false)}
+          onCreated={(newMember, order) => {
+            setRegistering(false);
+            setSelectedMember(newMember.id);
+            setInvoice(order.invoice);
+            setNotice(
+              `Đã tạo thành viên ${newMember.fullName} và yêu cầu gói. Cần xác nhận thanh toán để kích hoạt.`,
+            );
+          }}
+        />
       )}
       {invoice &&
         createPortal(

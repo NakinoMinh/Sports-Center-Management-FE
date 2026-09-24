@@ -287,6 +287,9 @@ export function MembershipPackagesPage() {
                         </span>
                         <div>
                           <strong>{item.name}</strong>
+                          <small className="tier-label">
+                            {item.tier === "PREMIUM" ? "Premium" : "Basic"}
+                          </small>
                           <details className="package-benefits">
                             <summary>{item.benefits.length} quyền lợi</summary>
                             <ul>

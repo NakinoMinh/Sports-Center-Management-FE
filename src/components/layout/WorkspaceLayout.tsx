@@ -71,6 +71,13 @@ export function WorkspaceLayout() {
             <span>{label}</span>
             <ArrowUpRight size={15} />
           </NavLink>
+          {(manager || reception) && (
+            <NavLink to="/payments/cash" onClick={() => setMenuOpen(false)}>
+              <ShieldCheck size={19} />
+              <span>Xác nhận tiền mặt</span>
+              <ArrowUpRight size={15} />
+            </NavLink>
+          )}
         </nav>
         <div className="sidebar-note">
           <span className="sidebar-note-icon">
