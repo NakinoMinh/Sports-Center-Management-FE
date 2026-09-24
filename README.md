@@ -2,13 +2,31 @@
 
 **Công nghệ:** Sử dụng React JS (Vite + TypeScript) cho hiệu năng tốt và hỗ trợ type chặt chẽ.
 
-**Kiến trúc (Không dùng MVVM):** Mình đã thiết lập cấu trúc thư mục tiêu chuẩn của React theo Component-based và Hooks thay vì MVVM (Model-View-ViewModel):
-- `src/components/`: Chứa các thành phần UI dùng lại (Button, Input, Form...).
-- `src/pages/`: Chứa các giao diện trang (Dashboard, Schedule, Member, Payment...).
-- `src/services/`: Chứa các hàm giao tiếp API (thay cho Model/ViewModel gửi request).
-- `src/hooks/`: Chứa logic nghiệp vụ được tách ra (thay thế phần xử lý logic của ViewModel).
-- `src/context/`: Quản lý state toàn cục.
-- `src/utils/`: Chứa các hàm hỗ trợ format.
+## Kiến trúc FE (Không dùng MVVM)
+
+Dự án tổ chức theo hướng **Component-based** và **React Hooks**, không dùng mô hình MVVM (Model-View-ViewModel). Giao diện nằm trong component/page, trạng thái dùng chung đặt trong Context, còn nghiệp vụ và dữ liệu được tách vào Service. Cách tổ chức này giúp UI dễ tái sử dụng và sau này có thể thay LocalStorage bằng API backend mà ít ảnh hưởng đến màn hình.
+
+- `src/assets/`: Ảnh, SVG, logo và các tài nguyên được import vào giao diện.
+- `src/components/`: Các UI tái sử dụng như Input, Alert, Dialog, sidebar/header, form gói tập và mẫu hóa đơn.
+- `src/context/`: State dùng chung cho toàn ứng dụng. Hiện có `AuthContext` quản lý phiên đăng nhập, user hiện tại và logout.
+- `src/hooks/`: Custom hooks. `useAuth` giúp component lấy dữ liệu từ `AuthContext`.
+- `src/pages/`: Các trang hoàn chỉnh: Login, Register, quản lý gói tập của Manager, đăng ký/gia hạn của Member và hỗ trợ tại quầy cho Receptionist.
+- `src/services/`: Xử lý nghiệp vụ và dữ liệu. Hiện dùng mock data/LocalStorage cho xác thực, gói tập, gia hạn và hóa đơn; khi backend sẵn sàng sẽ thay phần này bằng API calls.
+- `src/styles/`: CSS cho vùng làm việc sau khi đăng nhập: sidebar, bảng, card, responsive mobile và in hóa đơn.
+- `src/types/`: Các kiểu TypeScript như `User`, `UserRole`, `MembershipPackage`, `MemberSubscription` và `MembershipInvoice`.
+- `src/utils/`: Hàm dùng chung để format tiền VND, ngày tháng và điều hướng theo vai trò.
+- `src/App.tsx`: Khai báo route, bảo vệ các trang đã đăng nhập và điều hướng theo role.
+- `src/App.css`: CSS cho Login/Register.
+- `src/index.css`: CSS toàn cục, font, màu và reset cơ bản.
+- `src/main.tsx`: Điểm khởi chạy, render `<App />` vào phần tử `#root`.
+
+Luồng chính của FE:
+
+```text
+main.tsx → App.tsx → AuthProvider/AuthContext
+         → Login/Register hoặc WorkspaceLayout
+         → Page theo role → Service → LocalStorage (hiện tại) / API BE (sau này)
+```
 
 ## 👥 Các Actor (Vai trò)
 - **Center Manager** – Quản lý trung tâm
