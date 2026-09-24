@@ -40,7 +40,78 @@ main.tsx → App.tsx → AuthProvider/AuthContext
 - **Flow 3**: Payment and report management
 
 ## 🚀 Hướng dẫn chạy dự án
+
+### 1. Cài đặt công cụ cần thiết
+
+Cần cài [Node.js](https://nodejs.org/) phiên bản **20 LTS trở lên**. Node.js đã bao gồm npm, là công cụ dùng để cài thư viện và chạy các lệnh của dự án.
+
+Mở Terminal, PowerShell hoặc Command Prompt và kiểm tra:
+
+```bash
+node --version
+npm --version
+```
+
+Nếu cả hai lệnh đều trả về số phiên bản, môi trường đã sẵn sàng. Dự án hiện đã được kiểm tra với Node.js `24.16.0` và npm `11.13.0`.
+
+### 2. Clone hoặc mở source code
+
+Nếu chưa có source code trên máy:
+
+```bash
+git clone https://github.com/NakinoMinh/Sports-Center-Management-System-FE.git
+cd Sports-Center-Management-System-FE
+git switch Minh
+```
+
+Nếu đã tải source code, chỉ cần mở terminal tại thư mục `Sports-Center-Management-System-FE`.
+
+### 3. Cài đặt thư viện
+
 ```bash
 npm install
+```
+
+Lệnh này đọc `package.json` và cài React, Vite, TypeScript, React Router, Lucide icons, bcryptjs cùng các thư viện phát triển vào thư mục `node_modules`.
+
+### 4. Chạy môi trường phát triển
+
+```bash
 npm run dev
 ```
+
+Terminal sẽ hiển thị một địa chỉ tương tự `http://localhost:5173/`. Mở địa chỉ đó trên trình duyệt để sử dụng giao diện. Khi sửa code, Vite tự cập nhật trang.
+
+### 5. Tài khoản demo
+
+Mật khẩu mặc định của các tài khoản dưới đây là `Pass@1234`:
+
+| Vai trò | Email |
+| --- | --- |
+| Center Manager | `manager@sportscenter.com` |
+| Coach | `coach@sportscenter.com` |
+| Member | `member@sportscenter.com` |
+| Receptionist | `receptionist@sportscenter.com` |
+
+Bạn cũng có thể tạo tài khoản Member mới tại màn hình đăng ký. Dữ liệu của bản demo hiện lưu ở LocalStorage của trình duyệt, nên mỗi trình duyệt hoặc profile có dữ liệu riêng.
+
+### 6. Kiểm tra code trước khi commit
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+- `npm run lint`: kiểm tra lỗi style và chất lượng code.
+- `npm test`: chạy kiểm thử cho xác thực, gói tập, gia hạn và hóa đơn.
+- `npm run build`: kiểm tra TypeScript và tạo bản production trong thư mục `dist/`.
+
+### Lỗi thường gặp
+
+| Vấn đề | Cách xử lý |
+| --- | --- |
+| `node` hoặc `npm` không được nhận diện | Cài Node.js LTS, đóng/mở lại terminal rồi chạy lại `node --version`. |
+| Thiếu package hoặc lỗi `Cannot find module` | Xóa `node_modules` và chạy lại `npm install`. |
+| Cổng `5173` đang được sử dụng | Vite sẽ đề xuất cổng khác; mở đúng URL mà terminal hiển thị. |
+| Dữ liệu demo không như mong muốn | Mở DevTools → Application → Local Storage, xóa `scms_users_database`, `scms_memberships_v1`, `scms_auth_token` và `scms_demo_session_v1`, sau đó tải lại trang. |
