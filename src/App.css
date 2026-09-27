@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 32px;
   background-color: #080c14;
   overflow: hidden;
 }
@@ -53,26 +53,17 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  max-width: 1180px;
+  grid-template-columns: 1.05fr 1fr;
+  max-width: 1280px;
+  min-width: 960px;
   width: 100%;
-  min-height: 680px;
-  background: rgba(15, 23, 42, 0.85);
+  min-height: 640px;
+  background: #0f172a;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 24px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 40px rgba(6, 182, 212, 0.1);
   backdrop-filter: blur(20px);
   overflow: hidden;
-}
-
-@media (max-width: 960px) {
-  .scms-auth-container {
-    grid-template-columns: 1fr;
-    max-width: 540px;
-  }
-  .scms-hero-panel {
-    display: none;
-  }
 }
 
 /* Left Hero Panel (Sports Vibe) */
@@ -81,10 +72,11 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 48px;
+  padding: 36px;
   background: linear-gradient(135deg, rgba(8, 145, 178, 0.2) 0%, rgba(16, 185, 129, 0.15) 100%),
               url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1200&auto=format&fit=crop&q=80') center/cover no-repeat;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 0;
+  overflow: hidden;
 }
 
 .scms-hero-overlay {
@@ -99,7 +91,7 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 36px;
+  gap: 28px;
   height: 100%;
   justify-content: space-between;
 }
@@ -147,7 +139,7 @@
 
 /* Tagline */
 .scms-hero-tagline h1 {
-  font-size: 34px;
+  font-size: clamp(28px, 2.5vw, 36px);
   line-height: 1.25;
   font-weight: 800;
   color: #fff;
@@ -170,7 +162,7 @@
 .scms-features-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 .scms-feature-card {
@@ -253,14 +245,49 @@
   display: flex;
   flex-direction: column;
   padding: 36px 40px;
-  overflow-y: auto;
-  max-height: 90vh;
+  justify-content: center;
+  min-width: 0;
 }
 
 .scms-form-card {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* Desktop web layout: the document is the only scrolling surface. */
+.scms-auth-page {
+  min-width: 1024px;
+}
+
+body:has(.scms-auth-page) {
+  overflow-x: auto;
+}
+
+.scms-demo-accounts {
+  margin-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 16px;
+}
+
+.scms-demo-accounts summary {
+  width: fit-content;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.scms-demo-accounts summary:hover {
+  color: #22d3ee;
+}
+
+.scms-demo-accounts summary:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 5px;
+}
+
+.scms-demo-accounts[open] summary {
+  margin-bottom: 16px;
 }
 
 /* Tabs Header */
@@ -1512,4 +1539,8 @@
 
 .scms-btn-table-unlock:hover {
   background: #b91c1c;
+}
+.scms-brand-home {
+  color: inherit;
+  text-decoration: none;
 }

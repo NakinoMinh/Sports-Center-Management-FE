@@ -589,13 +589,6 @@ textarea {
   flex-wrap: wrap;
   gap: 12px;
 }
-.tier-label {
-  color: #24685b;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 .cash-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
@@ -1243,7 +1236,6 @@ textarea {
 .print-sheet {
   display: none;
 }
-/* Keep the auth mobile override after the original hero display declaration. */
 .scms-form-title-group {
   margin-bottom: 20px;
 }
@@ -1254,29 +1246,8 @@ textarea {
   min-width: 0;
 }
 @media (max-width: 960px) {
-  .scms-hero-panel {
-    display: none;
-  }
-  .scms-form-panel {
-    max-height: none;
-    overflow: visible;
-  }
   .workspace-sidebar:not(.is-open) {
     visibility: hidden;
-  }
-}
-@media (max-width: 600px) {
-  .scms-auth-page {
-    padding: 15px;
-  }
-  .scms-form-panel {
-    padding: 0;
-  }
-  .scms-form-body {
-    padding: 25px 20px;
-  }
-  .scms-form-title {
-    font-size: 23px;
   }
 }
 @media (min-width: 1650px) {

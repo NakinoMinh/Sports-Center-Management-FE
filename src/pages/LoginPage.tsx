@@ -144,19 +144,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
           Tạo tài khoản <ArrowRight size={14} />
         </button>
       </div>
-      <div className="scms-divider">
-        <span>Khám phá bằng tài khoản mẫu</span>
-      </div>
-      <QuickAccounts
-        onSelectAccount={(selectedEmail, selectedPassword) => {
-          setEmail(selectedEmail);
-          setPassword(selectedPassword);
-          setEmailError("");
-          setPasswordError("");
-          clearError();
-        }}
-        disabled={isLoading}
-      />
+      <details className="scms-demo-accounts">
+        <summary>Khám phá bằng tài khoản mẫu</summary>
+        <QuickAccounts
+          onSelectAccount={(selectedEmail, selectedPassword) => {
+            setEmail(selectedEmail);
+            setPassword(selectedPassword);
+            setEmailError("");
+            setPasswordError("");
+            clearError();
+          }}
+          disabled={isLoading}
+        />
+      </details>
     </div>
   );
 };

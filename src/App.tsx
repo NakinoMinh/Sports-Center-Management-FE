@@ -1,9 +1,10 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
 import {
   BrowserRouter,
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
 } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
@@ -12,6 +13,7 @@ import { AuthLayout } from "./components/layout/AuthLayout";
 import { WorkspaceLayout } from "./components/layout/WorkspaceLayout";
 import { homeForRole } from "./utils/navigation";
 import { LoginPage } from "./pages/LoginPage";
+import { HomePage } from "./pages/HomePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { DashboardPreview } from "./pages/DashboardPreview";
 import { MembershipPackagesPage } from "./pages/manager/MembershipPackagesPage";
@@ -20,6 +22,15 @@ import { CashPaymentsPage } from "./pages/membership/CashPaymentsPage";
 import type { UserRole } from "./types/auth";
 import "./App.css";
 import "./styles/workspace.css";
+
+function RouteScrollReset() {
+  const { pathname, hash, key } = useLocation();
+  useLayoutEffect(() => {
+    // Section anchors keep their native position; new screens start at the top.
+    if (!hash) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [pathname, hash, key]);
+  return null;
+}
 
 function AuthPage({ tab }: { tab: "login" | "register" }) {
   const { currentUser, isAuthenticated } = useAuth();
@@ -60,21 +71,13 @@ function OwnedScreen({
   return children;
 }
 
-function Home() {
-  const { currentUser } = useAuth();
-  return (
-    <Navigate
-      to={currentUser ? homeForRole(currentUser.role) : "/login"}
-      replace
-    />
-  );
-}
-
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <RouteScrollReset />
         <Routes>
+          <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<AuthPage tab="login" />} />
           <Route path="/register" element={<AuthPage tab="register" />} />
           <Route element={<WorkspaceLayout />}>
@@ -119,7 +122,7 @@ export default function App() {
               }
             />
           </Route>
-          <Route path="*" element={<Home />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

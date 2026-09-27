@@ -3,7 +3,6 @@ import type { User } from "./auth";
 export type MembershipActor = Omit<User, "passwordHash">;
 export type MembershipDuration = 1 | 3 | 12;
 export type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CARD";
-export type MembershipTier = "BASIC" | "PREMIUM";
 export type MembershipOrderKind =
   "REGISTER" | "RENEW" | "UPGRADE" | "DOWNGRADE";
 export type SubscriptionDisplayStatus =
@@ -20,11 +19,9 @@ export interface MembershipPackageInput {
   price: number;
   durationMonths: MembershipDuration;
   benefits: string[];
-  tier?: MembershipTier;
 }
 
 export interface MembershipPackage extends MembershipPackageInput {
-  tier: MembershipTier;
   id: string;
   isActive: boolean;
   createdAt: string;
@@ -48,10 +45,13 @@ export interface MembershipQuote extends MembershipOrderInput {
   amount: number;
   startDate: string;
   endDate: string;
-  tier: MembershipTier;
   packagePrice: number;
   previousSubscriptionId?: string;
   previousPackagePrice?: number;
+  /** Prorated unused value, rounded once to whole VND. Absent on legacy invoices. */
+  creditAmount?: number;
+  remainingDays?: number;
+  previousPeriodDays?: number;
 }
 
 /** PENDING_PAYMENT does not grant access. CONFIRMED is paid; dates determine ACTIVE/scheduled/expired. */
@@ -66,7 +66,6 @@ export interface MemberSubscription {
   startDate: string;
   endDate: string;
   kind: MembershipOrderKind;
-  tier: MembershipTier;
   packagePrice: number;
   previousSubscriptionId?: string;
   replacedOn?: string;

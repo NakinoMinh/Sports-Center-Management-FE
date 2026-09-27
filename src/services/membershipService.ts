@@ -17,8 +17,13 @@ import type {
 
 export const MEMBERSHIP_STORAGE_KEY = "scms_memberships_v1";
 
+export type PublicMembershipPackage = Pick<
+  MembershipPackage,
+  "id" | "name" | "price" | "durationMonths" | "benefits"
+>;
+
 interface MembershipState {
-  version: 2;
+  version: 3;
   packages: MembershipPackage[];
   subscriptions: MemberSubscription[];
   invoices: MembershipInvoice[];
@@ -78,7 +83,6 @@ function initialState(): MembershipState {
   const packages: MembershipPackage[] = [
     {
       id: "pkg_monthly",
-      tier: "BASIC",
       name: "Gói Tháng",
       price: 450000,
       durationMonths: 1,
@@ -93,7 +97,6 @@ function initialState(): MembershipState {
     },
     {
       id: "pkg_quarterly",
-      tier: "BASIC",
       name: "Gói Quý",
       price: 1200000,
       durationMonths: 3,
@@ -108,7 +111,6 @@ function initialState(): MembershipState {
     },
     {
       id: "pkg_yearly",
-      tier: "BASIC",
       name: "Gói Năm",
       price: 4200000,
       durationMonths: 12,
@@ -122,22 +124,8 @@ function initialState(): MembershipState {
       updatedAt: createdAt,
     },
   ];
-  packages.push(
-    ...packages.map((pkg) => ({
-      ...pkg,
-      id: `${pkg.id}_premium`,
-      tier: "PREMIUM" as const,
-      name: `${pkg.name} Premium`,
-      price: pkg.price * 2,
-      benefits: [
-        ...pkg.benefits,
-        "Tư vấn huấn luyện cá nhân",
-        "Ưu tiên hỗ trợ Premium",
-      ],
-    })),
-  );
   const state: MembershipState = {
-    version: 2,
+    version: 3,
     packages,
     subscriptions: [],
     invoices: [],
@@ -155,7 +143,6 @@ function initialState(): MembershipState {
       memberEmail: member.email,
       packageId: packages[0].id,
       packageName: packages[0].name,
-      tier: packages[0].tier,
       packagePrice: packages[0].price,
       durationMonths: 1,
       benefits: [...packages[0].benefits],
@@ -170,7 +157,6 @@ function initialState(): MembershipState {
       memberId: member.id,
       packageId: quote.packageId,
       packageName: quote.packageName,
-      tier: quote.tier,
       packagePrice: quote.packagePrice,
       durationMonths: quote.durationMonths,
       benefits: [...quote.benefits],
@@ -212,22 +198,32 @@ function readState(): MembershipState {
   try {
     const state = JSON.parse(stored);
     if (
-      ![1, 2].includes(state.version) ||
+      ![1, 2, 3].includes(state.version) ||
       !Array.isArray(state.packages) ||
       !Array.isArray(state.subscriptions) ||
       !Array.isArray(state.invoices)
     ) {
       throw new Error("Invalid state");
     }
-    if (state.version === 1) {
-      // Old catalogs describe duration, not rank. Preserve prices/history and assign BASIC.
-      for (const pkg of state.packages) pkg.tier ??= "BASIC";
+    if (state.version < 3) {
+      // Remove ranks while preserving catalog IDs, prices and all historical snapshots.
+      for (const pkg of state.packages) {
+        delete pkg.tier;
+        pkg.name = pkg.name
+          .replace(/\bBasic\b/gi, "Tiêu chuẩn")
+          .replace(/\bPremium\b/gi, "Mở rộng");
+        pkg.benefits = pkg.benefits.map((benefit: string) =>
+          benefit
+            .replace(/\bBasic\b/gi, "tiêu chuẩn")
+            .replace(/\bPremium\b/gi, "mở rộng"),
+        );
+      }
       for (const item of [...state.subscriptions, ...state.invoices]) {
-        item.tier ??= "BASIC";
+        delete item.tier;
         item.packagePrice ??= item.amount;
         if (item.status === "PENDING") item.status = "PENDING_PAYMENT";
       }
-      state.version = 2;
+      state.version = 3;
       // Migration is persisted on the next write; reads never overwrite old history.
     }
     return state as MembershipState;
@@ -289,8 +285,6 @@ function normalizePackage(
   }
   if (![1, 3, 12].includes(input.durationMonths))
     throw new Error("Thời hạn gói tập phải là 1, 3 hoặc 12 tháng.");
-  if (input.tier && !["BASIC", "PREMIUM"].includes(input.tier))
-    throw new Error("Hạng gói tập không hợp lệ.");
   if (
     !benefits.length ||
     benefits.length > 12 ||
@@ -305,7 +299,6 @@ function normalizePackage(
     price: input.price,
     durationMonths: input.durationMonths,
     benefits: [...new Set(benefits)],
-    tier: input.tier ?? "BASIC",
   };
 }
 
@@ -346,11 +339,13 @@ export function resolveOrderKind(
     .sort((a, b) => b.endDate.localeCompare(a.endDate))[0];
   const reference = active ?? future;
   if (!reference) return confirmed.length ? "RENEW" : "REGISTER";
-  if (reference.packageId === pkg.id || reference.tier === pkg.tier)
+  if (reference.packageId === pkg.id || reference.packagePrice === pkg.price)
     return "RENEW";
-  if (reference.tier === "PREMIUM") return "DOWNGRADE";
-  // Without an active period, the higher tier begins after the prepaid future periods.
-  return active ? "UPGRADE" : "RENEW";
+  if (pkg.price < reference.packagePrice) return "DOWNGRADE";
+  // Preserve already-paid future periods; the new package follows them in full.
+  return active && !confirmed.some((s) => s.startDate > todayDate())
+    ? "UPGRADE"
+    : "RENEW";
 }
 
 function buildQuote(
@@ -393,14 +388,19 @@ function buildQuote(
   );
   const kind = resolveOrderKind(memberSubscriptions, selectedPackage);
   const current = confirmed.find((s) => getSubscriptionStatus(s) === "ACTIVE");
-  if (
-    kind === "UPGRADE" &&
-    current &&
-    selectedPackage.price <= current.packagePrice
-  )
-    throw new Error(
-      "Giá gói nâng cấp phải lớn hơn giá gói hiện tại. Vui lòng chọn kỳ hạn phù hợp hoặc liên hệ quản lý để cấu hình giá.",
-    );
+  // UTC calendar days avoid daylight-saving offsets; both boundary dates count.
+  const inclusiveDays = (start: string, end: string) =>
+    Math.round((parseDate(end).getTime() - parseDate(start).getTime()) / 86400000) + 1;
+  const previousPeriodDays = current
+    ? inclusiveDays(current.startDate, current.endDate)
+    : 0;
+  const remainingDays = current
+    ? inclusiveDays(today, current.endDate)
+    : 0;
+  const creditAmount =
+    kind === "UPGRADE" && current
+      ? Math.round(current.packagePrice * remainingDays / previousPeriodDays)
+      : 0;
   const startDate =
     kind !== "UPGRADE" && latestEnd >= today
       ? addDateDays(latestEnd, 1)
@@ -415,31 +415,43 @@ function buildQuote(
     packageName: selectedPackage.name,
     durationMonths: selectedPackage.durationMonths,
     benefits: [...selectedPackage.benefits],
-    tier: selectedPackage.tier,
     packagePrice: selectedPackage.price,
     amount:
       kind === "UPGRADE" && current
-        ? selectedPackage.price - current.packagePrice
+        ? selectedPackage.price - creditAmount
         : selectedPackage.price,
     ...(kind === "UPGRADE" && current
       ? {
           previousSubscriptionId: current.id,
           previousPackagePrice: current.packagePrice,
+          creditAmount,
+          remainingDays,
+          previousPeriodDays,
         }
       : {}),
     startDate,
-    endDate:
-      kind === "UPGRADE" && current
-        ? current.endDate
-        : addDateDays(
-            addMonthsClamped(startDate, selectedPackage.durationMonths),
-            -1,
-          ),
+    endDate: addDateDays(
+      addMonthsClamped(startDate, selectedPackage.durationMonths),
+      -1,
+    ),
   };
 }
 
 /** Local mock adapter. Replace this boundary with API calls when the BE is ready. */
 export const membershipService = {
+  /** Public catalog only; account and payment records stay behind authorized methods. */
+  listPublicPackages(): PublicMembershipPackage[] {
+    return readState()
+      .packages.filter((item) => item.isActive)
+      .map(({ id, name, price, durationMonths, benefits }) => ({
+        id,
+        name,
+        price,
+        durationMonths,
+        benefits: [...benefits],
+      }));
+  },
+
   listPackages(
     actor: MembershipActor,
     options: { includeHidden?: boolean } = {},
@@ -475,19 +487,11 @@ export const membershipService = {
     if (packageId) {
       const index = state.packages.findIndex((item) => item.id === packageId);
       if (index === -1) throw new Error("Không tìm thấy gói tập.");
-      if (
-        values.tier !== state.packages[index].tier &&
-        state.subscriptions.some((s) => s.packageId === packageId)
-      )
-        throw new Error(
-          "Gói đã có lịch sử đăng ký không thể đổi hạng. Hãy tạo gói mới để bảo toàn quy tắc nâng/hạ gói.",
-        );
       result = { ...state.packages[index], ...values, updatedAt: now };
       state.packages[index] = result;
     } else {
       result = {
         ...values,
-        tier: values.tier ?? "BASIC",
         id: crypto.randomUUID(),
         isActive: true,
         createdAt: now,
@@ -601,7 +605,6 @@ export const membershipService = {
       memberId: quote.memberId,
       packageId: quote.packageId,
       packageName: quote.packageName,
-      tier: quote.tier,
       packagePrice: quote.packagePrice,
       previousSubscriptionId: quote.previousSubscriptionId,
       durationMonths: quote.durationMonths,
@@ -655,6 +658,10 @@ export const membershipService = {
       if (!previous || getSubscriptionStatus(previous) !== "ACTIVE")
         throw new Error(
           "Gói gốc không còn hiệu lực. Hãy hủy yêu cầu nâng gói cũ và lập yêu cầu mới; chưa xác nhận thu tiền.",
+        );
+      if (invoice.creditAmount === undefined || invoice.startDate !== today)
+        throw new Error(
+          "Báo giá nâng gói đã cũ. Hãy hủy yêu cầu và lập lại để tính khấu trừ theo số ngày còn lại trước khi thu tiền.",
         );
       previous.replacedOn = today;
       subscription.startDate = today;

@@ -139,7 +139,7 @@ export function CounterRegistrationForm({
                 <option value="">— Chọn gói cho thành viên mới —</option>
                 {packages.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} · {p.tier} · {durationLabel(p.durationMonths)} ·{" "}
+                    {p.name} · {durationLabel(p.durationMonths)} ·{" "}
                     {formatMoney(p.price)}
                   </option>
                 ))}

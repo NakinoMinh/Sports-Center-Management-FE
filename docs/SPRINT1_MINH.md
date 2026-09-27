@@ -54,14 +54,14 @@ Tài khoản Member mẫu có một gói tháng đã xác nhận để demo gia 
 ## Bổ sung: tại quầy, nâng/hạ gói và tiền mặt
 
 1. **Thành viên mới tại quầy:** nhập họ tên, email, số điện thoại, username, mật khẩu khởi tạo và bắt buộc chọn gói. Không tạo Member nếu gói thiếu/ẩn hoặc giá đã đổi. Email/username phải duy nhất; mật khẩu được hash, không hiển thị trên hóa đơn. Lễ tân bàn giao mật khẩu riêng; chưa gửi email tự động. Không đăng nhập thay Member và không đổi phiên nhân viên. Khi lưu gói thất bại, adapter thử hoàn tác tài khoản vừa tạo.
-2. **Gia hạn / chống trùng:** service tự xác định loại yêu cầu theo gói đã thanh toán, không tin `kind` do UI gửi. Cùng gói hoặc cùng hạng thì gia hạn sau ngày cuối kỳ đã trả tiền, kể cả các kỳ trả trước. Ví dụ 01/09–30/09 → 01/10–31/10. Chưa có lịch sử thì đăng ký mới; đã hết hạn thì bắt đầu từ ngày thu tiền.
-3. **Nâng gói Basic → Premium:** phí bằng **toàn bộ giá gói đích trừ giá gói gốc đã chụp khi mua**, không chia theo ngày còn lại (chính sách người dùng đã chọn). Giữ nguyên ngày hết hạn; chỉ thay quyền lợi từ ngày xác nhận thu tiền. Kỳ cũ lưu `replacedOn`, không sửa/xóa hóa đơn cũ. Nếu gói gốc đã hết hạn trước khi thu tiền, từ chối thu, hướng dẫn hủy yêu cầu nâng và lập lại. Giá đích phải cao hơn giá gốc; trường hợp kỳ hạn khác nhau dẫn tới chênh lệch không dương cần quản lý cấu hình giá, chưa có chính sách hoàn tiền/bù trừ. Các kỳ tương lai đã trả trước được giữ nguyên, nâng chỉ áp dụng kỳ đang hoạt động.
-4. **Hạ gói Premium → Basic:** yêu cầu `DOWNGRADE` chờ thanh toán; sau xác nhận hiển thị `SCHEDULED_DOWNGRADE`. Bắt đầu ngày kế tiếp sau toàn bộ kỳ đã trả tiền, không cắt mất ngày Premium. Đến ngày bắt đầu, UI tự hiển thị `ACTIVE` (kiểm tra lại mỗi phút/focus/tải trang). Chưa trả tiền thì vẫn pending dù đã đến ngày dự kiến.
-5. **Thu tiền trễ:** đối với đăng ký/gia hạn/hạ gói, nếu ngày bắt đầu dự kiến đã qua, bắt đầu từ hôm xác nhận và tính đủ kỳ hạn. Với nâng gói còn hiệu lực, bắt đầu từ hôm xác nhận và giữ hạn cũ. Số tiền/quyền lợi giữ theo báo giá đã tạo. Hộp xác nhận hiển thị kỳ hiệu lực sẽ ghi nhận trước khi thu tiền.
+2. **Gia hạn / chống trùng:** service tự xác định loại yêu cầu theo gói đã thanh toán, không tin `kind` do UI gửi. Cùng gói hoặc cùng giá thì gia hạn sau ngày cuối kỳ đã trả tiền, kể cả các kỳ trả trước. Ví dụ 01/09–30/09 → 01/10–31/10. Chưa có lịch sử thì đăng ký mới; đã hết hạn thì bắt đầu từ ngày thu tiền.
+3. **Nâng sang gói giá cao hơn:** khấu trừ = `Math.round(packagePrice cũ × remainingDays / previousPeriodDays)`. Các ngày đầu/cuối đều tính vào kỳ; ngày thanh toán được tính là ngày chưa dùng của gói cũ. Số tiền phải trả bằng giá gói mới trừ khấu trừ. Kỳ mới đủ tháng/quý/năm bắt đầu ngay khi xác nhận tiền mặt; kỳ cũ đánh dấu `replacedOn`, không sửa hóa đơn cũ. Ví dụ 450.000đ còn 15/30 ngày → gói năm 4.200.000đ: khấu trừ 225.000đ, trả 3.975.000đ, bắt đầu 12 tháng mới. Nếu đã trả trước kỳ tương lai, chuyển thành gia hạn nối tiếp sau toàn bộ kỳ đã mua, thu đủ giá và giữ lịch cũ.
+4. **Chọn gói giá thấp hơn:** yêu cầu `DOWNGRADE` chờ thanh toán; sau xác nhận hiển thị `SCHEDULED_DOWNGRADE`. Bắt đầu ngày kế tiếp sau toàn bộ kỳ đã trả tiền, bảo toàn thời gian đã mua. Đến ngày bắt đầu UI hiển thị `ACTIVE`; chưa trả tiền vẫn pending.
+5. **Thu tiền trễ:** đăng ký/gia hạn/hạ gói bắt đầu từ ngày xác nhận nếu ngày dự kiến đã qua. Với nâng gói, báo giá chỉ hợp lệ trong ngày lập; sang ngày khác hoặc gói gốc đã hết hạn phải hủy và lập lại trước khi thu tiền. Không âm thầm thay đổi số tiền trên hóa đơn.
 
-Hạng `BASIC` / `PREMIUM` độc lập với `durationMonths` 1/3/12. Manager chọn hạng ở form gói. Không đổi hạng gói đã có lịch sử; hãy tạo gói mới. Dữ liệu khởi tạo mới có cả hai hạng, giá Premium minh họa bằng 2 lần Basic, có thể cấu hình giá qua Manager.
+Danh mục chỉ gồm tên, giá, quyền lợi và `durationMonths` 1/3/12. So sánh tổng giá gói (không so đơn giá/tháng); mua tiếp cùng ID luôn là gia hạn dù danh mục đã thay đổi giá. Mọi tính toán dùng giá và kỳ đã lưu lúc mua, không dùng giá danh mục hiện tại cho khoản khấu trừ.
 
-**Tương thích dữ liệu cũ:** giữ key `scms_memberships_v1` nhưng schema lên version 2. Đọc version 1 sẽ ánh xạ `PENDING` → `PENDING_PAYMENT`, thêm hạng Basic và chụp `packagePrice` từ số tiền cũ; lưu version 2 khi có thao tác ghi tiếp theo. Không tự thêm gói hoặc xóa lịch sử trong kho cũ. Nếu đang dùng dữ liệu Sprint 1 trước đây, Manager cần tạo một gói hạng Premium để demo nâng/hạ; không cần reset localStorage.
+**Tương thích dữ liệu cũ:** giữ key `scms_memberships_v1`, schema version 3. Bỏ trường tier; tên danh mục cũ có Basic/Premium đổi thành Tiêu chuẩn/Mở rộng để giữ ID, giá và quyền lợi. Tên, số tiền, thời gian trên hóa đơn/lịch sử không đổi. Version 1 tiếp tục ánh xạ `PENDING` → `PENDING_PAYMENT`, bổ sung `packagePrice`. Version 3 được lưu ở lần ghi tiếp theo. Báo giá nâng gói cũ thiếu khoản khấu trừ không được thu tiền; cần hủy và lập lại. Không reset localStorage.
 
 **Giới hạn demo:** hai key users/membership không có transaction thật; hoàn tác tài khoản là best-effort và báo rõ nếu hoàn tác thất bại. Các lệnh ghi đồng bộ re-read dữ liệu trước khi commit, nhưng localStorage không bảo đảm transaction giữa nhiều tab/máy. BE sau này phải kiểm tra quyền dựa trên phiên/token, khóa giao dịch, unique/idempotency và thực thi toàn bộ quy tắc trong transaction; không tin giá, role hay trạng thái từ FE.
 
@@ -88,18 +88,18 @@ Membership cần các thao tác list/create/update/hide/delete package, list Mem
 
 ## Kiểm thử
 
-`npm test` hiện chạy **53 tests**: auth, membership và định dạng ngày hóa đơn. Bao gồm email trùng, validation, bcrypt, khóa tài khoản, phiên, quyền sở hữu, ngày cuối tháng/năm nhuận; đồng thời có test cho 5 quy tắc mới, quyền xác nhận tiền mặt, số tiền sai, xác nhận trùng, trả tiền trễ, nâng gói hết hạn, giữ các kỳ trả trước, hủy pending, migration và rollback khi lưu lỗi.
+`npm test` hiện chạy **57 tests**: auth, membership và định dạng ngày hóa đơn. Bao gồm email trùng, validation, bcrypt, khóa tài khoản, phiên, quyền sở hữu, ngày cuối tháng/năm nhuận; đồng thời có test cho 5 quy tắc mới, quyền xác nhận tiền mặt, số tiền sai, xác nhận trùng, trả tiền trễ, nâng gói hết hạn, giữ các kỳ trả trước, hủy pending, migration và rollback khi lưu lỗi.
 
 Đã kiểm tra trên trình duyệt: đăng nhập Manager/Member/Receptionist, đăng ký Member mới, logout, tạo/ẩn gói, chặn xóa gói đã đăng ký, báo giá gia hạn cộng dồn, tạo hóa đơn pending cho Member và tạo đơn tại quầy cho thành viên được chọn. Nút in gọi hộp thoại in của trình duyệt; việc xuất file PDF thực tế cần trình duyệt hỗ trợ in.
 
-Lần bổ sung đã kiểm tra trực tiếp: nút tạo Member bị vô hiệu khi chưa chọn gói; tạo tài khoản tại quầy không đổi phiên; đăng nhập tài khoản vừa tạo; nhập sai số tiền bị chặn; thu tiền đăng ký và nâng gói; lên lịch hạ gói sau thanh toán vẫn giữ Premium; Manager truy cập trang thu tiền; Member bị chặn URL thu tiền. Màn hình thu tiền và form tại quầy được kiểm tra ở viewport 390px, không tràn ngang; không có lỗi console trong phiên kiểm thử.
+Giao diện đăng nhập ưu tiên web desktop/laptop, giữ hai cột và dùng cuộn toàn trang; danh sách tài khoản mẫu có thể mở/thu gọn. Không có phạm vi xây dựng ứng dụng mobile.
 
 Checklist demo cho nhóm:
 
 1. Manager tạo gói, sửa giá, tìm/lọc, ẩn/hiện. Thử xóa Gói Tháng đã có Member mẫu: chỉ cho phép ẩn.
-2. Member mẫu gia hạn gói Basic: ngày bắt đầu nằm sau kỳ còn hạn; hóa đơn pending. Lễ tân xác nhận tại `/payments/cash`, kỳ mới vẫn chờ đến ngày bắt đầu.
-3. Lễ tân tạo Member mới ngay tại quầy; bỏ trống gói thì không thể gửi. Chọn Basic, tạo hóa đơn, sang trang tiền mặt, nhập số tiền và xác nhận. Đăng nhập tài khoản vừa tạo để xem gói đã hoạt động.
+2. Member mẫu gia hạn gói tháng: ngày bắt đầu nằm sau kỳ còn hạn; hóa đơn pending. Lễ tân xác nhận tại `/payments/cash`, kỳ mới vẫn chờ đến ngày bắt đầu.
+3. Lễ tân tạo Member mới ngay tại quầy; bỏ trống gói thì không thể gửi. Chọn gói tháng, tạo hóa đơn, sang trang tiền mặt, nhập số tiền và xác nhận. Đăng nhập tài khoản vừa tạo để xem gói đã hoạt động.
 4. Đóng hộp thoại, tải lại trang và mở lại hóa đơn; kiểm tra thông tin không mất. Mở bằng Chrome/Edge và in/lưu PDF.
 5. Thử trên màn hình hẹp; menu có nút mở/đóng, form không tràn ngang, bảng cuộn ngang.
-6. Member Basic chọn Premium: xem toàn bộ chênh lệch và hạn không đổi; xác nhận thu tiền với Receptionist hoặc Manager. Sau đó chọn Basic: xem ngày hạ sau kỳ hiện tại; thanh toán xong vẫn giữ Premium đến hết kỳ.
+6. Member đang dùng gói tháng chọn gói năm: kiểm tra số ngày còn lại, khấu trừ và đủ 12 tháng mới; xác nhận với Receptionist hoặc Manager. Chọn lại gói tháng: lịch bắt đầu sau gói năm. Báo giá qua ngày phải hủy và tạo lại.
 7. Member/Coach mở thẳng `/payments/cash`: bị chặn. Với thu ngân, nhập thiếu/thừa tiền hoặc chưa tích xác nhận: không thể xác nhận.
