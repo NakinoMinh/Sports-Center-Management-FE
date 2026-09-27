@@ -65,6 +65,9 @@ export function CashPaymentsPage() {
   }, [refresh]);
   const selectedId = params.get("invoice");
   const invoice = invoices.find((i) => i.id === selectedId);
+  const staleUpgrade =
+    invoice?.kind === "UPGRADE" &&
+    (invoice.creditAmount === undefined || invoice.startDate !== todayDate());
   const pending = invoices.filter((i) => i.status === "PENDING_PAYMENT");
   const visible = invoices.filter(
     (i) =>
@@ -90,7 +93,7 @@ export function CashPaymentsPage() {
   }
   function confirm(event: FormEvent) {
     event.preventDefault();
-    if (!invoice || !currentUser || busy || !checked) return;
+    if (!invoice || !currentUser || busy || !checked || staleUpgrade) return;
     setBusy(true);
     setDialogError("");
     try {
@@ -289,11 +292,17 @@ export function CashPaymentsPage() {
             <form onSubmit={confirm}>
               <div className="info-note">
                 <p>
-                  Sau xác nhận: {formatDate(effectiveStart)} –{" "}
-                  {formatDate(effectiveEnd)}.{" "}
-                  {invoice.kind === "UPGRADE"
-                    ? "Gói hiện tại được thay thế từ ngày thu tiền, không cộng thêm thời hạn."
-                    : "Nếu thanh toán trễ sau ngày dự kiến, kỳ sử dụng được tính lại từ ngày thu tiền."}
+                  {staleUpgrade ? (
+                    "Báo giá nâng gói đã cũ. Hủy yêu cầu và lập lại để tính đúng khoản khấu trừ trước khi thu tiền."
+                  ) : (
+                    <>
+                      Sau xác nhận: {formatDate(effectiveStart)} –{" "}
+                      {formatDate(effectiveEnd)}.{" "}
+                      {invoice.kind === "UPGRADE"
+                        ? "Gói hiện tại được thay thế; gói mới có đủ kỳ hạn từ ngày thu tiền."
+                        : "Nếu thanh toán trễ sau ngày dự kiến, kỳ sử dụng được tính lại từ ngày thu tiền."}
+                    </>
+                  )}
                 </p>
               </div>
               <label className="field">
@@ -339,7 +348,10 @@ export function CashPaymentsPage() {
                   type="submit"
                   className="button primary"
                   disabled={
-                    busy || !checked || Number(received) !== invoice.amount
+                    busy ||
+                    staleUpgrade ||
+                    !checked ||
+                    Number(received) !== invoice.amount
                   }
                 >
                   Xác nhận đã thu tiền

@@ -76,12 +76,21 @@ export function InvoiceDocument({ invoice }: { invoice: MembershipInvoice }) {
         <span>Tổng cộng</span>
         <strong>{formatMoney(invoice.amount)}</strong>
       </div>
-      {invoice.kind === "UPGRADE" && (
+      {invoice.kind === "UPGRADE" && invoice.creditAmount !== undefined && (
         <p className="invoice-note">
+          Khấu trừ {invoice.remainingDays}/{invoice.previousPeriodDays} ngày
+          chưa sử dụng × {formatMoney(invoice.previousPackagePrice ?? 0)} ={" "}
+          {formatMoney(invoice.creditAmount)} (làm tròn đến đồng).<br />
           Phí nâng gói: {formatMoney(invoice.packagePrice)} −{" "}
-          {formatMoney(invoice.previousPackagePrice ?? 0)} ={" "}
-          {formatMoney(invoice.amount)}. Thu toàn bộ chênh lệch, không chia theo
-          số ngày còn lại; giữ nguyên ngày hết hạn.
+          {formatMoney(invoice.creditAmount)} ={" "}
+          {formatMoney(invoice.amount)}. Kỳ mới đủ {invoice.durationMonths} tháng
+          từ ngày thanh toán. Báo giá chờ thanh toán chỉ có hiệu lực trong ngày lập.
+        </p>
+      )}
+      {invoice.kind === "UPGRADE" && invoice.creditAmount === undefined && (
+        <p className="invoice-note">
+          Hóa đơn theo chính sách nâng gói cũ.
+          {invoice.status === "PENDING_PAYMENT" && " Vui lòng hủy và lập lại yêu cầu để tính giá trị ngày còn lại trước khi thu tiền."}
         </p>
       )}
       {invoice.paidAt && (
@@ -97,10 +106,6 @@ export function InvoiceDocument({ invoice }: { invoice: MembershipInvoice }) {
             ? "Yêu cầu đã hủy, không thu tiền và không cấp quyền tập."
             : "Đã ghi nhận thanh toán trong bản demo. Gói có hiệu lực theo kỳ sử dụng trên hóa đơn; gói có ngày bắt đầu trong tương lai sẽ chờ đến ngày đó."}
       </p>
-      <footer>
-        Bản minh họa Sprint 1 · Không có giá trị hóa đơn thuế hoặc chứng từ
-        thanh toán thực tế.
-      </footer>
     </article>
   );
 }

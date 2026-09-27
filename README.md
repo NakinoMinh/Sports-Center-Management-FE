@@ -82,6 +82,8 @@ npm run dev
 
 Terminal sẽ hiển thị một địa chỉ tương tự `http://localhost:5173/`. Mở địa chỉ đó trên trình duyệt để sử dụng giao diện. Khi sửa code, Vite tự cập nhật trang.
 
+Giao diện đăng nhập dành cho web desktop/laptop (từ 1024px), giữ bố cục hai cột và cuộn toàn trang khi cần. Bấm **Khám phá bằng tài khoản mẫu** để mở danh sách tài khoản dùng thử.
+
 ### 5. Tài khoản demo
 
 Mật khẩu mặc định của các tài khoản dưới đây là `Pass@1234`:
@@ -99,8 +101,8 @@ Bạn cũng có thể tạo tài khoản Member mới tại màn hình đăng k�
 
 - **Receptionist → Đăng ký & gia hạn tại quầy:** chọn Member hiện có hoặc bấm **Đăng ký thành viên mới tại quầy**. Tạo Member tại quầy bắt buộc chọn gói; chỉ tạo yêu cầu chờ thanh toán, không tự kích hoạt.
 - **Receptionist / Center Manager → Xác nhận tiền mặt** (`/payments/cash`): tìm hóa đơn, kiểm tra thông tin, nhập đúng số tiền và tích xác nhận đã thu. Hóa đơn chuyển từ `PENDING_PAYMENT` sang `PAID`; gói hoạt động ngay hoặc chờ đúng ngày bắt đầu.
-- **Member → Gói tập của tôi:** cùng gói tự chuyển sang gia hạn, không trùng kỳ và không mất ngày còn lại. Basic → Premium thu **toàn bộ chênh lệch giá hai gói**, giữ hạn hiện tại. Premium → Basic lên lịch sau kỳ đã thanh toán, không hạ ngay.
-- Hạng Basic/Premium độc lập thời hạn tháng/quý/năm. Với dữ liệu cũ, các gói được giữ nguyên và mặc định Basic; Manager tạo gói Premium để thử nâng/hạ, không cần xóa dữ liệu.
+- **Member → Gói tập của tôi:** cùng gói/cùng giá tự chuyển sang gia hạn. Gói giá cao hơn được khấu trừ giá trị ngày chưa sử dụng; kỳ mới bắt đầu đủ 1/3/12 tháng từ ngày thanh toán. Gói giá thấp hơn bắt đầu sau toàn bộ kỳ đã trả tiền. Nếu đã có kỳ tương lai trả trước, gói giá cao hơn cũng nối tiếp và thu đủ giá.
+- Gói chỉ có tên, giá, quyền lợi và kỳ hạn tháng/quý/năm; không phân hạng. Khấu trừ = giá gói cũ lúc mua × số ngày còn lại / tổng ngày kỳ cũ, làm tròn đến đồng. Ví dụ gói 450.000đ còn 15/30 ngày: chuyển sang gói năm 4.200.000đ cần trả 3.975.000đ. Báo giá nâng gói chỉ có hiệu lực trong ngày; yêu cầu cũ phải hủy và lập lại trước khi thu tiền. Dữ liệu lịch sử được giữ nguyên.
 - Chuyển khoản/thẻ chưa có đối soát. Mọi thanh toán và phân quyền hiện chỉ mô phỏng FE, không thay thế kiểm tra tại BE. Hướng dẫn chi tiết và trường hợp biên: [Sprint 1 — phần FE của Minh](docs/SPRINT1_MINH.md).
 
 ### 6. Kiểm tra code trước khi commit

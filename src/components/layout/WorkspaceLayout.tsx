@@ -2,9 +2,9 @@ import { useState } from "react";
 import { NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 import {
   ArrowUpRight,
-  Check,
   CreditCard,
   Dumbbell,
+  House,
   Layers3,
   LogOut,
   Menu,
@@ -63,6 +63,11 @@ export function WorkspaceLayout() {
         </div>
         <div className="sidebar-caption">KHÔNG GIAN LÀM VIỆC</div>
         <nav aria-label="Điều hướng chính">
+          <NavLink to="/" end onClick={() => setMenuOpen(false)}>
+            <House size={19} />
+            <span>Trang chủ</span>
+            <ArrowUpRight size={15} />
+          </NavLink>
           <NavLink
             to={homeForRole(currentUser.role)}
             onClick={() => setMenuOpen(false)}
@@ -137,14 +142,6 @@ export function WorkspaceLayout() {
           <span className="topbar-date">{today}</span>
         </header>
         <main id="workspace-main" className="workspace-main">
-          <div className="demo-notice">
-            <span>
-              <Check size={14} /> Bản trải nghiệm Sprint 1
-            </span>
-            <p>
-              Dữ liệu lưu trên trình duyệt này. Chưa kết nối dịch vụ thanh toán.
-            </p>
-          </div>
           <Outlet />
         </main>
         <footer className="workspace-footer">

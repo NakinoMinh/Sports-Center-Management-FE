@@ -5,6 +5,7 @@ import {
   getSubscriptionStatus,
   MEMBERSHIP_STORAGE_KEY,
   membershipService,
+  resolveOrderKind,
   todayDate,
 } from "./membershipService";
 import type {
@@ -102,10 +103,11 @@ describe("calendar-based membership dates", () => {
     expect(current.endDate).toBe("2026-10-23");
     const quote = membershipService.quoteMembershipOrder(member, {
       ...registration(member.id),
+      packageId: "pkg_monthly",
       kind: "RENEW",
     });
     expect(quote.startDate).toBe("2026-10-24");
-    expect(quote.endDate).toBe("2027-01-23");
+    expect(quote.endDate).toBe("2026-11-23");
   });
 
   it("renews expired history from today rather than backdating access", () => {
@@ -113,10 +115,11 @@ describe("calendar-based membership dates", () => {
     vi.setSystemTime(new Date(2026, 10, 10, 12));
     const quote = membershipService.quoteMembershipOrder(member, {
       ...registration(member.id),
+      packageId: "pkg_monthly",
       kind: "RENEW",
     });
     expect(quote.startDate).toBe("2026-11-10");
-    expect(quote.endDate).toBe("2027-02-09");
+    expect(quote.endDate).toBe("2026-12-09");
   });
 
   it("keeps the final valid day active and begins renewal on the following day", () => {
@@ -127,9 +130,68 @@ describe("calendar-based membership dates", () => {
     vi.setSystemTime(new Date(2026, 9, 23, 12));
     const quote = membershipService.quoteMembershipOrder(member, {
       ...registration(member.id),
+      packageId: "pkg_monthly",
       kind: "RENEW",
     });
     expect(quote.startDate).toBe("2026-10-24");
+  });
+});
+
+describe("public membership catalog", () => {
+  it("lists purchasable packages without a signed-in actor or session", () => {
+    expect(localStorage.getItem("scms_auth_token")).toBeNull();
+    expect(membershipService.listPublicPackages().map((pkg) => pkg.id)).toEqual([
+      "pkg_monthly",
+      "pkg_quarterly",
+      "pkg_yearly",
+    ]);
+    expect(localStorage.getItem("scms_auth_token")).toBeNull();
+  });
+
+  it("reflects manager edits and visibility changes without publishing hidden packages", () => {
+    const monthly = membershipService.listPackages(manager)[0];
+    membershipService.savePackage(
+      manager,
+      { ...monthly, name: "Gói tháng mới", price: 500000, benefits: ["Tủ đồ"] },
+      monthly.id,
+    );
+    membershipService.setPackageVisibility(manager, "pkg_quarterly", false);
+    expect(membershipService.listPublicPackages()).toEqual([
+      {
+        id: monthly.id,
+        name: "Gói tháng mới",
+        price: 500000,
+        durationMonths: 1,
+        benefits: ["Tủ đồ"],
+      },
+      expect.objectContaining({ id: "pkg_yearly" }),
+    ]);
+    membershipService.setPackageVisibility(manager, "pkg_quarterly", true);
+    expect(membershipService.listPublicPackages()).toHaveLength(3);
+  });
+
+  it("exposes only catalog fields even when personal records and extra fields exist", () => {
+    membershipService.createMembershipOrder(newMember, registration());
+    const stored = JSON.parse(localStorage.getItem(MEMBERSHIP_STORAGE_KEY)!);
+    expect(stored.invoices.length).toBeGreaterThan(0);
+    expect(stored.subscriptions.length).toBeGreaterThan(0);
+    stored.packages[0].memberEmail = member.email;
+    stored.packages[0].internalNote = "Private catalog metadata";
+    localStorage.setItem(MEMBERSHIP_STORAGE_KEY, JSON.stringify(stored));
+
+    const catalog = membershipService.listPublicPackages();
+    for (const pkg of catalog) {
+      expect(Object.keys(pkg).sort()).toEqual([
+        "benefits", "durationMonths", "id", "name", "price",
+      ]);
+    }
+    expect(JSON.stringify(catalog)).not.toContain(member.email);
+    expect(JSON.stringify(catalog)).not.toContain(newMember.email);
+    expect(JSON.stringify(catalog)).not.toContain("Private catalog metadata");
+    catalog[0].benefits.push("Changed outside the catalog");
+    expect(membershipService.listPublicPackages()[0].benefits).not.toContain(
+      "Changed outside the catalog",
+    );
   });
 });
 
@@ -313,7 +375,7 @@ describe("pending registration and immutable invoices", () => {
 
   it("automatically resolves renewal for active members and registration for new members", () => {
     expect(
-      membershipService.quoteMembershipOrder(member, registration(member.id))
+      membershipService.quoteMembershipOrder(member, { ...registration(member.id), packageId: "pkg_monthly" })
         .kind,
     ).toBe("RENEW");
     expect(
@@ -342,34 +404,16 @@ function pay(order: ReturnType<typeof cashOrder>, actor = receptionist) {
 }
 
 describe("cash confirmation and membership transitions", () => {
-  it("refuses non-positive upgrade differences instead of inventing a refund policy", () => {
-    const premium = membershipService
-      .listPackages(manager)
-      .find((p) => p.id === "pkg_monthly_premium")!;
-    membershipService.savePackage(
-      manager,
-      { ...premium, price: 400000 },
-      premium.id,
-    );
-    expect(() => cashOrder(member, premium.id)).toThrow(/Giá gói nâng cấp/);
-    expect(membershipService.listInvoices(member)).toHaveLength(1);
-  });
-
-  it("prevents changing the tier of a package with membership history", () => {
-    const basic = membershipService
-      .listPackages(manager)
-      .find((p) => p.id === "pkg_monthly")!;
-    expect(() =>
-      membershipService.savePackage(
-        manager,
-        { ...basic, tier: "PREMIUM" },
-        basic.id,
-      ),
-    ).toThrow(/không thể đổi hạng/);
-    expect(
-      membershipService.listPackages(manager).find((p) => p.id === basic.id)
-        ?.tier,
-    ).toBe("BASIC");
+  it("compares package prices without ranks and preserves purchased price snapshots", () => {
+    const old = membershipService.getMemberSubscriptions(member)[0];
+    const pkg = membershipService.listPackages(manager).find(p => p.id === "pkg_quarterly")!;
+    expect(resolveOrderKind([old], pkg)).toBe("UPGRADE");
+    expect(resolveOrderKind([old], { ...pkg, price: old.packagePrice })).toBe("RENEW");
+    expect(resolveOrderKind([old], { ...pkg, price: 400000 })).toBe("DOWNGRADE");
+    membershipService.savePackage(manager, { ...pkg, name: "Gói Tháng mới", price: 500000 }, "pkg_monthly");
+    expect(membershipService.getMemberSubscriptions(member)[0].packagePrice).toBe(450000);
+    expect(membershipService.listPackages(manager)).toHaveLength(3);
+    expect(membershipService.listPackages(manager).every(p => !("tier" in p))).toBe(true);
   });
 
   it("rechecks locked member and cashier accounts at collection time", () => {
@@ -465,13 +509,16 @@ describe("cash confirmation and membership transitions", () => {
     ).toHaveLength(0);
   });
 
-  it("upgrades for the full price difference, keeps expiry, and replaces old access only after payment", () => {
+  it("prorates unused days, grants a full year, and replaces old access only after payment", () => {
     const old = membershipService.getMemberSubscriptions(member)[0];
     vi.setSystemTime(new Date(2026, 9, 10, 12));
-    const order = cashOrder(member, "pkg_monthly_premium");
+    const order = cashOrder(member, "pkg_yearly");
     expect(order.invoice.kind).toBe("UPGRADE");
-    expect(order.invoice.amount).toBe(900000 - 450000);
-    expect(order.invoice.endDate).toBe(old.endDate);
+    expect(order.invoice.remainingDays).toBe(14);
+    expect(order.invoice.previousPeriodDays).toBe(30);
+    expect(order.invoice.creditAmount).toBe(210000);
+    expect(order.invoice.amount).toBe(3990000);
+    expect(order.invoice.endDate).toBe("2027-10-09");
     expect(
       getSubscriptionStatus(
         membershipService
@@ -479,11 +526,10 @@ describe("cash confirmation and membership transitions", () => {
           .find((s) => s.id === old.id)!,
       ),
     ).toBe("ACTIVE");
-    vi.setSystemTime(new Date(2026, 9, 12, 12));
     const result = pay(order);
-    expect(result.subscription.startDate).toBe("2026-10-12");
-    expect(result.subscription.endDate).toBe(old.endDate);
-    expect(result.invoice.amount).toBe(450000);
+    expect(result.subscription.startDate).toBe("2026-10-10");
+    expect(result.subscription.endDate).toBe("2027-10-09");
+    expect(result.invoice.amount).toBe(3990000);
     const subs = membershipService.getMemberSubscriptions(member);
     expect(
       subs.filter((s) => getSubscriptionStatus(s) === "ACTIVE"),
@@ -498,7 +544,7 @@ describe("cash confirmation and membership transitions", () => {
   });
 
   it("can upgrade on the first day without creating an invalid historical date range", () => {
-    const upgraded = pay(cashOrder(member, "pkg_monthly_premium"));
+    const upgraded = pay(cashOrder(member, "pkg_yearly"));
     expect(getSubscriptionStatus(upgraded.subscription)).toBe("ACTIVE");
     expect(
       membershipService
@@ -507,31 +553,99 @@ describe("cash confirmation and membership transitions", () => {
     ).toBe(true);
   });
 
+  it("rejects yesterday's quote without collecting money and recalculates after cancellation", () => {
+    const order = cashOrder(member, "pkg_yearly");
+    const before = localStorage.getItem(MEMBERSHIP_STORAGE_KEY);
+    vi.setSystemTime(new Date(2026, 8, 25, 12));
+    expect(() => pay(order)).toThrow(/Báo giá nâng gói đã cũ/);
+    expect(localStorage.getItem(MEMBERSHIP_STORAGE_KEY)).toBe(before);
+    membershipService.cancelPendingOrder(member, order.invoice.id);
+    const next = cashOrder(member, "pkg_yearly");
+    expect(next.invoice.creditAmount).toBe(435000);
+    expect(next.invoice.amount).toBe(3765000);
+    expect(pay(next).subscription.endDate).toBe("2027-09-24");
+  });
+
+  it("credits the last usable day and uses the purchased price after catalog edits", () => {
+    const pkg = membershipService.listPackages(manager).find(p => p.id === "pkg_monthly")!;
+    membershipService.savePackage(manager, { ...pkg, price: 600000 }, pkg.id);
+    vi.setSystemTime(new Date(2026, 9, 23, 12));
+    const order = cashOrder(member, "pkg_yearly");
+    expect(order.invoice.remainingDays).toBe(1);
+    expect(order.invoice.creditAmount).toBe(15000);
+    expect(order.invoice.amount).toBe(4185000);
+    expect(pay(order).subscription.endDate).toBe("2027-10-22");
+  });
+
+  it("uses actual leap-year days and rounds the quarterly credit only once", () => {
+    vi.setSystemTime(new Date(2024, 0, 31, 12));
+    const quarter = pay(cashOrder(newMember, "pkg_quarterly"));
+    expect(quarter.subscription.endDate).toBe("2024-04-29");
+    vi.setSystemTime(new Date(2024, 1, 29, 12));
+    const order = cashOrder(newMember, "pkg_yearly");
+    expect(order.invoice.previousPeriodDays).toBe(90);
+    expect(order.invoice.remainingDays).toBe(61);
+    expect(order.invoice.creditAmount).toBe(813333);
+    expect(order.invoice.amount).toBe(3386667);
+    expect(pay(order).subscription.endDate).toBe("2025-02-27");
+  });
+
+  it("carries credited value into a subsequent upgrade without double granting access", () => {
+    pay(cashOrder(member, "pkg_quarterly"));
+    const yearly = cashOrder(member, "pkg_yearly");
+    expect(yearly.invoice.creditAmount).toBe(1200000);
+    expect(yearly.invoice.amount).toBe(3000000);
+    pay(yearly);
+    expect(membershipService.getMemberSubscriptions(member).filter(s => getSubscriptionStatus(s) === "ACTIVE")).toHaveLength(1);
+  });
+
+  it("preserves legacy paid history, removes ranks and refuses old pending upgrade prices", () => {
+    const order = cashOrder(member, "pkg_yearly");
+    const state = JSON.parse(localStorage.getItem(MEMBERSHIP_STORAGE_KEY)!);
+    state.version = 2;
+    state.packages[2].tier = "PREMIUM";
+    state.packages[2].name = "Gói Năm Premium";
+    const oldInvoice = state.invoices.find((i: { id: string }) => i.id === order.invoice.id);
+    delete oldInvoice.creditAmount;
+    oldInvoice.amount = 3750000;
+    const history = state.invoices.find((i: { id: string }) => i.id === "inv_demo_01");
+    localStorage.setItem(MEMBERSHIP_STORAGE_KEY, JSON.stringify(state));
+    const migrated = membershipService.listPackages(manager);
+    expect(migrated.find(p => p.id === "pkg_yearly")?.name).toBe("Gói Năm Mở rộng");
+    expect(migrated.every(p => !("tier" in p))).toBe(true);
+    expect(membershipService.listInvoices(member).find(i => i.id === history.id)).toEqual(history);
+    expect(() => pay(order)).toThrow(/Báo giá nâng gói đã cũ/);
+    membershipService.cancelPendingOrder(member, order.invoice.id);
+    expect(cashOrder(member, "pkg_yearly").invoice.creditAmount).toBe(450000);
+  });
+
   it("schedules downgrade for after the active period and activates automatically by date", () => {
-    const upgraded = pay(cashOrder(member, "pkg_monthly_premium"));
+    const upgraded = pay(cashOrder(member, "pkg_yearly"));
     const downgrade = cashOrder();
     expect(downgrade.invoice.kind).toBe("DOWNGRADE");
-    expect(downgrade.invoice.startDate).toBe("2026-10-24");
+    expect(downgrade.invoice.startDate).toBe("2027-09-24");
     const paid = pay(downgrade);
     expect(getSubscriptionStatus(paid.subscription)).toBe(
       "SCHEDULED_DOWNGRADE",
     );
     expect(getSubscriptionStatus(upgraded.subscription)).toBe("ACTIVE");
-    vi.setSystemTime(new Date(2026, 9, 24, 12));
+    vi.setSystemTime(new Date(2027, 8, 24, 12));
     expect(getSubscriptionStatus(paid.subscription)).toBe("ACTIVE");
     expect(getSubscriptionStatus(upgraded.subscription)).toBe("EXPIRED");
   });
 
-  it("preserves prepaid future periods when upgrading and schedules downgrade after all of them", () => {
+  it("queues a higher priced package after prepaid future periods and keeps dates intact", () => {
     const renewal = pay(cashOrder());
-    pay(cashOrder(member, "pkg_monthly_premium"));
+    const yearly = pay(cashOrder(member, "pkg_yearly"));
+    expect(yearly.invoice.kind).toBe("RENEW");
+    expect(yearly.invoice.amount).toBe(4200000);
     expect(
       membershipService
         .getMemberSubscriptions(member)
         .find((s) => s.id === renewal.subscription.id),
     ).toEqual(renewal.subscription);
     const downgrade = cashOrder();
-    expect(downgrade.subscription.startDate).toBe("2026-11-24");
+    expect(downgrade.subscription.startDate).toBe("2027-11-24");
     pay(downgrade);
     vi.setSystemTime(new Date(2026, 9, 24, 12));
     expect(
@@ -542,7 +656,7 @@ describe("cash confirmation and membership transitions", () => {
   });
 
   it("does not grant access to an unpaid scheduled downgrade when the start day arrives", () => {
-    pay(cashOrder(member, "pkg_monthly_premium"));
+    pay(cashOrder(member, "pkg_yearly"));
     const order = cashOrder();
     vi.setSystemTime(new Date(2026, 9, 24, 12));
     expect(
@@ -555,12 +669,12 @@ describe("cash confirmation and membership transitions", () => {
   });
 
   it("rejects expired upgrade quotes and permits canceling/recreating instead", () => {
-    const order = cashOrder(member, "pkg_monthly_premium");
+    const order = cashOrder(member, "pkg_yearly");
     vi.setSystemTime(new Date(2026, 10, 1, 12));
     expect(() => pay(order)).toThrow(/không còn hiệu lực/);
     membershipService.cancelPendingOrder(member, order.invoice.id);
-    const replacement = cashOrder(member, "pkg_monthly_premium");
-    expect(replacement.invoice.amount).toBe(900000);
+    const replacement = cashOrder(member, "pkg_yearly");
+    expect(replacement.invoice.amount).toBe(4200000);
     expect(replacement.invoice.kind).toBe("RENEW");
   });
 
@@ -574,16 +688,16 @@ describe("cash confirmation and membership transitions", () => {
   });
 
   it("uses the quoted full price even if the package changes before collection", () => {
-    const order = cashOrder(member, "pkg_monthly_premium");
+    const order = cashOrder(member, "pkg_yearly");
     const pkg = membershipService
       .listPackages(manager)
-      .find((p) => p.id === "pkg_monthly_premium")!;
+      .find((p) => p.id === "pkg_yearly")!;
     membershipService.savePackage(manager, { ...pkg, price: 1200000 }, pkg.id);
-    expect(pay(order).invoice.amount).toBe(450000);
+    expect(pay(order).invoice.amount).toBe(3750000);
   });
 
   it("rolls back all payment/access changes if storage fails", () => {
-    const order = cashOrder(member, "pkg_monthly_premium");
+    const order = cashOrder(member, "pkg_yearly");
     const before = localStorage.getItem(MEMBERSHIP_STORAGE_KEY);
     vi.spyOn(localStorage, "setItem").mockImplementation(() => {
       throw new Error("Quota");
@@ -621,7 +735,7 @@ describe("cash confirmation and membership transitions", () => {
     localStorage.setItem(MEMBERSHIP_STORAGE_KEY, JSON.stringify(state));
     const invoices = membershipService.listInvoices(newMember);
     expect(invoices[0].status).toBe("PENDING_PAYMENT");
-    expect(invoices[0].tier).toBe("BASIC");
+    expect("tier" in invoices[0]).toBe(false);
     expect(invoices[0].packagePrice).toBe(invoices[0].amount);
     expect(membershipService.listPackages(manager)).toHaveLength(
       state.packages.length,
@@ -632,7 +746,7 @@ describe("cash confirmation and membership transitions", () => {
     });
     expect(
       JSON.parse(localStorage.getItem(MEMBERSHIP_STORAGE_KEY)!).version,
-    ).toBe(2);
+    ).toBe(3);
   });
 });
 

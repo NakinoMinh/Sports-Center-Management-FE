@@ -356,11 +356,11 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
             <>
               <div className="info-note">
                 <p>
-                  Cùng hạng: gia hạn nối tiếp, không mất ngày còn lại. Basic →
-                  Premium: nâng gói ngay sau thanh toán, thu toàn bộ chênh lệch
-                  giá và giữ ngày hết hạn. Premium → Basic: lên lịch sau kỳ đã
-                  thanh toán, không hạ ngay. Nếu đã trả trước kỳ sau, nâng gói
-                  chỉ áp dụng kỳ hiện tại; các kỳ sau giữ nguyên.
+                  Cùng gói hoặc cùng giá: gia hạn nối tiếp. Chọn gói giá cao hơn:
+                  trừ giá trị ngày còn lại và bắt đầu đủ kỳ hạn mới khi thanh toán.
+                  Gói giá thấp hơn bắt đầu sau kỳ đã trả tiền. Nếu đã trả trước
+                  các kỳ tương lai, gói mới sẽ nối tiếp sau toàn bộ các kỳ đó,
+                  thanh toán đủ giá để bảo toàn thời gian đã mua.
                 </p>
               </div>
               <div className="section-heading">
@@ -386,7 +386,7 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                     {pkg.durationMonths === 3 && (
                       <div className="package-ribbon">
                         <Sparkles size={13} />
-                        Duy trì thói quen
+                        Gợi ý sử dụng
                       </div>
                     )}
                     <span className="package-duration">
@@ -394,9 +394,6 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                       {durationLabel(pkg.durationMonths)}
                     </span>
                     <h3>{pkg.name}</h3>
-                    <span className="tier-label">
-                      {pkg.tier === "PREMIUM" ? "Premium" : "Basic"}
-                    </span>
                     <div className="package-price">
                       {formatMoney(pkg.price)}
                       <small>/ {durationLabel(pkg.durationMonths)}</small>
@@ -627,20 +624,22 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
           {quote.kind === "UPGRADE" && (
             <div className="info-note">
               <p>
-                Phí nâng gói = {formatMoney(quote.packagePrice)} −{" "}
-                {formatMoney(quote.previousPackagePrice ?? 0)} ={" "}
-                <strong>{formatMoney(quote.amount)}</strong>. Thu toàn bộ chênh
-                lệch, không tính theo số ngày còn lại. Ngày hết hạn vẫn là{" "}
-                {formatDate(quote.endDate)}; đây không phải mua thêm{" "}
-                {quote.durationMonths} tháng.
+                Giá trị còn lại = {formatMoney(quote.previousPackagePrice ?? 0)} ×{" "}
+                {quote.remainingDays}/{quote.previousPeriodDays} ngày ={" "}
+                {formatMoney(quote.creditAmount ?? 0)} (làm tròn đến đồng).<br />
+                Cần trả = {formatMoney(quote.packagePrice)} −{" "}
+                {formatMoney(quote.creditAmount ?? 0)} ={" "}
+                <strong>{formatMoney(quote.amount)}</strong>. Gói mới có đủ{" "}
+                {quote.durationMonths} tháng từ ngày thanh toán. Báo giá chỉ có
+                hiệu lực trong ngày; sang ngày khác cần hủy và lập lại.
               </p>
             </div>
           )}
           {quote.kind === "DOWNGRADE" && (
             <div className="info-note">
               <p>
-                Scheduled Downgrade: giữ quyền lợi gói đã thanh toán đến hết kỳ.
-                Gói Basic chỉ bắt đầu từ {formatDate(quote.startDate)}, sau khi
+                Giữ quyền lợi gói đã thanh toán đến hết kỳ.
+                Gói giá thấp hơn chỉ bắt đầu từ {formatDate(quote.startDate)}, sau khi
                 đã xác nhận thanh toán. Nếu có các kỳ trả trước, lịch hạ nằm sau
                 toàn bộ các kỳ đó.
               </p>

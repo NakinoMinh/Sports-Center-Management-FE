@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import {
   Flame,
   Activity,
@@ -33,7 +34,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
           <div className="scms-hero-overlay" />
 
           <div className="scms-hero-content">
-            <div className="scms-brand">
+            <Link to="/" className="scms-brand scms-brand-home" aria-label="Titan Arena — Trang chủ">
               <div className="scms-brand-logo">
                 <Flame className="scms-flame-icon" size={28} />
               </div>
@@ -43,12 +44,12 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
                   SPORTS & FITNESS CENTER
                 </span>
               </div>
-            </div>
+            </Link>
 
             <div className="scms-hero-tagline">
               <h1>
                 Nâng Tầm Trải Nghiệm <br />
-                <span className="gradient-text">Thể Thao & Quản Trị</span>
+                <span className="gradient-text">SPORTS</span>
               </h1>
               <p>
                 Một không gian kết nối học viên, huấn luyện viên và đội ngũ
@@ -147,14 +148,6 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
             {/* Form Body */}
             <div className="scms-form-body">{children}</div>
 
-            {/* Footer Notice */}
-            <div className="scms-form-footer">
-              <p>
-                <ShieldCheck size={14} className="inline-icon" /> Bản demo
-                Sprint 1 · Dữ liệu được lưu trên trình duyệt, chưa kết nối máy
-                chủ.
-              </p>
-            </div>
           </div>
         </div>
       </div>
