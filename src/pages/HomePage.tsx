@@ -177,7 +177,7 @@ export function HomePage() {
           </Link>
           <nav className="home-nav" aria-label="Điều hướng trang chủ">
             <a href="#experiences">Trải nghiệm</a>
-            <a href="#memberships">Gói tập</a>
+            <Link to="/packages">Gói tập & so sánh</Link>
             <a href="#journey">Cách tham gia</a>
             <a href="#questions">Giải đáp</a>
           </nav>

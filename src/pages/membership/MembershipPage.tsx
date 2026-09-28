@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
   CalendarDays,
@@ -42,6 +42,7 @@ const paymentLabels: Record<PaymentMethod, string> = {
 };
 const statusLabels = {
   ACTIVE: "Đang hoạt động",
+  SUSPENDED: "Tạm ngưng",
   UPCOMING: "Sắp bắt đầu",
   EXPIRED: "Đã hết hạn",
   PENDING_PAYMENT: "Chờ thanh toán",
@@ -64,7 +65,8 @@ const emptySnapshot: Snapshot = {
 
 export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
   const { currentUser } = useAuth();
-  const [selectedMember, setSelectedMember] = useState("");
+  const [searchParams] = useSearchParams();
+  const [selectedMember, setSelectedMember] = useState(searchParams.get("member") ?? "");
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -228,6 +230,9 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
       {isCounter && (
         <section className="panel member-picker">
           <div className="counter-actions">
+            <Link className="button secondary" to="/receptionist/membership-status">
+              <ShieldCheck size={17} /> Kiểm tra trạng thái gói
+            </Link>
             <button
               className="button primary"
               disabled={loading || !!error}

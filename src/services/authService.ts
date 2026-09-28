@@ -7,6 +7,7 @@ import type {
   User,
 } from "../types/auth";
 import { mockDb } from "./mockDb";
+import { accountEnabled } from "./accessControl";
 
 export const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 
@@ -74,7 +75,7 @@ export const authService = {
       !user ||
       user.id !== payload.userId ||
       user.role !== payload.role ||
-      user.isLocked
+      !accountEnabled(user)
     ) {
       return {
         valid: false,
@@ -157,13 +158,14 @@ export const authService = {
       message:
         "Tài khoản đã bị khóa sau 5 lần nhập sai liên tiếp. Vui lòng liên hệ quản lý trung tâm.",
     };
+    if (user.isActive === false || user.deletedAt) return { success: false, message: "Tài khoản đã ngừng hoạt động. Vui lòng liên hệ quản lý trung tâm." };
     if (user.isLocked) return lockedResult;
     const matches = await bcrypt.compare(
       credentials.password,
       user.passwordHash,
     );
     const latestUser = mockDb.findByEmail(credentials.email);
-    if (!latestUser || latestUser.isLocked) return lockedResult;
+    if (!latestUser || !accountEnabled(latestUser)) return lockedResult;
     if (!matches) {
       const result = mockDb.recordFailedLogin(user.email);
       if (result.isLocked) return lockedResult;
