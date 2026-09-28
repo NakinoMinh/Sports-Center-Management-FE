@@ -3,6 +3,7 @@ import { mockDb } from "./mockDb";
 import {
   addMonthsClamped,
   getSubscriptionStatus,
+  getMembershipStatusSummary,
   MEMBERSHIP_STORAGE_KEY,
   membershipService,
   resolveOrderKind,
@@ -78,6 +79,32 @@ function registration(memberId = newMember.id): MembershipOrderInput {
     kind: "REGISTER",
   };
 }
+
+describe("receptionist membership status", () => {
+  it("counts inclusive days and warns strictly below seven days", () => {
+    const sub = membershipService.getMemberSubscriptions(receptionist, member.id)[0];
+    expect(getMembershipStatusSummary([{ ...sub, endDate: "2026-09-30" }]).remainingDays).toBe(7);
+    expect(getMembershipStatusSummary([{ ...sub, endDate: "2026-09-30" }]).expiringSoon).toBe(false);
+    expect(getMembershipStatusSummary([{ ...sub, endDate: "2026-09-29" }]).expiringSoon).toBe(true);
+    expect(getMembershipStatusSummary([{ ...sub, endDate: "2026-09-24" }])).toMatchObject({ status: "ACTIVE", remainingDays: 1, expiringSoon: true });
+    expect(getMembershipStatusSummary([{ ...sub, endDate: "2026-09-23" }])).toMatchObject({ status: "EXPIRED", remainingDays: 0, expiringSoon: false });
+  });
+  it("shows suspension independently from payment or account lock and expires normally", () => {
+    const sub = membershipService.getMemberSubscriptions(receptionist, member.id)[0];
+    expect(getMembershipStatusSummary([{ ...sub, isSuspended: true }]).status).toBe("SUSPENDED");
+    expect(getSubscriptionStatus({ ...sub, isSuspended: true, endDate: "2026-09-23" })).toBe("EXPIRED");
+    expect(getSubscriptionStatus({ ...sub, isSuspended: true, status: "PENDING_PAYMENT" })).toBe("PENDING_PAYMENT");
+  });
+  it("does not mistake pending, replaced, canceled or future periods for active access", () => {
+    const sub = membershipService.getMemberSubscriptions(receptionist, member.id)[0];
+    expect(getMembershipStatusSummary([]).status).toBe("NONE");
+    expect(getMembershipStatusSummary([{ ...sub, replacedOn: todayDate() }, { ...sub, status: "CANCELED" }]).status).toBe("NONE");
+    expect(getMembershipStatusSummary([{ ...sub, status: "PENDING_PAYMENT" }])).toMatchObject({ status: "PENDING_PAYMENT", remainingDays: 0 });
+    const future = { ...sub, id: "future", startDate: "2026-10-24", endDate: "2026-11-23" };
+    expect(getMembershipStatusSummary([future])).toMatchObject({ status: "UPCOMING", remainingDays: 0, expiringSoon: false });
+    expect(getMembershipStatusSummary([future, sub])).toMatchObject({ status: "ACTIVE", subscription: { id: sub.id }, upcoming: { id: "future" } });
+  });
+});
 
 describe("calendar-based membership dates", () => {
   it("clamps month-end and leap-year dates without rolling into the following month", () => {

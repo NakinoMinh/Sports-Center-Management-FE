@@ -1,5 +1,7 @@
 # Công việc BE và danh sách API cần cung cấp
 
+> Cập nhật tham chiếu 27/09/2026: phạm vi toàn dự án và đối chiếu mới nằm ở [PRODUCT.md](../PRODUCT.md) và [DESIGN.md](../DESIGN.md), mục 0. Tài liệu này giữ phạm vi bàn giao Sprint 1 ngày 25/09; các câu “chưa có lớp học/điểm danh” bên dưới không mô tả đầy đủ FE hiện tại đã có mock nghiệp vụ lễ tân. Contract ở đây vẫn là đề xuất; khác biệt với ví dụ `/api/v1` và response trong DESIGN phải được thống nhất trước tích hợp.
+
 Ngày đối chiếu: 25/09/2026. Tài liệu dành cho nhóm BE.
 
 - **Cần cho chức năng hiện tại (mục 4–8):** SCMS-1, 2, 3, 9, 11, 15 và các chức năng phụ thuộc đã có giao diện. FE hiện dùng mock, chưa gọi các endpoint đề xuất.

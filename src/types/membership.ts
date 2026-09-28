@@ -7,6 +7,7 @@ export type MembershipOrderKind =
   "REGISTER" | "RENEW" | "UPGRADE" | "DOWNGRADE";
 export type SubscriptionDisplayStatus =
   | "ACTIVE"
+  | "SUSPENDED"
   | "UPCOMING"
   | "EXPIRED"
   | "PENDING_PAYMENT"
@@ -70,6 +71,9 @@ export interface MemberSubscription {
   previousSubscriptionId?: string;
   replacedOn?: string;
   status: "CONFIRMED" | "PENDING_PAYMENT" | "CANCELED";
+  /** Access suspension does not change paid dates or invoice status. */
+  isSuspended?: boolean;
+  suspensionReason?: string;
   invoiceId: string;
   createdAt: string;
 }
@@ -95,6 +99,7 @@ export interface MembershipOrder {
 }
 
 export interface CounterRegistrationInput {
+  dateOfBirth?: string;
   fullName: string;
   email: string;
   phone: string;
