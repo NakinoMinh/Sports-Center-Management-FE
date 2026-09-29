@@ -8,6 +8,7 @@ import type {
 } from "../types/auth";
 import { mockDb } from "./mockDb";
 import { accountEnabled } from "./accessControl";
+import { auditService } from "./auditService";
 
 export const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 
@@ -183,6 +184,132 @@ export const authService = {
   },
 
   logout: (): void => mockDb.removeToken(),
+  updateProfile: (
+    actor: Omit<User, "passwordHash">,
+    input: Pick<User, "fullName" | "phone" | "dateOfBirth" | "avatar"> & {
+      specialization?: string;
+      workSchedule?: string;
+    },
+  ) => {
+    const user = mockDb.getUsers().find((item) => item.id === actor.id);
+    if (!user || !accountEnabled(user)) throw new Error("Không tìm thấy tài khoản đang hoạt động.");
+    const fullName = input.fullName.trim();
+    const phone = (input.phone ?? "").trim();
+    const dateOfBirth = (input.dateOfBirth ?? "").trim();
+    const avatar = (input.avatar ?? "").trim();
+    const specialization = (input.specialization ?? "").trim();
+    const workSchedule = (input.workSchedule ?? "").trim();
+    if (fullName.length < 2 || fullName.length > 80) throw new Error("Họ tên cần từ 2 đến 80 ký tự.");
+    if (phone && !/^0\d{9}$/.test(phone)) throw new Error("Số điện thoại phải có 10 chữ số, bắt đầu bằng 0.");
+    const birth = dateOfBirth ? new Date(`${dateOfBirth}T00:00:00`) : null;
+    if (dateOfBirth && (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) || !birth || Number.isNaN(birth.getTime()) || birth.toISOString().slice(0, 10) !== dateOfBirth || birth > new Date() || birth.getFullYear() < 1900)) throw new Error("Ngày sinh không hợp lệ.");
+    if (avatar && (!/^https:\/\//.test(avatar) || avatar.length > 500)) throw new Error("Ảnh đại diện phải là đường dẫn HTTPS hợp lệ.");
+    if (specialization.length > 200) throw new Error("Chuyên môn không được vượt quá 200 ký tự.");
+    if (workSchedule.length > 300) throw new Error("Lịch làm việc không được vượt quá 300 ký tự.");
+
+    Object.assign(user, {
+      fullName,
+      phone: phone || undefined,
+      dateOfBirth: dateOfBirth || undefined,
+      avatar: avatar || undefined,
+      specialization: specialization || undefined,
+      workSchedule: workSchedule || undefined,
+    });
+    mockDb.updateUser(user);
+    const safeUser = publicUser(user);
+    auditService.record(safeUser, { action: "UPDATE_PROFILE", entity: "USER", entityId: user.id, description: `Cập nhật hồ sơ cá nhân của ${user.fullName}.` });
+    return safeUser;
+  },
+
+  requestPasswordChangeOtp: (actor: Omit<User, "passwordHash">) => {
+    const user = mockDb.getUsers().find((item) => item.id === actor.id);
+    if (!user || !accountEnabled(user)) throw new Error("Không tìm thấy tài khoản hợp lệ.");
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpData = {
+      userId: user.id,
+      email: user.email,
+      code,
+      expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
+    };
+    sessionStorage.setItem("scms_pwd_change_otp", JSON.stringify(otpData));
+    return {
+      email: user.email,
+      code,
+      expiresInSeconds: 300,
+    };
+  },
+
+  changePasswordWithOtp: async (
+    actor: Omit<User, "passwordHash">,
+    input: {
+      currentPassword: string;
+      newPassword: string;
+      confirmPassword: string;
+      otpCode: string;
+    },
+  ) => {
+    const user = mockDb.getUsers().find((item) => item.id === actor.id);
+    if (!user || !accountEnabled(user)) throw new Error("Tài khoản không tìm thấy hoặc đã bị khóa.");
+
+    if (!input.currentPassword) throw new Error("Vui lòng nhập mật khẩu hiện tại.");
+    const isCurrentValid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+    if (!isCurrentValid) throw new Error("Mật khẩu hiện tại không chính xác.");
+
+    if (!input.newPassword || input.newPassword.length < 8) {
+      throw new Error("Mật khẩu mới phải có ít nhất 8 ký tự.");
+    }
+    if (new TextEncoder().encode(input.newPassword).length > 72) {
+      throw new Error("Mật khẩu tối đa 72 byte.");
+    }
+    if (input.newPassword !== input.confirmPassword) {
+      throw new Error("Mật khẩu xác nhận không khớp.");
+    }
+    if (input.newPassword === input.currentPassword) {
+      throw new Error("Mật khẩu mới không được trùng với mật khẩu hiện tại.");
+    }
+
+    // Verify OTP
+    const rawOtp = sessionStorage.getItem("scms_pwd_change_otp");
+    if (!rawOtp) {
+      throw new Error("Mã OTP chưa được yêu cầu hoặc đã hết hiệu lực. Vui lòng bấm 'Gửi mã OTP'.");
+    }
+    let otpData: { userId: string; email: string; code: string; expiresAt: number };
+    try {
+      otpData = JSON.parse(rawOtp);
+    } catch {
+      throw new Error("Dữ liệu OTP không hợp lệ. Vui lòng yêu cầu mã mới.");
+    }
+
+    if (otpData.userId !== user.id) {
+      throw new Error("Mã OTP không khớp với tài khoản hiện tại.");
+    }
+    if (Date.now() > otpData.expiresAt) {
+      sessionStorage.removeItem("scms_pwd_change_otp");
+      throw new Error("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.");
+    }
+    if (otpData.code !== input.otpCode.trim()) {
+      throw new Error("Mã OTP không chính xác. Vui lòng kiểm tra lại.");
+    }
+
+    // Update password
+    const newHash = await bcrypt.hash(input.newPassword, 10);
+    user.passwordHash = newHash;
+    mockDb.updateUser(user);
+    sessionStorage.removeItem("scms_pwd_change_otp");
+
+    const safeUser = publicUser(user);
+    auditService.record(safeUser, {
+      action: "CHANGE_PASSWORD",
+      entity: "USER",
+      entityId: user.id,
+      description: `Đổi mật khẩu thành công qua xác thực OTP cho tài khoản ${user.email}.`,
+    });
+
+    return {
+      success: true,
+      message: "Đổi mật khẩu thành công. Hãy sử dụng mật khẩu mới trong các lần đăng nhập tiếp theo.",
+    };
+  },
   getCurrentUser: (): Omit<User, "passwordHash"> | null => {
     const token = mockDb.getStoredToken();
     if (!token) return null;

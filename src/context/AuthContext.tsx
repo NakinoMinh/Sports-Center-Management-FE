@@ -77,6 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     authService.logout();
     setAuth(emptyAuth);
   }, []);
+  const refreshCurrentUser = useCallback(() => setAuth(readAuth()), []);
 
   useEffect(() => {
     const sync = () => setAuth(readAuth());
@@ -107,6 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         login,
         register,
         logout,
+        refreshCurrentUser,
       }}
     >
       {children}

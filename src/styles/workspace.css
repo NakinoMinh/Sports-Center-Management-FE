@@ -1613,3 +1613,612 @@ textarea {
 .catalog-benefits { padding-left: 18px; white-space: normal; }
 .catalog-benefits li { margin-bottom: 8px; }
 .initial-password { display: block; padding: 16px; margin: 16px 0; background: #eaf3ed; overflow-wrap: anywhere; user-select: all; }
+
+/* ==========================================================================
+   PROFILE PAGE (UC4) - MODERN AVATAR & TWO-COLUMN CARD LAYOUT
+   ========================================================================== */
+.profile-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.profile-layout-grid {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+@media (max-width: 960px) {
+  .profile-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.profile-summary-card {
+  background: #fff;
+  border: 1px solid #dce4dd;
+  border-radius: 14px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-shadow: 0 4px 16px rgba(22, 61, 52, 0.04);
+}
+
+.avatar-showcase {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.avatar-circle-wrapper {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  padding: 4px;
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-image-lg {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #163d34;
+  border: 3px solid #fff;
+}
+
+.avatar-placeholder-lg {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #163d34 0%, #102c26 100%);
+  color: #d4ed9d;
+  font-size: 34px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #fff;
+  letter-spacing: 1px;
+}
+
+.avatar-change-btn {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #163d34;
+  color: #fff;
+  border: 2px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.avatar-change-btn:hover {
+  background: #10b981;
+  transform: scale(1.08);
+}
+
+.avatar-caption h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a332a;
+  margin-bottom: 6px;
+}
+
+.avatar-email {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 8px;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.role-badge.role-center_manager {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.role-badge.role-coach {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.role-badge.role-member {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.role-badge.role-receptionist {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+/* Avatar Preset Picker */
+.avatar-picker-box {
+  background: #f8faf8;
+  border: 1px solid #dce4dd;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.avatar-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334d42;
+}
+
+.avatar-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.avatar-preset-item {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.avatar-preset-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.avatar-preset-item:hover {
+  transform: scale(1.06);
+  border-color: #10b981;
+}
+
+.avatar-preset-item.selected {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);
+}
+
+.avatar-url-input {
+  margin-top: 4px;
+}
+
+.avatar-url-input input {
+  font-size: 11px;
+}
+
+.profile-security-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  background: #eef7f2;
+  border: 1px solid #d2e9dc;
+  border-radius: 10px;
+}
+
+.profile-security-badge .security-icon {
+  color: #167d58;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.profile-security-badge strong {
+  display: block;
+  font-size: 12px;
+  color: #1b4938;
+}
+
+.profile-security-badge p {
+  font-size: 11px;
+  color: #4a6b5d;
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
+/* Right Column Panels */
+.profile-details-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.profile-section-panel {
+  margin: 0;
+}
+
+.profile-form {
+  padding: 24px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.field-label-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-disabled {
+  opacity: 0.85;
+}
+
+.input-locked {
+  background: #f1f5f3 !important;
+  color: #64748b !important;
+  cursor: not-allowed;
+  border-color: #d1dbd4 !important;
+}
+
+.lock-icon {
+  color: #94a3b8;
+}
+
+.form-action-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
+  border-top: 1px solid #edf2ee;
+}
+
+/* Password Change & OTP Flow */
+.panel-badge-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #16a34a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.otp-simulation-notice {
+  margin: 0 26px 16px;
+  padding: 16px 20px;
+  background: #fefce8;
+  border: 1px solid #fef08a;
+  border-radius: 10px;
+  color: #713f12;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.otp-sim-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #854d0e;
+}
+
+.otp-timer {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b45309;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.otp-display-code {
+  background: #fff;
+  border: 1px dashed #ca8a04;
+  border-radius: 8px;
+  padding: 10px 16px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.otp-display-code span {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  font-family: monospace;
+  color: #163d34;
+}
+
+.otp-flow-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 20px;
+  background: #f8faf8;
+  border: 1px solid #e1e9e2;
+  border-radius: 12px;
+}
+
+.otp-request-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.otp-send-btn {
+  white-space: nowrap;
+}
+
+.otp-target-hint {
+  font-size: 12px;
+  color: #55695e;
+}
+
+.otp-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed #dbe5dc;
+  animation: fadeIn 0.3s ease;
+}
+
+.otp-input-field {
+  max-width: 220px;
+}
+
+.otp-code-input {
+  font-size: 18px !important;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-align: center;
+  font-family: monospace;
+}
+
+.otp-submit-btn {
+  height: 42px;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   PERSONNEL PAGE (UC7, UC8) STYLES
+   ========================================================================== */
+.member-avatar-img {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #c9d8cc;
+}
+
+.cell-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.contact-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.specialization-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.role-chip.receptionist {
+  display: inline-flex;
+  padding: 3px 8px;
+  background: #f5f3ff;
+  color: #6b21a8;
+  border: 1px solid #ddd6fe;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.schedule-cell {
+  max-width: 240px;
+  font-size: 11px;
+  color: #4b5d53;
+  line-height: 1.5;
+}
+
+.table-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.text-danger {
+  color: #dc2626 !important;
+}
+
+.text-danger:hover {
+  color: #991b1b !important;
+}
+
+.text-success {
+  color: #16a34a !important;
+}
+
+.text-success:hover {
+  color: #15803d !important;
+}
+
+.modal-actions-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #edf2ee;
+}
+
+.credential-notice-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  color: #166534;
+  margin-bottom: 14px;
+}
+
+.credential-notice-box strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.credential-notice-box p {
+  font-size: 12px;
+  color: #15803d;
+}
+
+/* ==========================================================================
+   AUDIT LOG PAGE (UC16) STYLES
+   ========================================================================== */
+.audit-toolbar {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.toolbar-date-field {
+  min-width: 140px;
+}
+
+.audit-action-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.audit-action-chip.action-create {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.audit-action-chip.action-update {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.audit-action-chip.action-profile {
+  background: #f0fdfa;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
+}
+
+.audit-action-chip.action-security {
+  background: #faf5ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+.audit-action-chip.action-payment {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.audit-action-chip.action-activate {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.audit-action-chip.action-deactivate {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+}
+
+.audit-action-chip.action-delete {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.audit-action-chip.action-cancel {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.audit-action-chip.action-default {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.audit-entity-badge {
+  display: inline-block;
+  font-weight: 600;
+  color: #2e4338;
+}
+
+.block-id {
+  display: block;
+  font-family: monospace;
+  font-size: 10px;
+}
+
+.audit-desc-cell {
+  max-width: 380px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #3b5044;
+}
+
+.audit-actor {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
