@@ -14,6 +14,8 @@ export interface User {
   lockedAt?: string;
   phone?: string;
   dateOfBirth?: string;
+  isActive?: boolean;
+  deletedAt?: string;
 }
 
 export interface JWTPayload {

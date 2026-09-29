@@ -24,13 +24,15 @@ export function CounterRegistrationForm({
     fullName: "",
     email: "",
     phone: "",
-    username: "",
-    password: "",
+    dateOfBirth: "",
     packageId: "",
     paymentMethod: "CASH" as PaymentMethod,
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState<Awaited<
+    ReturnType<typeof membershipService.registerMemberWithGeneratedCredentials>
+  > | null>(null);
   const pkg = packages.find((p) => p.id === form.packageId);
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -42,11 +44,12 @@ export function CounterRegistrationForm({
     }
     setBusy(true);
     try {
-      const result = await membershipService.registerMemberAtCounter(actor, {
-        ...form,
-        expectedPrice: pkg.price,
-      });
-      onCreated(result.member, result.order);
+      const result =
+        await membershipService.registerMemberWithGeneratedCredentials(actor, {
+          ...form,
+          expectedPrice: pkg.price,
+        });
+      setCreated(result);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Không thể đăng ký thành viên.",
@@ -55,6 +58,35 @@ export function CounterRegistrationForm({
       setBusy(false);
     }
   }
+  if (created)
+    return (
+      <Dialog
+        title="Đã tạo thành viên tại quầy"
+        onClose={() => onCreated(created.member, created.order)}
+        footer={
+          <button
+            className="button primary"
+            onClick={() => onCreated(created.member, created.order)}
+          >
+            Đã bàn giao · Xem hóa đơn
+          </button>
+        }
+      >
+        <div className="order-summary">
+          <h3>{created.member.fullName}</h3>
+          <p>Email đăng nhập: {created.member.email}</p>
+          <p>Mật khẩu khởi tạo (chỉ hiển thị lần này):</p>
+          <code className="initial-password">{created.initialPassword}</code>
+        </div>
+        <div className="info-note">
+          <p>
+            Email chưa được gửi vì dịch vụ gửi email chưa kết nối. Bàn giao
+            riêng thông tin đăng nhập cho thành viên trước khi đóng. Gói tập
+            đang chờ thanh toán.
+          </p>
+        </div>
+      </Dialog>
+    );
   return (
     <Dialog
       title="Đăng ký thành viên mới tại quầy"
@@ -101,32 +133,28 @@ export function CounterRegistrationForm({
               />
             </label>
             <label className="field">
-              <span>Tên đăng nhập *</span>
+              <span>Ngày sinh *</span>
               <input
                 required
-                minLength={3}
-                maxLength={30}
-                autoComplete="off"
-                pattern="[a-zA-Z0-9_]{3,30}"
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
+                type="date"
+                min="1900-01-01"
+                autoComplete="bday"
+                value={form.dateOfBirth}
+                onInput={(e) => {
+                  const dateOfBirth = e.currentTarget.value;
+                  setForm((previous) => ({ ...previous, dateOfBirth }));
+                }}
+                onChange={(e) =>
+                  setForm({ ...form, dateOfBirth: e.target.value })
+                }
               />
-              <small>3–30 chữ, số hoặc dấu gạch dưới.</small>
             </label>
-            <label className="field">
-              <span>Mật khẩu khởi tạo *</span>
-              <input
-                required
-                type="password"
-                minLength={8}
-                autoComplete="new-password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-              />
-              <small>
-                Từ 8 ký tự. Bàn giao riêng cho thành viên; demo chưa gửi email.
-              </small>
-            </label>
+            <div className="field">
+              <span>Thông tin đăng nhập</span>
+              <p>
+                Mật khẩu được sinh tự động. Thành viên đăng nhập bằng email.
+              </p>
+            </div>
             <label className="field field-full">
               <span>Gói tập bắt buộc *</span>
               <select

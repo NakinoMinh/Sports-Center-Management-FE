@@ -1,4 +1,6 @@
 import { mockDb } from "./mockDb";
+import { accountEnabled, authorizeRoles } from "./accessControl";
+import { generateInitialPassword, validateBirthDate } from "./memberService";
 import bcrypt from "bcryptjs";
 import type { User, UserRole } from "../types/auth";
 import type {
@@ -236,17 +238,7 @@ function readState(): MembershipState {
 }
 
 function authorize(actor: MembershipActor, roles: UserRole[]): MembershipActor {
-  const storedActor = mockDb.getUsers().find((user) => user.id === actor?.id);
-  if (
-    !storedActor ||
-    storedActor.isLocked ||
-    storedActor.role !== actor.role ||
-    !roles.includes(storedActor.role)
-  ) {
-    throw new Error("Bạn không có quyền thực hiện thao tác này.");
-  }
-  const { passwordHash: _passwordHash, ...publicActor } = storedActor;
-  return publicActor;
+  return authorizeRoles(actor, roles);
 }
 
 function assertMemberAccess(
@@ -315,7 +307,33 @@ export function getSubscriptionStatus(
       ? "SCHEDULED_DOWNGRADE"
       : "UPCOMING";
   if (subscription.endDate < today) return "EXPIRED";
+  if (subscription.isSuspended) return "SUSPENDED";
   return "ACTIVE";
+}
+
+/** Calendar days including today and the last usable day; unpaid/future periods grant no days yet. */
+export function getMembershipStatusSummary(
+  subscriptions: MemberSubscription[],
+  today = todayDate(),
+) {
+  const relevant = subscriptions.filter((sub) =>
+    ["ACTIVE", "SUSPENDED", "EXPIRED", "UPCOMING", "SCHEDULED_DOWNGRADE"].includes(getSubscriptionStatus(sub, today)),
+  );
+  const current = relevant.filter((sub) => sub.startDate <= today && sub.endDate >= today)
+    .sort((a, b) => b.endDate.localeCompare(a.endDate))[0];
+  const upcoming = relevant.filter((sub) => sub.startDate > today)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
+  const expired = relevant.filter((sub) => sub.endDate < today)
+    .sort((a, b) => b.endDate.localeCompare(a.endDate))[0];
+  const subscription = current ?? upcoming ?? expired;
+  const pending = subscriptions.find((sub) => sub.status === "PENDING_PAYMENT");
+  const status = subscription ? getSubscriptionStatus(subscription, today)
+    : pending ? "PENDING_PAYMENT" : "NONE";
+  const remainingDays = current
+    ? Math.max(0, Math.round((parseDate(current.endDate).getTime() - parseDate(today).getTime()) / 86400000) + 1)
+    : 0;
+  return { subscription: subscription ?? pending, status, remainingDays,
+    expiringSoon: !!current && remainingDays > 0 && remainingDays < 7, upcoming };
 }
 
 export const orderKindLabels: Record<MembershipOrderKind, string> = {
@@ -354,7 +372,7 @@ function buildQuote(
   state: MembershipState,
 ): MembershipQuote {
   const member = assertMemberAccess(actor, input.memberId);
-  if (member.isLocked) throw new Error("Tài khoản thành viên đang bị khóa.");
+  if (!accountEnabled(member)) throw new Error("Tài khoản thành viên đang bị khóa hoặc ngừng hoạt động.");
   const selectedPackage = state.packages.find(
     (item) => item.id === input.packageId,
   );
@@ -542,6 +560,7 @@ export const membershipService = {
       .filter(
         (user) =>
           user.role === "MEMBER" &&
+          !user.deletedAt &&
           (currentActor.role !== "MEMBER" || user.id === currentActor.id),
       )
       .map(({ passwordHash: _passwordHash, ...member }) => member);
@@ -644,7 +663,7 @@ export const membershipService = {
     )
       throw new Error("Số tiền đã thu phải bằng số tiền trên hóa đơn.");
     const member = assertMemberAccess(actor, invoice.memberId);
-    if (member.isLocked) throw new Error("Tài khoản thành viên đang bị khóa.");
+    if (!accountEnabled(member)) throw new Error("Tài khoản thành viên đang bị khóa hoặc ngừng hoạt động.");
     const subscription = state.subscriptions.find(
       (s) => s.id === invoice.subscriptionId,
     );
@@ -728,6 +747,7 @@ export const membershipService = {
     const email = input.email.trim().toLowerCase();
     const username = input.username.trim();
     const phone = input.phone.replace(/[\s.-]/g, "");
+    if (input.dateOfBirth) validateBirthDate(input.dateOfBirth);
     if (fullName.length < 2 || fullName.length > 80)
       throw new Error("Họ tên phải có từ 2 đến 80 ký tự.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
@@ -769,6 +789,7 @@ export const membershipService = {
       username,
       phone,
       passwordHash,
+      dateOfBirth: input.dateOfBirth,
       role: "MEMBER",
       createdAt: new Date().toISOString(),
       failedAttempts: 0,
@@ -795,5 +816,19 @@ export const membershipService = {
       }
       throw error;
     }
+  },
+  async registerMemberWithGeneratedCredentials(
+    actor: MembershipActor,
+    input: Omit<CounterRegistrationInput, "username" | "password"> & { dateOfBirth: string },
+  ) {
+    authorize(actor, STAFF_ROLES);
+    validateBirthDate(input.dateOfBirth);
+    const initialPassword = generateInitialPassword();
+    const result = await membershipService.registerMemberAtCounter(actor, {
+      ...input,
+      username: `member_${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`,
+      password: initialPassword,
+    });
+    return { ...result, initialPassword, emailDelivery: "NOT_CONNECTED" as const };
   },
 };
