@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Search, Users, Plus, RefreshCw } from "lucide-react";
+import { Search, Users, Plus, RefreshCw, ArrowUpRight } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
 import { memberService, type MemberInput } from "../../services/memberService";
@@ -89,12 +89,14 @@ export function MembersPage() {
       <div className="page-heading">
         <div>
           <span className="eyebrow">QUẢN LÝ TRUNG TÂM</span>
-          <h1>Danh sách thành viên</h1>
-          <p>Quản lý hồ sơ, trạng thái hoạt động và thông tin gói tập.</p>
+          <h1>Thành viên trung tâm</h1>
+          <p>Mỗi hồ sơ, một hành trình tập luyện. Tra cứu và hỗ trợ thành viên tại đây.</p>
         </div>
-        <span className="page-icon">
-          <Users size={26} />
-        </span>
+        <div className="page-actions">
+          <button className="button primary" onClick={() => edit("new")}>
+            <Plus size={18} aria-hidden="true" /> Thêm thành viên
+          </button>
+        </div>
       </div>
       {error && (
         <div className="error-notice" role="alert">
@@ -106,18 +108,15 @@ export function MembersPage() {
           {notice}
         </div>
       )}
-      <section className="panel">
+      <section className="panel" aria-labelledby="member-list-title">
         <div className="panel-heading">
           <div>
-            <h2>{data.total} thành viên</h2>
-            <p>20 thành viên mỗi trang</p>
+            <h2 id="member-list-title">Danh sách thành viên</h2>
+            <p>{data.total} kết quả · Tối đa 20 hồ sơ mỗi trang</p>
           </div>
           <div className="counter-actions">
             <button className="button secondary" onClick={refresh}>
               <RefreshCw size={16} /> Làm mới
-            </button>
-            <button className="button primary" onClick={() => edit("new")}>
-              <Plus size={17} /> Thêm thành viên
             </button>
           </div>
         </div>
@@ -156,19 +155,23 @@ export function MembersPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Thành viên</th>
-                  <th>Liên hệ</th>
-                  <th>Ngày sinh</th>
-                  <th>Trạng thái</th>
-                  <th>Thao tác</th>
+                  <th scope="col">Thành viên</th>
+                  <th scope="col">Liên hệ</th>
+                  <th scope="col">Ngày sinh</th>
+                  <th scope="col">Trạng thái</th>
+                  <th scope="col">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
                 {data.items.map((member) => (
                   <tr key={member.id}>
                     <td>
-                      <strong>{member.fullName}</strong>
-                      <small>{member.id}</small>
+                      <div className="member-identity">
+                        <span className="member-initials" aria-hidden="true">
+                          {member.fullName.trim().split(/\s+/).slice(-2).map((part) => part[0]).join("")}
+                        </span>
+                        <div><strong>{member.fullName}</strong><small>{member.id}</small></div>
+                      </div>
                     </td>
                     <td>
                       {member.email}
@@ -193,6 +196,7 @@ export function MembersPage() {
                       <div className="counter-actions">
                         <button
                           className="text-button"
+                          aria-label={`Xem hồ sơ ${member.fullName}`}
                           onClick={() => {
                             if (!currentUser) return;
                             try {
@@ -210,16 +214,18 @@ export function MembersPage() {
                             }
                           }}
                         >
-                          Chi tiết
+                          Chi tiết <ArrowUpRight size={14} aria-hidden="true" />
                         </button>
                         <button
                           className="text-button"
+                          aria-label={`Chỉnh sửa ${member.fullName}`}
                           onClick={() => edit(member)}
                         >
                           Sửa
                         </button>
                         <button
                           className="text-button"
+                          aria-label={`Xóa ${member.fullName}`}
                           onClick={() => {
                             setRemoving(member);
                             setFormError("");
@@ -236,9 +242,19 @@ export function MembersPage() {
           </div>
         )}
         {!loading && !data.items.length && !error && (
-          <div className="empty-state">Không có thành viên phù hợp.</div>
+          <div className="empty-state">
+            <Users size={32} aria-hidden="true" />
+            <h3>{query || status !== "ALL" ? "Không tìm thấy thành viên" : "Chưa có thành viên"}</h3>
+            <p>{query || status !== "ALL" ? "Thử tên, email khác hoặc xóa bộ lọc để xem tất cả hồ sơ." : "Thêm hồ sơ đầu tiên để bắt đầu quản lý thành viên trung tâm."}</p>
+            <button className="button secondary" onClick={() => {
+              if (query || status !== "ALL") { setQuery(""); setStatus("ALL"); setPage(1); }
+              else edit("new");
+            }}>
+              {query || status !== "ALL" ? "Xóa bộ lọc" : "Thêm thành viên"}
+            </button>
+          </div>
         )}
-        <div className="panel-heading">
+        <div className="table-footer">
           <span>
             Trang {data.page} / {data.pages}
           </span>

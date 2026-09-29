@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { mockDb } from "./mockDb";
 import { authorizeRoles, accessRules } from "./accessControl";
+import { auditService } from "./auditService";
 import type { MembershipActor } from "../types/membership";
 import type { User } from "../types/auth";
 
@@ -107,6 +108,7 @@ export const memberService = {
       isLocked: false,
     };
     mockDb.saveUsers([...users, user]);
+    auditService.record(actor, { action: "CREATE", entity: "MEMBER", entityId: user.id, description: `Tạo thành viên ${user.fullName}.` });
     return { member: safe(user), initialPassword: password };
   },
   update(actor: MembershipActor, id: string, input: MemberInput) {
@@ -125,6 +127,7 @@ export const memberService = {
       throw new Error("Email đã được sử dụng.");
     Object.assign(user, data);
     mockDb.saveUsers(users);
+    auditService.record(actor, { action: "UPDATE", entity: "MEMBER", entityId: user.id, description: `Cập nhật thành viên ${user.fullName}.` });
     return safe(user);
   },
   remove(actor: MembershipActor, id: string) {
@@ -138,5 +141,6 @@ export const memberService = {
     user.deletedAt = new Date().toISOString();
     user.isActive = false;
     mockDb.saveUsers(users);
+    auditService.record(actor, { action: "DEACTIVATE", entity: "MEMBER", entityId: user.id, description: `Xóa mềm thành viên ${user.fullName}.` });
   },
 };

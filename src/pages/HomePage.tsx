@@ -206,11 +206,14 @@ export function HomePage() {
               alt="Phòng tập với hệ thống máy tập và tạ"
               fetchPriority="high"
             />
+            <span className="home-hero-image-index" aria-hidden="true">
+              TITAN ARENA <span>01 / MOVE WITH PURPOSE</span>
+            </span>
           </div>
           <div className="home-container home-hero-inner">
             <div className="home-hero-copy">
               <span className="home-kicker">
-                <span /> KHỞI ĐẦU CỦA MỘT BẠN TỐT HƠN
+                <span /> KHÔNG GIAN CHO MỌI MỤC TIÊU
               </span>
               <h1 id="hero-title">
                 Mạnh mẽ hơn.
@@ -234,8 +237,9 @@ export function HomePage() {
                 </a>
               </div>
               <div className="home-hero-caption">
-                <span className="home-caption-line" /> KHỎE HƠN MỖI NGÀY, BẮT
-                ĐẦU TỪ HÔM NAY.
+                <span><Dumbbell size={15} aria-hidden="true" /> Sức mạnh</span>
+                <span><Leaf size={15} aria-hidden="true" /> Cân bằng</span>
+                <span><Users size={15} aria-hidden="true" /> Kết nối</span>
               </div>
             </div>
             <div className="home-photo-label">
@@ -243,8 +247,8 @@ export function HomePage() {
                 <Dumbbell size={23} aria-hidden="true" />
               </span>
               <div>
-                <small>YOUR NEXT CHAPTER</small>
-                <strong>Bắt đầu bằng một chuyển động.</strong>
+                <small>MỖI CHUYỂN ĐỘNG ĐỀU CÓ Ý NGHĨA</small>
+                <strong>Bắt đầu hành trình của riêng bạn.</strong>
               </div>
             </div>
             <a
@@ -474,6 +478,13 @@ export function HomePage() {
                 ))}
               </div>
             )}
+            <div className="home-catalog-link">
+              <span>Một lựa chọn phù hợp bắt đầu từ thông tin rõ ràng.</span>
+              <Link to="/packages">
+                Xem & so sánh tất cả gói tập
+                <ArrowUpRight size={18} aria-hidden="true" />
+              </Link>
+            </div>
             <div className="home-plan-assurance">
               <ShieldCheck size={20} aria-hidden="true" />
               <p>
@@ -659,7 +670,7 @@ export function HomePage() {
             </div>
             <div className="home-faq-list">
               {faqs.map((faq) => (
-                <details key={faq.question}>
+                <details key={faq.question} name="home-faq">
                   <summary>
                     {faq.question}
                     <ChevronDown size={20} aria-hidden="true" />

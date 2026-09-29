@@ -13,6 +13,8 @@ import {
   LogOut,
   Menu,
   ShieldCheck,
+  History,
+  UserRound,
   X,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
@@ -67,14 +69,14 @@ export function WorkspaceLayout() {
         </div>
         <div className="sidebar-caption">KHÔNG GIAN LÀM VIỆC</div>
         <nav aria-label="Điều hướng chính">
-          {manager && <>
-            <NavLink to="/manager/members" onClick={() => setMenuOpen(false)}><Users size={19} /><span>Quản lý thành viên</span><ArrowUpRight size={15} /></NavLink>
-            <NavLink to="/manager/access" onClick={() => setMenuOpen(false)}><ShieldCheck size={19} /><span>Phân quyền hệ thống</span><ArrowUpRight size={15} /></NavLink>
-            <NavLink to="/receptionist/memberships" onClick={() => setMenuOpen(false)}><CreditCard size={19} /><span>Đăng ký tại quầy</span><ArrowUpRight size={15} /></NavLink>
-          </>}
           <NavLink to="/" end onClick={() => setMenuOpen(false)}>
             <House size={19} />
             <span>Trang chủ</span>
+            <ArrowUpRight size={15} />
+          </NavLink>
+          <NavLink to="/profile" onClick={() => setMenuOpen(false)}>
+            <UserRound size={19} />
+            <span>Hồ sơ cá nhân</span>
             <ArrowUpRight size={15} />
           </NavLink>
           <NavLink
@@ -85,6 +87,19 @@ export function WorkspaceLayout() {
             <span>{label}</span>
             <ArrowUpRight size={15} />
           </NavLink>
+          <NavLink to="/packages" onClick={() => setMenuOpen(false)}>
+            <Layers3 size={19} />
+            <span>Khám phá & so sánh gói</span>
+            <ArrowUpRight size={15} />
+          </NavLink>
+          {manager && <>
+            <NavLink to="/manager/members" onClick={() => setMenuOpen(false)}><Users size={19} /><span>Quản lý thành viên</span><ArrowUpRight size={15} /></NavLink>
+            <NavLink to="/manager/access" onClick={() => setMenuOpen(false)}><ShieldCheck size={19} /><span>Phân quyền hệ thống</span><ArrowUpRight size={15} /></NavLink>
+            <NavLink to="/manager/coaches" onClick={() => setMenuOpen(false)}><Users size={19} /><span>Quản lý huấn luyện viên</span><ArrowUpRight size={15} /></NavLink>
+            <NavLink to="/manager/staff" onClick={() => setMenuOpen(false)}><Users size={19} /><span>Quản lý nhân viên</span><ArrowUpRight size={15} /></NavLink>
+            <NavLink to="/manager/audit-log" onClick={() => setMenuOpen(false)}><History size={19} /><span>Lịch sử thao tác</span><ArrowUpRight size={15} /></NavLink>
+            <NavLink to="/receptionist/memberships" onClick={() => setMenuOpen(false)}><CreditCard size={19} /><span>Đăng ký tại quầy</span><ArrowUpRight size={15} /></NavLink>
+          </>}
           {(manager || reception) && (
             <NavLink to="/payments/cash" onClick={() => setMenuOpen(false)}>
               <ShieldCheck size={19} />
@@ -92,19 +107,16 @@ export function WorkspaceLayout() {
               <ArrowUpRight size={15} />
             </NavLink>
           )}
-          <NavLink to="/packages" onClick={() => setMenuOpen(false)}><Layers3 size={19} /><span>Khám phá & so sánh gói</span><ArrowUpRight size={15} /></NavLink>
           {(reception || manager) && <>
             <NavLink to="/receptionist/attendance" onClick={() => setMenuOpen(false)}><ClipboardCheck size={19} /><span>Điểm danh trung tâm</span><ArrowUpRight size={15} /></NavLink>
             <NavLink to="/receptionist/classes" onClick={() => setMenuOpen(false)}><CalendarDays size={19} /><span>Đăng ký lớp học</span><ArrowUpRight size={15} /></NavLink>
             <NavLink to="/receptionist/support" onClick={() => setMenuOpen(false)}><LifeBuoy size={19} /><span>Yêu cầu hỗ trợ</span><ArrowUpRight size={15} /></NavLink>
-          </>}
-          {(reception || manager) && (
             <NavLink to="/receptionist/membership-status" onClick={() => setMenuOpen(false)}>
               <ShieldCheck size={19} />
               <span>Kiểm tra gói tập</span>
               <ArrowUpRight size={15} />
             </NavLink>
-          )}
+          </>}
         </nav>
         <div className="sidebar-note">
           <span className="sidebar-note-icon">
