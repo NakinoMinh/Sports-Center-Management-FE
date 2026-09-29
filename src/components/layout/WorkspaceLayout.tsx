@@ -5,6 +5,10 @@ import {
   CreditCard,
   Dumbbell,
   House,
+  ClipboardCheck,
+  CalendarDays,
+  LifeBuoy,
+  Users,
   Layers3,
   LogOut,
   Menu,
@@ -63,6 +67,11 @@ export function WorkspaceLayout() {
         </div>
         <div className="sidebar-caption">KHÔNG GIAN LÀM VIỆC</div>
         <nav aria-label="Điều hướng chính">
+          {manager && <>
+            <NavLink to="/manager/members" onClick={() => setMenuOpen(false)}><Users size={19} /><span>Quản lý thành viên</span><ArrowUpRight size={15} /></NavLink>
+            <NavLink to="/manager/access" onClick={() => setMenuOpen(false)}><ShieldCheck size={19} /><span>Phân quyền hệ thống</span><ArrowUpRight size={15} /></NavLink>
+            <NavLink to="/receptionist/memberships" onClick={() => setMenuOpen(false)}><CreditCard size={19} /><span>Đăng ký tại quầy</span><ArrowUpRight size={15} /></NavLink>
+          </>}
           <NavLink to="/" end onClick={() => setMenuOpen(false)}>
             <House size={19} />
             <span>Trang chủ</span>
@@ -80,6 +89,19 @@ export function WorkspaceLayout() {
             <NavLink to="/payments/cash" onClick={() => setMenuOpen(false)}>
               <ShieldCheck size={19} />
               <span>Xác nhận tiền mặt</span>
+              <ArrowUpRight size={15} />
+            </NavLink>
+          )}
+          <NavLink to="/packages" onClick={() => setMenuOpen(false)}><Layers3 size={19} /><span>Khám phá & so sánh gói</span><ArrowUpRight size={15} /></NavLink>
+          {(reception || manager) && <>
+            <NavLink to="/receptionist/attendance" onClick={() => setMenuOpen(false)}><ClipboardCheck size={19} /><span>Điểm danh trung tâm</span><ArrowUpRight size={15} /></NavLink>
+            <NavLink to="/receptionist/classes" onClick={() => setMenuOpen(false)}><CalendarDays size={19} /><span>Đăng ký lớp học</span><ArrowUpRight size={15} /></NavLink>
+            <NavLink to="/receptionist/support" onClick={() => setMenuOpen(false)}><LifeBuoy size={19} /><span>Yêu cầu hỗ trợ</span><ArrowUpRight size={15} /></NavLink>
+          </>}
+          {(reception || manager) && (
+            <NavLink to="/receptionist/membership-status" onClick={() => setMenuOpen(false)}>
+              <ShieldCheck size={19} />
+              <span>Kiểm tra gói tập</span>
               <ArrowUpRight size={15} />
             </NavLink>
           )}

@@ -2,6 +2,7 @@ import { useLayoutEffect, type ReactNode } from "react";
 import {
   BrowserRouter,
   Navigate,
+  Outlet,
   Route,
   Routes,
   useLocation,
@@ -19,9 +20,16 @@ import { DashboardPreview } from "./pages/DashboardPreview";
 import { MembershipPackagesPage } from "./pages/manager/MembershipPackagesPage";
 import { MembershipPage } from "./pages/membership/MembershipPage";
 import { CashPaymentsPage } from "./pages/membership/CashPaymentsPage";
+import { MembershipStatusPage } from "./pages/membership/MembershipStatusPage";
+import { ReceptionOperationsPage } from "./pages/membership/ReceptionOperationsPage";
+import { MembersPage } from "./pages/manager/MembersPage";
+import { AccessControlPage } from "./pages/manager/AccessControlPage";
+import { PackageCatalogPage } from "./pages/PackageCatalogPage";
+import { accountEnabled, accessRules } from "./services/accessControl";
 import type { UserRole } from "./types/auth";
 import "./App.css";
 import "./styles/workspace.css";
+import "./styles/theme.css";
 
 function RouteScrollReset() {
   const { pathname, hash, key } = useLocation();
@@ -30,6 +38,11 @@ function RouteScrollReset() {
     if (!hash) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [pathname, hash, key]);
   return null;
+}
+
+function CatalogLayout() {
+  const { isAuthenticated, currentUser } = useAuth();
+  return isAuthenticated && currentUser ? <WorkspaceLayout /> : <Outlet />;
 }
 
 function AuthPage({ tab }: { tab: "login" | "register" }) {
@@ -48,7 +61,7 @@ function AuthPage({ tab }: { tab: "login" | "register" }) {
   );
 }
 
-// These guards protect Minh's screens; full SCMS-5 permission management belongs to another task.
+// UI guard complements checks in each local service; API authorization belongs on the server.
 function OwnedScreen({
   role,
   children,
@@ -59,6 +72,7 @@ function OwnedScreen({
   const { currentUser } = useAuth();
   if (
     !currentUser ||
+    !accountEnabled(currentUser) ||
     !(Array.isArray(role) ? role : [role]).includes(currentUser.role)
   )
     return (
@@ -78,13 +92,24 @@ export default function App() {
         <RouteScrollReset />
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route element={<CatalogLayout />}>
+            <Route path="/packages" element={<PackageCatalogPage />} />
+          </Route>
           <Route path="/login" element={<AuthPage tab="login" />} />
           <Route path="/register" element={<AuthPage tab="register" />} />
           <Route element={<WorkspaceLayout />}>
+            <Route path="/manager/members" element={<OwnedScreen role={accessRules.members}><MembersPage /></OwnedScreen>} />
+            <Route path="/manager/access" element={<OwnedScreen role={accessRules.permissions}><AccessControlPage /></OwnedScreen>} />
+            {(["attendance", "classes", "support"] as const).map((mode) => (
+              <Route key={mode} path={`/receptionist/${mode}`} element={<OwnedScreen role={accessRules.counter}><ReceptionOperationsPage key={mode} mode={mode} /></OwnedScreen>} />
+            ))}
+            <Route path="/receptionist/membership-status" element={
+              <OwnedScreen role={accessRules.counter}><MembershipStatusPage /></OwnedScreen>
+            } />
             <Route
               path="/payments/cash"
               element={
-                <OwnedScreen role={["RECEPTIONIST", "CENTER_MANAGER"]}>
+                <OwnedScreen role={accessRules.payments}>
                   <CashPaymentsPage />
                 </OwnedScreen>
               }
@@ -92,7 +117,7 @@ export default function App() {
             <Route
               path="/manager/packages"
               element={
-                <OwnedScreen role="CENTER_MANAGER">
+                <OwnedScreen role={accessRules.packages}>
                   <MembershipPackagesPage />
                 </OwnedScreen>
               }
@@ -100,7 +125,7 @@ export default function App() {
             <Route
               path="/member/membership"
               element={
-                <OwnedScreen role="MEMBER">
+                <OwnedScreen role={accessRules.membership}>
                   <MembershipPage mode="member" />
                 </OwnedScreen>
               }
@@ -108,7 +133,7 @@ export default function App() {
             <Route
               path="/receptionist/memberships"
               element={
-                <OwnedScreen role="RECEPTIONIST">
+                <OwnedScreen role={accessRules.counter}>
                   <MembershipPage mode="receptionist" />
                 </OwnedScreen>
               }
@@ -116,7 +141,7 @@ export default function App() {
             <Route
               path="/coach"
               element={
-                <OwnedScreen role="COACH">
+                <OwnedScreen role={accessRules.coach}>
                   <DashboardPreview />
                 </OwnedScreen>
               }

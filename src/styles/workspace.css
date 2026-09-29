@@ -25,6 +25,7 @@ textarea {
   font: inherit;
 }
 .workspace-sidebar {
+  overflow-y: auto;
   width: 254px;
   background: #112f2d;
   color: #eff7f4;
@@ -36,6 +37,7 @@ textarea {
   flex-direction: column;
   z-index: 30;
 }
+.workspace-sidebar > * { flex-shrink: 0; }
 .workspace-brand {
   display: flex;
   align-items: center;
@@ -1583,3 +1585,31 @@ textarea {
     font-size: 12px;
   }
 }
+.membership-status-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 24px; }
+.membership-status-stat { padding: 22px 18px; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.membership-status-stat span { display: block; font-size: 13px; }
+.membership-status-stat strong { display: block; font-size: 30px; margin-top: 12px; }
+.membership-status-stat.selected { border-color: #247b60; background: #eaf3ed; }
+.membership-status-help { padding: 0 24px 18px; color: #667b75; font-size: 13px; }
+.membership-expiry-warning { display: flex !important; align-items: center; gap: 5px; color: #a05b13 !important; }
+.status-chip.suspended { background: #f0eafa; color: #7448a1; }
+.status-chip.none { background: #eef1ef; color: #5c6c64; }
+.reception-member-panel, .reception-history { margin-bottom: 24px; }
+.reception-history { margin-top: 24px; }
+.reception-member-summary { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 20px 26px; }
+.reception-member-summary p { color: #667b75; font-size: 13px; margin-top: 6px; }
+.reception-class-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; padding: 0 26px 26px; }
+.reception-class-card { border: 1px solid #dce6df; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.reception-class-card p { color: #667b75; font-size: 13px; }
+.reception-class-card .button { width: 100%; margin-top: 6px; }
+.reception-form { display: flex; flex-direction: column; gap: 20px; }
+.reception-preserve-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.public-catalog { min-height: 100vh; }
+.catalog-nav { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 24px max(32px, calc((100vw - 1200px) / 2)); background: #112f2d; }
+.catalog-brand { color: #d4efae; display: flex; align-items: center; gap: 12px; font-weight: 800; text-decoration: none; }
+.catalog-main { max-width: 1264px; margin: auto; padding: 48px 32px; }
+.catalog-main .toolbar { margin-bottom: 28px; border-radius: 12px; }
+.catalog-compare { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-size: 13px; }
+.catalog-benefits { padding-left: 18px; white-space: normal; }
+.catalog-benefits li { margin-bottom: 8px; }
+.initial-password { display: block; padding: 16px; margin: 16px 0; background: #eaf3ed; overflow-wrap: anywhere; user-select: all; }
