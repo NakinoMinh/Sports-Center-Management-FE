@@ -14,6 +14,8 @@ export interface User {
   lockedAt?: string;
   phone?: string;
   dateOfBirth?: string;
+  specialization?: string;
+  workSchedule?: string;
   isActive?: boolean;
   deletedAt?: string;
 }
@@ -66,4 +68,5 @@ export interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<AuthResponse>;
   register: (data: RegisterData) => Promise<AuthResponse>;
   logout: () => void;
+  refreshCurrentUser: () => void;
 }

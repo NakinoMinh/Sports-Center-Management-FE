@@ -25,6 +25,9 @@ import { ReceptionOperationsPage } from "./pages/membership/ReceptionOperationsP
 import { MembersPage } from "./pages/manager/MembersPage";
 import { AccessControlPage } from "./pages/manager/AccessControlPage";
 import { PackageCatalogPage } from "./pages/PackageCatalogPage";
+import { ProfilePage } from "./pages/ProfilePage";
+import { PersonnelPage } from "./pages/manager/PersonnelPage";
+import { AuditLogPage } from "./pages/manager/AuditLogPage";
 import { accountEnabled, accessRules } from "./services/accessControl";
 import type { UserRole } from "./types/auth";
 import "./App.css";
@@ -98,7 +101,11 @@ export default function App() {
           <Route path="/login" element={<AuthPage tab="login" />} />
           <Route path="/register" element={<AuthPage tab="register" />} />
           <Route element={<WorkspaceLayout />}>
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/manager/members" element={<OwnedScreen role={accessRules.members}><MembersPage /></OwnedScreen>} />
+            <Route path="/manager/coaches" element={<OwnedScreen role={accessRules.members}><PersonnelPage role="COACH" /></OwnedScreen>} />
+            <Route path="/manager/staff" element={<OwnedScreen role={accessRules.members}><PersonnelPage role="RECEPTIONIST" /></OwnedScreen>} />
+            <Route path="/manager/audit-log" element={<OwnedScreen role={accessRules.members}><AuditLogPage /></OwnedScreen>} />
             <Route path="/manager/access" element={<OwnedScreen role={accessRules.permissions}><AccessControlPage /></OwnedScreen>} />
             {(["attendance", "classes", "support"] as const).map((mode) => (
               <Route key={mode} path={`/receptionist/${mode}`} element={<OwnedScreen role={accessRules.counter}><ReceptionOperationsPage key={mode} mode={mode} /></OwnedScreen>} />
