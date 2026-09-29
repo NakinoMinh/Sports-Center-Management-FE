@@ -18,11 +18,14 @@ const initialUsers: User[] = [
     passwordHash: precomputedHash,
     role: "CENTER_MANAGER",
     fullName: "Nguyễn Văn Quản Lý",
+    phone: "0901234567",
+    dateOfBirth: "1988-05-15",
     avatar:
       "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
     createdAt: new Date().toISOString(),
     failedAttempts: 0,
     isLocked: false,
+    isActive: true,
   },
   {
     id: "usr_coach_01",
@@ -31,11 +34,16 @@ const initialUsers: User[] = [
     passwordHash: precomputedHash,
     role: "COACH",
     fullName: "Trần Huấn Luyện Viên",
+    phone: "0912345678",
+    dateOfBirth: "1992-08-20",
+    specialization: "Fitness, Gym, Thể hình cá nhân, Cardio",
+    workSchedule: "Ca sáng: Thứ 2 - Thứ 7 (06:00 - 14:00)",
     avatar:
       "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=150&auto=format&fit=crop&q=80",
     createdAt: new Date().toISOString(),
     failedAttempts: 0,
     isLocked: false,
+    isActive: true,
   },
   {
     id: "usr_member_01",
@@ -44,11 +52,14 @@ const initialUsers: User[] = [
     passwordHash: precomputedHash,
     role: "MEMBER",
     fullName: "Lê Thành Viên",
+    phone: "0987654321",
+    dateOfBirth: "1998-12-10",
     avatar:
       "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80",
     createdAt: new Date().toISOString(),
     failedAttempts: 0,
     isLocked: false,
+    isActive: true,
   },
   {
     id: "usr_recept_01",
@@ -57,11 +68,15 @@ const initialUsers: User[] = [
     passwordHash: precomputedHash,
     role: "RECEPTIONIST",
     fullName: "Phạm Lễ Tân",
+    phone: "0934567890",
+    dateOfBirth: "1996-03-25",
+    workSchedule: "Ca chiều: Thứ 2 - Chủ Nhật (14:00 - 22:00)",
     avatar:
       "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
     createdAt: new Date().toISOString(),
     failedAttempts: 0,
     isLocked: false,
+    isActive: true,
   },
 ];
 
@@ -95,7 +110,21 @@ export const mockDb = {
       ) {
         throw new Error("Dữ liệu tài khoản trên trình duyệt không hợp lệ.");
       }
-      return users;
+      let needsSave = false;
+      for (const u of users as User[]) {
+        const seed = initialUsers.find((s) => s.id === u.id);
+        if (seed) {
+          if (!u.phone && seed.phone) { u.phone = seed.phone; needsSave = true; }
+          if (!u.dateOfBirth && seed.dateOfBirth) { u.dateOfBirth = seed.dateOfBirth; needsSave = true; }
+          if (!u.specialization && seed.specialization) { u.specialization = seed.specialization; needsSave = true; }
+          if (!u.workSchedule && seed.workSchedule) { u.workSchedule = seed.workSchedule; needsSave = true; }
+          if (u.isActive === undefined) { u.isActive = true; needsSave = true; }
+        }
+      }
+      if (needsSave) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
+      }
+      return users as User[];
     } catch {
       throw new Error(
         "Không đọc được dữ liệu demo. Kiểm tra quyền lưu trữ của trình duyệt.",

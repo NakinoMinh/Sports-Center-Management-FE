@@ -1,5 +1,6 @@
 import { mockDb } from "./mockDb";
 import { accountEnabled, authorizeRoles } from "./accessControl";
+import { auditService } from "./auditService";
 import { generateInitialPassword, validateBirthDate } from "./memberService";
 import bcrypt from "bcryptjs";
 import type { User, UserRole } from "../types/auth";
@@ -518,6 +519,7 @@ export const membershipService = {
       state.packages.push(result);
     }
     saveState(state);
+    auditService.record(actor, { action: packageId ? "UPDATE" : "CREATE", entity: "MEMBERSHIP_PACKAGE", entityId: result.id, description: `${packageId ? "Cập nhật" : "Tạo"} gói tập ${result.name}.` });
     return result;
   },
 
@@ -533,6 +535,7 @@ export const membershipService = {
     item.isActive = isActive;
     item.updatedAt = new Date().toISOString();
     saveState(state);
+    auditService.record(actor, { action: isActive ? "ACTIVATE" : "DEACTIVATE", entity: "MEMBERSHIP_PACKAGE", entityId: item.id, description: `${isActive ? "Mở lại" : "Ẩn"} gói tập ${item.name}.` });
     return item;
   },
 
@@ -551,6 +554,7 @@ export const membershipService = {
     }
     state.packages = state.packages.filter((item) => item.id !== packageId);
     saveState(state);
+    auditService.record(actor, { action: "DELETE", entity: "MEMBERSHIP_PACKAGE", entityId: packageId, description: "Xóa gói tập chưa có lịch sử đăng ký." });
   },
 
   listMembers(actor: MembershipActor): MembershipActor[] {
@@ -640,6 +644,7 @@ export const membershipService = {
     state.invoices.push(invoice);
     // One write makes creating the reservation and invoice atomic in this mock adapter.
     saveState(state);
+    auditService.record(actor, { action: "CREATE", entity: "MEMBERSHIP_ORDER", entityId: invoice.id, description: `Tạo yêu cầu ${orderKindLabels[quote.kind].toLocaleLowerCase()} cho ${quote.memberName}.` });
     return { subscription, invoice };
   },
 
@@ -715,6 +720,7 @@ export const membershipService = {
     subscription.status = "CONFIRMED";
     // One write: receipt and access change together; a repeated click cannot collect twice.
     saveState(state);
+    auditService.record(cashier, { action: "CONFIRM_PAYMENT", entity: "INVOICE", entityId: invoice.id, description: `Xác nhận thanh toán tiền mặt ${invoice.amount.toLocaleString("vi-VN")}đ cho ${invoice.memberName}.` });
     return { invoice, subscription };
   },
 
@@ -736,6 +742,7 @@ export const membershipService = {
     invoice.canceledAt = new Date().toISOString();
     invoice.canceledBy = actor.id;
     saveState(state);
+    auditService.record(actor, { action: "CANCEL", entity: "MEMBERSHIP_ORDER", entityId: invoice.id, description: `Hủy yêu cầu gói tập của ${invoice.memberName}.` });
   },
 
   async registerMemberAtCounter(
