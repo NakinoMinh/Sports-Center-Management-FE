@@ -158,9 +158,9 @@ Derived display status for the current relevant subscription:
 
 1. `SUSPENDED` when a confirmed current subscription has `IsSuspended = true`.
 2. `ACTIVE` when confirmed, not suspended, and `EndDate >= today`.
-3. `EXPIRED` when the most recent confirmed subscription ended before today.
-4. `PENDING_PAYMENT` when no confirmed current subscription exists but a pending order does.
-5. `UPCOMING` when a confirmed future subscription exists.
+3. `UPCOMING` when no current subscription exists and a confirmed future subscription exists.
+4. `EXPIRED` when no current or future subscription exists and the most recent confirmed subscription ended before today.
+5. `PENDING_PAYMENT` when no confirmed current, future, or historical subscription is selected but a pending order exists.
 6. `NONE` otherwise.
 
 `remainingDays` includes today and the final usable date. `expiringSoon` is true only for an active subscription with 1-6 remaining days, matching the Sprint 1 requirement of fewer than seven days.
