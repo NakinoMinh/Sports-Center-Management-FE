@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Search, Users, Plus, RefreshCw, ArrowUpRight } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
-import { memberService, type MemberInput } from "../../services/memberService";
-import {
-  membershipService,
-  getMembershipStatusSummary,
-} from "../../services/membershipService";
-import type { MembershipActor } from "../../types/membership";
+import type { MemberInput } from "../../services/memberService";
+import { sportsCenterApi } from "../../services/sportsCenterApi";
+import type {
+  MemberPage,
+  MembershipActor,
+  MembershipStatusRow,
+} from "../../types/membership";
 import { formatDate } from "../../utils/format";
 
 const blank: MemberInput = {
@@ -20,9 +21,9 @@ const blank: MemberInput = {
 export function MembersPage() {
   const { currentUser } = useAuth();
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("ALL");
+  const [status, setStatus] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<ReturnType<typeof memberService.list>>({
+  const [data, setData] = useState<MemberPage>({
     items: [],
     total: 0,
     page: 1,
@@ -41,32 +42,37 @@ export function MembersPage() {
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
-  const [summary, setSummary] = useState<ReturnType<
-    typeof getMembershipStatusSummary
-  > | null>(null);
-  const refresh = useCallback(() => {
+  const [summary, setSummary] = useState<MembershipStatusRow | null>(null);
+  const refresh = useCallback(async (isCanceled: () => boolean = () => false) => {
     if (!currentUser) return;
+    setLoading(true);
     try {
-      setData(memberService.list(currentUser, query, status, page));
+      const result = await sportsCenterApi.listMembers(query, status, page);
+      if (isCanceled()) return;
+      setData(result);
       setError("");
     } catch (err) {
+      if (isCanceled()) return;
       setData({ items: [], total: 0, page: 1, pages: 1 });
       setError(
         err instanceof Error ? err.message : "Không thể tải thành viên.",
       );
     } finally {
-      setLoading(false);
+      if (!isCanceled()) setLoading(false);
     }
   }, [currentUser, query, status, page]);
   useEffect(() => {
-    // Synchronize the local adapter with list controls and changes in other tabs.
+    let canceled = false;
+    const handleRefresh = () => void refresh(() => canceled);
+    // Synchronize the data source with list controls and changes in other tabs.
     // oxlint-disable-next-line react/set-state-in-effect
-    refresh();
-    window.addEventListener("storage", refresh);
-    window.addEventListener("focus", refresh);
+    handleRefresh();
+    window.addEventListener("storage", handleRefresh);
+    window.addEventListener("focus", handleRefresh);
     return () => {
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("focus", refresh);
+      canceled = true;
+      window.removeEventListener("storage", handleRefresh);
+      window.removeEventListener("focus", handleRefresh);
     };
   }, [refresh]);
   function edit(member: MembershipActor | "new") {
@@ -115,7 +121,7 @@ export function MembersPage() {
             <p>{data.total} kết quả · Tối đa 20 hồ sơ mỗi trang</p>
           </div>
           <div className="counter-actions">
-            <button className="button secondary" onClick={refresh}>
+            <button className="button secondary" onClick={() => void refresh()}>
               <RefreshCw size={16} /> Làm mới
             </button>
           </div>
@@ -137,7 +143,7 @@ export function MembersPage() {
             aria-label="Trạng thái thành viên"
             value={status}
             onChange={(e) => {
-              setStatus(e.target.value);
+              setStatus(e.target.value as "ALL" | "ACTIVE" | "INACTIVE");
               setPage(1);
             }}
           >
@@ -197,16 +203,15 @@ export function MembersPage() {
                         <button
                           className="text-button"
                           aria-label={`Xem hồ sơ ${member.fullName}`}
-                          onClick={() => {
+                          onClick={async () => {
                             if (!currentUser) return;
                             try {
+                              const rows = await sportsCenterApi.listMembershipStatuses(
+                                member.username,
+                                "ALL",
+                              );
                               setSummary(
-                                getMembershipStatusSummary(
-                                  membershipService.getMemberSubscriptions(
-                                    currentUser,
-                                    member.id,
-                                  ),
-                                ),
+                                rows.find((row) => row.member.id === member.id) ?? null,
                               );
                               setDetail(member);
                             } catch (err) {
@@ -292,15 +297,15 @@ export function MembersPage() {
               setFormError("");
               try {
                 if (editing === "new") {
-                  const created = await memberService.create(currentUser, form);
+                  const created = await sportsCenterApi.createMember(form);
                   setPassword({
                     email: created.member.email,
                     value: created.initialPassword,
                   });
-                } else memberService.update(currentUser, editing.id, form);
+                } else await sportsCenterApi.updateMember(editing.id, form);
+                await refresh();
                 setEditing(null);
                 setNotice("Đã lưu hồ sơ thành viên.");
-                refresh();
               } catch (err) {
                 setFormError((err as Error).message);
               } finally {
@@ -399,15 +404,15 @@ export function MembersPage() {
               </button>
               <button
                 className="button danger"
-                onClick={() => {
+                onClick={async () => {
                   if (!currentUser) return;
                   try {
-                    memberService.remove(currentUser, removing.id);
+                    await sportsCenterApi.deleteMember(removing.id);
+                    await refresh();
                     setRemoving(null);
                     setNotice(
                       "Đã xóa thành viên khỏi danh sách và ngừng quyền truy cập.",
                     );
-                    refresh();
                   } catch (err) {
                     setFormError((err as Error).message);
                   }
