@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, Dumbbell, Scale } from "lucide-react";
-import {
-  membershipService,
-  type PublicMembershipPackage,
-} from "../services/membershipService";
+import { sportsCenterApi } from "../services/sportsCenterApi";
+import type { PublicMembershipPackage } from "../types/membership";
 import { useAuth } from "../hooks/useAuth";
 import { homeForRole } from "../utils/navigation";
 import { durationLabel, formatMoney } from "../utils/format";
@@ -17,27 +15,33 @@ export function PackageCatalogPage() {
   const [duration, setDuration] = useState("ALL");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async (isCanceled: () => boolean = () => false) => {
     try {
-      setPackages(membershipService.listPublicPackages());
+      const result = await sportsCenterApi.listActivePackages();
+      if (isCanceled()) return;
+      setPackages(result);
       setError("");
     } catch (err) {
+      if (isCanceled()) return;
       setPackages([]);
       setError((err as Error).message);
     } finally {
-      setLoading(false);
+      if (!isCanceled()) setLoading(false);
     }
   }, []);
   useEffect(() => {
+    let canceled = false;
+    const handleRefresh = () => void refresh(() => canceled);
     // Synchronize public catalog changes without requiring a signed-in account.
     // oxlint-disable-next-line react/set-state-in-effect
-    refresh();
-    window.addEventListener("focus", refresh);
-    window.addEventListener("storage", refresh);
-    const timer = window.setInterval(refresh, 60000);
+    handleRefresh();
+    window.addEventListener("focus", handleRefresh);
+    window.addEventListener("storage", handleRefresh);
+    const timer = window.setInterval(handleRefresh, 60000);
     return () => {
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener("storage", refresh);
+      canceled = true;
+      window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("storage", handleRefresh);
       window.clearInterval(timer);
     };
   }, [refresh]);
@@ -94,7 +98,7 @@ export function PackageCatalogPage() {
         {error && (
           <div className="error-notice" role="alert">
             {error}
-            <button className="button secondary" onClick={refresh}>
+            <button className="button secondary" onClick={() => void refresh()}>
               Thử lại
             </button>
           </div>
