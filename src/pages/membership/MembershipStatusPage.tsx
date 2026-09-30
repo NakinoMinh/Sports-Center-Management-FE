@@ -3,52 +3,60 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, ArrowRight, RefreshCw, Search, ShieldCheck, Users } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
-import { getMembershipStatusSummary, membershipService } from "../../services/membershipService";
-import type { MemberSubscription, MembershipActor } from "../../types/membership";
+import { sportsCenterApi } from "../../services/sportsCenterApi";
+import type {
+  MembershipStatusFilter,
+  MembershipStatusRow,
+} from "../../types/membership";
 import { formatDate } from "../../utils/format";
 
-const labels: Record<string, string> = {
+const labels: Record<MembershipStatusRow["status"], string> = {
   ACTIVE: "Đang hoạt động", EXPIRED: "Đã hết hạn", SUSPENDED: "Tạm ngưng",
-  UPCOMING: "Sắp bắt đầu", SCHEDULED_DOWNGRADE: "Sắp bắt đầu",
-  PENDING_PAYMENT: "Chờ thanh toán", NONE: "Chưa có gói",
+  UPCOMING: "Sắp bắt đầu", PENDING_PAYMENT: "Chờ thanh toán", NONE: "Chưa có gói",
 };
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase();
 
 export function MembershipStatusPage() {
   const { currentUser } = useAuth();
-  const [data, setData] = useState<{ members: MembershipActor[]; subscriptions: MemberSubscription[] }>({ members: [], subscriptions: [] });
+  const [rows, setRows] = useState<MembershipStatusRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("ALL");
+  const [filter, setFilter] = useState<MembershipStatusFilter>("ALL");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async (isCanceled: () => boolean = () => false) => {
     if (!currentUser) return;
+    setLoading(true);
     try {
-      setData({ members: membershipService.listMembers(currentUser), subscriptions: membershipService.getMemberSubscriptions(currentUser) });
+      const result = await sportsCenterApi.listMembershipStatuses("", "ALL");
+      if (isCanceled()) return;
+      setRows(result);
       setError("");
     } catch (err) {
-      setData({ members: [], subscriptions: [] });
+      if (isCanceled()) return;
+      setRows([]);
       setError(err instanceof Error ? err.message : "Không thể tải trạng thái gói tập.");
-    } finally { setLoading(false); }
+    } finally { if (!isCanceled()) setLoading(false); }
   }, [currentUser]);
   useEffect(() => {
-    // Synchronize the local data adapter, including when a payment is confirmed in another tab.
+    let canceled = false;
+    const handleRefresh = () => void refresh(() => canceled);
+    // Synchronize membership status, including when a payment is confirmed in another tab.
     // oxlint-disable-next-line react/set-state-in-effect
-    refresh();
-    window.addEventListener("focus", refresh);
-    window.addEventListener("storage", refresh);
-    const timer = window.setInterval(refresh, 60000);
+    handleRefresh();
+    window.addEventListener("focus", handleRefresh);
+    window.addEventListener("storage", handleRefresh);
+    const timer = window.setInterval(handleRefresh, 60000);
     return () => {
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener("storage", refresh);
+      canceled = true;
+      window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("storage", handleRefresh);
       window.clearInterval(timer);
     };
   }, [refresh]);
-  const rows = data.members.map((member) => ({ member, ...getMembershipStatusSummary(data.subscriptions.filter((sub) => sub.memberId === member.id)) }));
   const visible = rows.filter((row) => {
-    const matches = normalize([row.member.fullName, row.member.email, row.member.phone, row.member.id].join(" ")).includes(normalize(query.trim()));
-    return matches && (filter === "ALL" || (filter === "EXPIRING" ? row.expiringSoon : row.status === filter || (filter === "UPCOMING" && row.status === "SCHEDULED_DOWNGRADE")));
+    const matches = normalize([row.member.fullName, row.member.username, row.member.email, row.member.phone, row.member.id].join(" ")).includes(normalize(query.trim()));
+    return matches && (filter === "ALL" || (filter === "EXPIRING" ? row.expiringSoon : row.status === filter));
   });
   const selected = rows.find((row) => row.member.id === selectedId);
   return <>
@@ -56,20 +64,20 @@ export function MembershipStatusPage() {
       <div><span className="eyebrow">QUẦY LỄ TÂN · TRA CỨU THÀNH VIÊN</span><h1>Kiểm tra gói tập</h1><p>Nắm rõ trạng thái và thời hạn để hỗ trợ thành viên kịp thời.</p></div>
       <span className="page-icon"><ShieldCheck size={26} /></span>
     </div>
-    {error && <div className="error-notice" role="alert">{error}<button className="button secondary" onClick={refresh}>Thử lại</button></div>}
+    {error && <div className="error-notice" role="alert">{error}<button className="button secondary" onClick={() => void refresh()}>Thử lại</button></div>}
     {!error && !loading && <div className="membership-status-stats">
       {([{ key: "ALL", label: "Tổng thành viên", count: rows.length },
         { key: "ACTIVE", label: "Đang hoạt động", count: rows.filter((r) => r.status === "ACTIVE").length },
         { key: "EXPIRING", label: "Sắp hết hạn · dưới 7 ngày", count: rows.filter((r) => r.expiringSoon).length },
         { key: "EXPIRED", label: "Đã hết hạn", count: rows.filter((r) => r.status === "EXPIRED").length },
         { key: "SUSPENDED", label: "Tạm ngưng", count: rows.filter((r) => r.status === "SUSPENDED").length },
-      ]).map((item) => <button key={item.key} className={`panel membership-status-stat ${filter === item.key ? "selected" : ""}`} aria-pressed={filter === item.key} onClick={() => setFilter(item.key)}><span>{item.label}</span><strong>{item.count}</strong></button>)}
+      ]).map((item) => <button key={item.key} className={`panel membership-status-stat ${filter === item.key ? "selected" : ""}`} aria-pressed={filter === item.key} onClick={() => setFilter(item.key as MembershipStatusFilter)}><span>{item.label}</span><strong>{item.count}</strong></button>)}
     </div>}
     <section className="panel">
-      <div className="panel-heading"><div><span className="eyebrow">THÔNG TIN GÓI THÀNH VIÊN</span><h2>Danh sách tra cứu</h2></div><button className="button secondary" onClick={refresh}><RefreshCw size={16} /> Làm mới</button></div>
+      <div className="panel-heading"><div><span className="eyebrow">THÔNG TIN GÓI THÀNH VIÊN</span><h2>Danh sách tra cứu</h2></div><button className="button secondary" onClick={() => void refresh()}><RefreshCw size={16} /> Làm mới</button></div>
       <div className="toolbar">
         <label className="search-field"><Search size={18} /><input aria-label="Tìm thành viên" placeholder="Tìm tên, email, số điện thoại hoặc mã thành viên..." value={query} onChange={(e) => setQuery(e.target.value)} /></label>
-        <select aria-label="Lọc trạng thái gói" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="ALL">Tất cả trạng thái</option><option value="EXPIRING">Sắp hết hạn (&lt; 7 ngày)</option>{Object.entries(labels).filter(([key]) => key !== "SCHEDULED_DOWNGRADE").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+        <select aria-label="Lọc trạng thái gói" value={filter} onChange={(e) => setFilter(e.target.value as MembershipStatusFilter)}><option value="ALL">Tất cả trạng thái</option><option value="EXPIRING">Sắp hết hạn (&lt; 7 ngày)</option>{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
       </div>
       {loading ? <div className="empty-state" role="status">Đang tải thông tin thành viên...</div> : !error && <>
         <p className="membership-status-help">{visible.length} thành viên · Số ngày còn lại tính cả hôm nay và ngày cuối sử dụng. Tạm ngưng không tự động kéo dài kỳ hạn.</p>
@@ -79,7 +87,7 @@ export function MembershipStatusPage() {
             <td>{row.subscription?.packageName ?? "—"}{row.upcoming && row.upcoming !== row.subscription && <small>Đã có kỳ tiếp theo từ {formatDate(row.upcoming.startDate)}</small>}</td>
             <td><span className={`status-chip ${row.status.toLowerCase()}`}>{labels[row.status]}</span></td>
             <td>{row.subscription ? formatDate(row.subscription.endDate) : "—"}{row.status === "PENDING_PAYMENT" && <small>Dự kiến, chưa kích hoạt</small>}</td>
-            <td><strong>{row.status === "NONE" || row.status === "PENDING_PAYMENT" || row.status === "UPCOMING" || row.status === "SCHEDULED_DOWNGRADE" ? "—" : `${row.remainingDays} ngày`}</strong>{row.expiringSoon && <small className="membership-expiry-warning"><AlertTriangle size={14} /> Sắp hết hạn</small>}</td>
+            <td><strong>{row.status === "NONE" || row.status === "PENDING_PAYMENT" || row.status === "UPCOMING" ? "—" : `${row.remainingDays} ngày`}</strong>{row.expiringSoon && <small className="membership-expiry-warning"><AlertTriangle size={14} /> Sắp hết hạn</small>}</td>
             <td><button className="text-button" onClick={() => setSelectedId(row.member.id)}>Xem chi tiết <ArrowRight size={15} /></button></td>
           </tr>)}
         </tbody></table></div> : <div className="empty-state"><Users size={30} /><h3>Không tìm thấy thành viên</h3><p>Thử tìm kiếm khác hoặc chọn tất cả trạng thái.</p><button className="button secondary" onClick={() => { setQuery(""); setFilter("ALL"); }}>Xóa bộ lọc</button></div>}

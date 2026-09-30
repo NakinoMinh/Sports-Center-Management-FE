@@ -1,25 +1,24 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "../common/Dialog";
-import { membershipService } from "../../services/membershipService";
+import { sportsCenterApi } from "../../services/sportsCenterApi";
 import type {
+  CounterRegistrationResult,
   MembershipActor,
   MembershipOrder,
-  MembershipPackage,
   PaymentMethod,
+  PublicMembershipPackage,
 } from "../../types/membership";
 import { durationLabel, formatMoney } from "../../utils/format";
 
 export function CounterRegistrationForm({
-  actor,
-  packages,
   onClose,
   onCreated,
 }: {
-  actor: MembershipActor;
-  packages: MembershipPackage[];
   onClose: () => void;
   onCreated: (member: MembershipActor, order: MembershipOrder) => void;
 }) {
+  const [packages, setPackages] = useState<PublicMembershipPackage[]>([]);
+  const [loadingPackages, setLoadingPackages] = useState(true);
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -30,10 +29,29 @@ export function CounterRegistrationForm({
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [created, setCreated] = useState<Awaited<
-    ReturnType<typeof membershipService.registerMemberWithGeneratedCredentials>
-  > | null>(null);
+  const [created, setCreated] = useState<CounterRegistrationResult | null>(null);
   const pkg = packages.find((p) => p.id === form.packageId);
+  useEffect(() => {
+    let canceled = false;
+    void sportsCenterApi
+      .listActivePackages()
+      .then((result) => {
+        if (!canceled) setPackages(result);
+      })
+      .catch((err: unknown) => {
+        if (!canceled) {
+          setError(
+            err instanceof Error ? err.message : "Không thể tải gói tập.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!canceled) setLoadingPackages(false);
+      });
+    return () => {
+      canceled = true;
+    };
+  }, []);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
@@ -44,11 +62,10 @@ export function CounterRegistrationForm({
     }
     setBusy(true);
     try {
-      const result =
-        await membershipService.registerMemberWithGeneratedCredentials(actor, {
-          ...form,
-          expectedPrice: pkg.price,
-        });
+      const result = await sportsCenterApi.registerMemberAtCounter({
+        ...form,
+        expectedPrice: pkg.price,
+      });
       setCreated(result);
     } catch (err) {
       setError(
@@ -79,11 +96,18 @@ export function CounterRegistrationForm({
           <code className="initial-password">{created.initialPassword}</code>
         </div>
         <div className="info-note">
-          <p>
-            Email chưa được gửi vì dịch vụ gửi email chưa kết nối. Bàn giao
-            riêng thông tin đăng nhập cho thành viên trước khi đóng. Gói tập
-            đang chờ thanh toán.
-          </p>
+          {created.emailDelivery === "SENT" ? (
+            <p>
+              Email thông tin đăng nhập đã được gửi cho thành viên. Gói tập
+              đang chờ thanh toán.
+            </p>
+          ) : (
+            <p>
+              Email chưa được gửi vì dịch vụ gửi email chưa kết nối. Bàn giao
+              riêng thông tin đăng nhập cho thành viên trước khi đóng. Gói tập
+              đang chờ thanh toán.
+            </p>
+          )}
         </div>
       </Dialog>
     );
@@ -96,7 +120,7 @@ export function CounterRegistrationForm({
       }}
     >
       <form onSubmit={submit}>
-        <fieldset disabled={busy} className="counter-fieldset">
+        <fieldset disabled={busy || loadingPackages} className="counter-fieldset">
           <div className="field-grid">
             <label className="field">
               <span>Họ và tên *</span>
@@ -217,7 +241,7 @@ export function CounterRegistrationForm({
             <button
               type="submit"
               className="button primary"
-              disabled={!pkg || busy}
+              disabled={!pkg || busy || loadingPackages}
             >
               {busy ? "Đang tạo…" : "Tạo thành viên & đăng ký gói"}
             </button>

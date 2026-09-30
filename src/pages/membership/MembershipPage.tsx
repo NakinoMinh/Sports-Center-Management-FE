@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
+import { apiConfigured } from "../../services/apiClient";
 import {
   membershipService,
   getSubscriptionStatus,
@@ -754,12 +755,10 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
       )}
       {registering && currentUser && (
         <CounterRegistrationForm
-          actor={currentUser}
-          packages={snapshot.packages}
           onClose={() => setRegistering(false)}
           onCreated={(newMember, order) => {
             setRegistering(false);
-            setSelectedMember(newMember.id);
+            if (!apiConfigured()) setSelectedMember(newMember.id);
             setInvoice(order.invoice);
             setNotice(
               `Đã tạo thành viên ${newMember.fullName} và yêu cầu gói. Cần xác nhận thanh toán để kích hoạt.`,
