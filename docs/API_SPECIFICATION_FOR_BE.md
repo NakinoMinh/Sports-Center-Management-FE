@@ -1,10 +1,12 @@
 # TÀI LIỆU ĐẶC TẢ CHI TIẾT API BACKEND (BE API SPECIFICATION)
 ## DỰ ÁN: HỆ THỐNG QUẢN LÝ TRUNG TÂM THỂ THAO (SPORTS CENTER MANAGEMENT SYSTEM - SCMS)
 
-- **Phiên bản:** 2.0 (Đồng bộ toàn diện theo mã nguồn Frontend mới nhất)
-- **Ngày lập:** 29/09/2026
+- **Phiên bản:** 2.1 (Chốt contract Long Sprint 1 đã tích hợp)
+- **Ngày cập nhật:** 30/09/2026
 - **Đối tượng áp dụng:** Nhóm phát triển Backend (.NET Core / C#) và Nhóm Frontend (React / TypeScript)
-- **Mục đích:** Cung cấp tài liệu hợp đồng giao tiếp (API Contract) chi tiết, chuẩn xác, đầy đủ Request/Response/Business Rules để BE triển khai API sẵn sàng kết nối trực tiếp với Frontend.
+- **Mục đích:** Ghi nhận contract đã triển khai cho UC5, UC6, UC10, UC13, UC14; các phần use case khác tiếp tục là đặc tả mục tiêu của nhóm.
+
+> UC5, UC6, UC10, UC13 và UC14 đã được kiểm thử HTTP với database SQL Server được cung cấp. Các API này trả DTO trực tiếp như mô tả bên dưới, không bọc trong envelope `success/data` của mục 1.3.
 
 ---
 
@@ -30,7 +32,7 @@
 ### 1.1. Base URL & Giao thức
 - **Base URL:** `/api` (Ví dụ: `https://localhost:7000/api` hoặc môi trường staging).
 - **Giao thức:** HTTPS, định dạng truyền nhận dữ liệu bắt buộc là `application/json; charset=utf-8`.
-- **CORS:** Cần cấu hình cho phép Frontend gọi API (gồm `http://localhost:5173`, `http://localhost:3000`). Cho phép các HTTP Methods (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`) và Headers (`Authorization`, `Content-Type`, `Idempotency-Key`).
+- **CORS:** Đã cấu hình origin development `http://localhost:5173`; cho phép `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS` và headers `Authorization`, `Content-Type`, `Accept`. Origin khác phải thêm qua `Cors:AllowedOrigins`.
 
 ### 1.2. Xác thực & Phân quyền (JWT Bearer Token)
 - Các endpoint yêu cầu đăng nhập nhận Token qua Header:
@@ -41,7 +43,7 @@
   - `nameid` / `sub` / `userId`: ID tài khoản (GUID / UUID).
   - `unique_name` / `username`: Tên đăng nhập.
   - `email`: Địa chỉ email.
-  - `role`: Vai trò người dùng (Uppercase chuẩn hóa: `CENTER_MANAGER`, `COACH`, `MEMBER`, `RECEPTIONIST`).
+  - `role`: BE trả `CenterManager`, `Coach`, `Member`, `Receptionist`; FE ánh xạ sang `CENTER_MANAGER`, `COACH`, `MEMBER`, `RECEPTIONIST`.
   - `fullName`: Họ và tên hiển thị.
   - `iat`: Timestamp phát hành (seconds).
   - `exp`: Timestamp hết hạn (seconds).
@@ -146,107 +148,73 @@
 ---
 
 ### API 2: Đăng nhập hệ thống thống nhất cho 4 vai trò (UC2)
-- **Endpoint:** `POST /api/auth/login`
+- **Endpoint:** `POST /api/Auth/login`
 - **Quyền hạn:** Công khai (Public).
-- **Mục đích:** Đăng nhập dùng chung cho tất cả vai trò (`CENTER_MANAGER`, `COACH`, `MEMBER`, `RECEPTIONIST`). BE tự tra cứu tài khoản và nhận diện vai trò trong CSDL.
+- **Mục đích:** Đăng nhập dùng chung cho `CenterManager`, `Coach`, `Member`, `Receptionist`; FE tự ánh xạ role hiển thị.
 - **Business Rules:**
   - Kiểm tra tài khoản bằng Email và mật khẩu (BCrypt compare).
   - Khóa tài khoản (`isLocked = true`) nếu nhập sai liên tiếp **5 lần**.
-  - Mỗi lần nhập sai trả về số lần thử còn lại (`failedAttemptsRemaining`).
   - Khi đăng nhập đúng, reset `failedAttempts = 0`.
-  - Chặn đăng nhập nếu `isActive == false` (tài khoản bị vô hiệu hóa) hoặc `deletedAt != null`.
+  - Chặn đăng nhập nếu `status != Active`, `isLocked == true` hoặc `deletedAt != null`.
 - **Request Body:**
   ```json
   {
     "email": "manager@sportscenter.com",
-    "password": "Pass@1234",
-    "rememberMe": true
+    "password": "<mat-khau>"
   }
   ```
 - **Response Success (`200 OK`):**
   ```json
   {
-    "success": true,
-    "message": "Đăng nhập thành công.",
-    "data": {
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-      "expiresAt": "2026-09-30T12:00:00.000Z",
-      "user": {
-        "id": "usr_manager_01",
-        "username": "manager_admin",
-        "email": "manager@sportscenter.com",
-        "fullName": "Nguyễn Văn Quản Lý",
-        "role": "CENTER_MANAGER",
-        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb",
-        "phone": "0901234567",
-        "dateOfBirth": "1988-05-15",
-        "isLocked": false,
-        "isActive": true
-      }
-    }
+    "accessToken": "<jwt>",
+    "tokenType": "Bearer",
+    "expiresAtUtc": "2026-10-01T12:00:00Z",
+    "accountId": "986f0852-eda3-4f6d-af50-335b5ad4ebd5",
+    "email": "manager@sportscenter.com",
+    "role": "CenterManager",
+    "fullName": "Nguyen Van Manager",
+    "createdAt": "2026-09-28T21:32:09.5633333Z"
   }
   ```
 - **Response Errors:**
-  - `401 Unauthorized` (Mật khẩu sai, còn lượt thử):
+  - `401 Unauthorized` với code `INVALID_CREDENTIALS`.
+  - `403 Forbidden` với code `ACCOUNT_INACTIVE`.
+  - `423 Locked` với code `ACCOUNT_LOCKED`.
     ```json
     {
       "success": false,
-      "code": "INVALID_CREDENTIALS",
-      "message": "Mật khẩu không chính xác. Bạn còn 3 lần thử trước khi tài khoản bị khóa.",
-      "failedAttemptsRemaining": 3,
-      "isLocked": false
-    }
-    ```
-  - `423 Locked` (Khóa sau 5 lần nhập sai):
-    ```json
-    {
-      "success": false,
-      "code": "ACCOUNT_LOCKED",
-      "message": "Tài khoản đã bị khóa sau 5 lần nhập sai liên tiếp. Vui lòng liên hệ quản lý trung tâm.",
-      "failedAttemptsRemaining": 0,
-      "isLocked": true
+      "error": {
+        "code": "INVALID_CREDENTIALS",
+        "message": "The email or password is incorrect.",
+        "details": null
+      },
+      "traceId": "..."
     }
     ```
 
 ---
 
 ### API 3: Lấy thông tin tài khoản hiện tại từ Token
-- **Endpoint:** `GET /api/auth/me`
+- **Endpoint:** `POST /api/Auth/check-token`
 - **Quyền hạn:** Người dùng đã đăng nhập (Token hợp lệ).
 - **Response Success (`200 OK`):**
   ```json
   {
-    "success": true,
-    "data": {
-      "id": "usr_coach_01",
-      "username": "coach_pro",
-      "email": "coach@sportscenter.com",
-      "fullName": "Trần Huấn Luyện Viên",
-      "role": "COACH",
-      "phone": "0912345678",
-      "dateOfBirth": "1992-08-20",
-      "specialization": "Fitness, Gym, Thể hình, Cardio",
-      "workSchedule": "Ca sáng: Thứ 2 - Thứ 7 (06:00 - 14:00)",
-      "avatar": "https://images.unsplash.com/photo-1568602471122-7832951cc4c5",
-      "isLocked": false,
-      "isActive": true
-    }
+    "accountId": "853eb8ce-6265-46e9-84ac-25ea2fc6c165",
+    "email": "coach.rbac@sportscenter.local",
+    "role": "Coach",
+    "fullName": "Coach RBAC",
+    "createdAt": "2026-09-29T10:59:34.53Z"
   }
   ```
 
 ---
 
 ### API 4: Đăng xuất & Thu hồi Token (UC3)
-- **Endpoint:** `POST /api/auth/logout`
+- **Endpoint:** `POST /api/Auth/Logout`
 - **Quyền hạn:** Người dùng hiện tại.
-- **Business Rules:** Đưa `jti` hoặc chuỗi JWT vào danh sách thu hồi (Token Blacklist/Distributed Cache) cho tới thời điểm hết hạn của token.
-- **Response Success (`200 OK`):**
-  ```json
-  {
-    "success": true,
-    "message": "Đăng xuất thành công."
-  }
-  ```
+- **Business Rules:** Đưa `jti` vào blacklist trong `IMemoryCache` tới đúng thời điểm token hết hạn. Bộ lọc xác thực chung từ chối token đã thu hồi trên mọi API có `[Authorize]`.
+- **Response Success:** `200 OK`, body rỗng.
 
 ---
 
@@ -348,46 +316,43 @@
 ## 2.3. Phân hệ Quản lý Thành viên - Manager (UC6)
 
 ### API 8: Lấy danh sách thành viên (Có phân trang, tìm kiếm & lọc)
-- **Endpoint:** `GET /api/manager/members`
+- **Endpoint:** `GET /api/Member`
 - **Quyền hạn:** `CENTER_MANAGER`.
 - **Query Parameters:**
-  - `query` (string, tùy chọn): Tìm kiếm theo họ tên (không phân biệt dấu tiếng Việt), email, SĐT, mã ID.
-  - `status` (string, tùy chọn): `ALL` (mặc định), `ACTIVE`, `INACTIVE`.
+  - `search` (string, tùy chọn): Tìm theo mã thành viên, họ tên, email hoặc SĐT.
+  - `status` (string, tùy chọn): `Active` hoặc `Inactive`; bỏ tham số để lấy tất cả.
   - `page` (int, mặc định = 1).
   - `pageSize` (int, mặc định = 20).
 - **Response Success (`200 OK`):**
   ```json
   {
-    "success": true,
-    "data": {
-      "items": [
-        {
-          "id": "usr_member_01",
-          "username": "member_vip",
-          "fullName": "Lê Thành Viên",
-          "email": "member@sportscenter.com",
-          "phone": "0987654321",
-          "dateOfBirth": "1998-12-10",
-          "isActive": true,
-          "createdAt": "2026-09-20T08:00:00.000Z"
-        }
-      ],
-      "total": 45,
-      "page": 1,
-      "pageSize": 20,
-      "totalPages": 3
-    }
+    "items": [
+      {
+        "accountId": "7a0873f3-6223-43ab-99cc-6a9716f4eaa2",
+        "memberCode": "MEM001",
+        "fullName": "Nguyen Van An",
+        "email": "member01@sportscenter.local",
+        "phone": "0987654321",
+        "status": "Active",
+        "dateOfBirth": "2002-05-21",
+        "createdAt": "2026-09-28T21:42:32.5933333Z"
+      }
+    ],
+    "page": 1,
+    "pageSize": 20,
+    "totalItems": 1,
+    "totalPages": 1
   }
   ```
 
 ---
 
 ### API 9: Tạo tài khoản thành viên thủ công từ trang quản trị
-- **Endpoint:** `POST /api/manager/members`
+- **Endpoint:** `POST /api/Member`
 - **Quyền hạn:** `CENTER_MANAGER`.
 - **Business Rules:**
   - Nhập họ tên, email, SĐT, ngày sinh, trạng thái.
-  - Hệ thống tự sinh username duy nhất và mật khẩu khởi tạo ngẫu nhiên (chứa chữ hoa, chữ thường, số, ký tự đặc biệt).
+  - Hệ thống tự sinh `memberCode` duy nhất và mật khẩu khởi tạo ngẫu nhiên.
   - Trả về mật khẩu khởi tạo để Manager bàn giao cho học viên.
   - Ghi Audit Log hành động `CREATE` cho đối tượng `MEMBER`.
 - **Request Body:**
@@ -403,28 +368,26 @@
 - **Response Success (`201 Created`):**
   ```json
   {
-    "success": true,
-    "message": "Tạo thành viên thành công.",
-    "data": {
-      "member": {
-        "id": "usr_member_new_guid",
-        "username": "member_hoangngan",
-        "fullName": "Hoàng Kim Ngân",
-        "email": "ngan.hoang@gmail.com",
-        "phone": "0918273645",
-        "dateOfBirth": "2000-04-18",
-        "isActive": true,
-        "createdAt": "2026-09-29T12:00:00.000Z"
-      },
-      "initialPassword": "Tt9!randomPassword88"
-    }
+    "member": {
+      "accountId": "<guid>",
+      "memberCode": "MB2609301234",
+      "fullName": "Hoàng Kim Ngân",
+      "dateOfBirth": "2000-04-18",
+      "avatarUrl": null,
+      "email": "ngan.hoang@gmail.com",
+      "phone": "0918273645",
+      "status": "Active",
+      "createdAt": "2026-09-30T12:00:00Z",
+      "updatedAt": null
+    },
+    "initialPassword": "<chi-hien-thi-mot-lan>"
   }
   ```
 
 ---
 
 ### API 10: Cập nhật thông tin thành viên
-- **Endpoint:** `PUT /api/manager/members/{id}`
+- **Endpoint:** `PATCH /api/Member/{accountId}`
 - **Quyền hạn:** `CENTER_MANAGER`.
 - **Request Body:**
   ```json
@@ -437,30 +400,17 @@
   }
   ```
 - **Response Success (`200 OK`):**
-  ```json
-  {
-    "success": true,
-    "message": "Cập nhật thành viên thành công.",
-    "data": { ... }
-  }
-  ```
+  Trả trực tiếp `MemberDetailAPIViewModel` gồm `accountId`, `memberCode`, `fullName`, `dateOfBirth`, `avatarUrl`, `email`, `phone`, `status`, `createdAt`, `updatedAt`.
 
 ---
 
 ### API 11: Xóa mềm thành viên (Soft Delete)
-- **Endpoint:** `DELETE /api/manager/members/{id}`
+- **Endpoint:** `DELETE /api/Member/{accountId}`
 - **Quyền hạn:** `CENTER_MANAGER`.
 - **Business Rules:**
   - Không xóa cứng trong CSDL nhằm lưu vết hóa đơn, hợp đồng gói tập và điểm danh.
-  - Đặt `deletedAt = DateTime.UtcNow`, `isActive = false`. Chặn đăng nhập và chặn đăng ký gói mới.
-  - Ghi Audit Log hành động `DEACTIVATE` cho đối tượng `MEMBER`.
-- **Response Success (`200 OK`):**
-  ```json
-  {
-    "success": true,
-    "message": "Đã ngừng hoạt động và xóa mềm thành viên."
-  }
-  ```
+  - Đặt `DeletedAt = DateTime.UtcNow`, `Status = Inactive`; lịch sử gói và hóa đơn vẫn được giữ.
+- **Response Success:** `204 No Content`.
 
 ---
 
@@ -591,50 +541,22 @@
 ## 2.5. Phân hệ Quản lý & Khám phá Gói tập (UC9, UC10)
 
 ### API 16: Danh mục gói tập công khai (UC10)
-- **Endpoint:** `GET /api/packages/public`
+- **Endpoint:** `GET /api/MembershipPackage/active`
 - **Quyền hạn:** Công khai (Anonymous).
 - **Business Rules:** Chỉ trả về các gói tập đang mở hoạt động (`isActive == true`).
 - **Response Success (`200 OK`):**
   ```json
-  {
-    "success": true,
-    "data": [
-      {
-        "id": "pkg_monthly",
-        "name": "Gói Tháng",
-        "price": 450000,
-        "durationMonths": 1,
-        "benefits": [
-          "Tập luyện tại phòng gym không giới hạn",
-          "Sử dụng tủ đồ cá nhân an toàn",
-          "Đánh giá thể lực ban đầu cùng HLV"
-        ]
-      },
-      {
-        "id": "pkg_quarterly",
-        "name": "Gói Quý",
-        "price": 1200000,
-        "durationMonths": 3,
-        "benefits": [
-          "Toàn bộ quyền lợi Gói Tháng",
-          "Tham gia tất cả các lớp tập nhóm (Yoga, Zumba, HIIT)",
-          "Tư vấn kế hoạch dinh dưỡng & tập luyện"
-        ]
-      },
-      {
-        "id": "pkg_yearly",
-        "name": "Gói Năm",
-        "price": 4200000,
-        "durationMonths": 12,
-        "benefits": [
-          "Toàn bộ quyền lợi Gói Quý",
-          "Đánh giá tiến độ InBody định kỳ hàng tháng",
-          "Ưu tiên đăng ký lịch tập lớp học hot"
-        ]
-      }
-    ]
-  }
+  [
+    {
+      "id": 11,
+      "name": "UC11 Monthly Test",
+      "price": 500000,
+      "durationMonths": 1,
+      "benefits": ["Gym access", "Locker access"]
+    }
+  ]
   ```
+  `id` là số nguyên ở BE; FE chỉ chuyển sang chuỗi tại biên HTTP.
 
 ---
 
@@ -791,34 +713,37 @@
 ## 2.7. Phân hệ Tra cứu Thành viên & Trạng thái Gói tại quầy (UC12, UC14)
 
 ### API 25: Tra cứu thành viên và trạng thái gói tập tức thì (UC12, UC14)
-- **Endpoint:** `GET /api/reception/membership-status`
+- **Endpoint:** `GET /api/Member/membership-status`
 - **Quyền hạn:** `RECEPTIONIST`, `CENTER_MANAGER`.
 - **Query Parameters:**
-  - `query` (tùy chọn): Tìm theo Họ tên, Email, SĐT, Mã thành viên.
-  - `filter` (tùy chọn): `ALL`, `ACTIVE`, `EXPIRING` (< 7 ngày), `EXPIRED`, `SUSPENDED`.
+  - `search` (tùy chọn): Tìm theo họ tên, email, SĐT hoặc `memberCode`.
+  - `filter` (mặc định `ALL`): `ALL`, `ACTIVE`, `EXPIRING`, `EXPIRED`, `SUSPENDED`, `UPCOMING`, `PENDING_PAYMENT`, `NONE`.
 - **Mục đích:** Hỗ trợ quầy lễ tân tra cứu nhanh tình trạng thẻ tập của khách khi đến trung tâm.
+- **Business Rules:** `status`, `remainingDays`, `expiringSoon` và kỳ sắp tới được tính theo ngày/múi giờ phía server; FE không tự tính lại.
 - **Response Success (`200 OK`):**
   ```json
-  {
-    "success": true,
-    "data": [
-      {
-        "member": {
-          "id": "usr_member_01",
-          "fullName": "Lê Thành Viên",
-          "email": "member@sportscenter.com",
-          "phone": "0987654321"
-        },
-        "status": "ACTIVE",
-        "packageName": "Gói Tháng",
-        "startDate": "2026-09-01",
-        "endDate": "2026-09-30",
-        "remainingDays": 2,
-        "expiringSoon": true,
-        "upcoming": null
-      }
-    ]
-  }
+  [
+    {
+      "accountId": "7a0873f3-6223-43ab-99cc-6a9716f4eaa2",
+      "memberCode": "MEM001",
+      "fullName": "Nguyen Van An",
+      "email": "member01@sportscenter.local",
+      "phone": "0987654321",
+      "status": "ACTIVE",
+      "remainingDays": 6,
+      "expiringSoon": true,
+      "subscriptionId": 1,
+      "packageId": 11,
+      "packageName": "UC11 Monthly Test",
+      "startDate": "2026-09-01",
+      "endDate": "2026-10-05",
+      "suspensionReason": null,
+      "upcomingSubscriptionId": null,
+      "upcomingPackageName": null,
+      "upcomingStartDate": null,
+      "upcomingEndDate": null
+    }
+  ]
   ```
 
 ---
@@ -826,15 +751,15 @@
 ## 2.8. Phân hệ Đăng ký tại quầy & Thanh toán tiền mặt (UC13, UC15)
 
 ### API 26: Đăng ký thành viên mới tại quầy + Tự sinh mật khẩu + Đăng ký gói (UC13)
-- **Endpoint:** `POST /api/reception/register-member`
+- **Endpoint:** `POST /api/Member/counter-registration`
 - **Quyền hạn:** `RECEPTIONIST`, `CENTER_MANAGER`.
 - **Business Rules:**
   - Nhận họ tên, email, SĐT, ngày sinh, gói tập bắt buộc chọn (`packageId`), hình thức thanh toán.
   - Tạo tài khoản thành viên mới trong CSDL (kiểm tra không trùng email).
   - Tự động sinh mật khẩu khởi tạo ngẫu nhiên và mã hóa BCrypt.
   - Tự động tạo bản ghi `Subscription` và `Invoice` trạng thái `PENDING_PAYMENT`.
-  - Gửi email thông báo thông tin đăng nhập và hợp đồng gói tập cho khách.
-  - Toàn bộ thao tác phải nằm trong một **Database Transaction** (nếu thất bại phải Rollback cả tài khoản lẫn gói).
+  - Tạo Account, Member, Subscription và Invoice trong một **database transaction**; lỗi trước commit rollback toàn bộ.
+  - Gửi email sau commit; lỗi email không rollback dữ liệu và được báo qua `emailDelivery`.
 - **Request Body:**
   ```json
   {
@@ -842,34 +767,57 @@
     "email": "khachhang@gmail.com",
     "phone": "0988776655",
     "dateOfBirth": "1995-10-25",
-    "packageId": "pkg_quarterly",
-    "expectedPrice": 1200000,
+    "packageId": 11,
+    "expectedPrice": 500000,
     "paymentMethod": "CASH"
   }
   ```
 - **Response Success (`201 Created`):**
   ```json
   {
-    "success": true,
-    "message": "Đăng ký thành viên tại quầy thành công.",
-    "data": {
-      "member": {
-        "id": "usr_member_uuid",
-        "fullName": "Nguyễn Văn Khách Hàng",
-        "email": "khachhang@gmail.com",
-        "phone": "0988776655"
-      },
-      "initialPassword": "Tt9!generatedPassword22",
-      "order": {
-        "invoiceId": "inv_uuid_123",
-        "number": "HD-20260929-123456",
-        "amount": 1200000,
-        "status": "PENDING_PAYMENT"
-      },
-      "emailDelivery": "SENT"
-    }
+    "member": {
+      "accountId": "<guid>",
+      "memberCode": "MB2609301234",
+      "fullName": "Nguyễn Văn Khách Hàng",
+      "dateOfBirth": "1995-10-25",
+      "avatarUrl": null,
+      "email": "khachhang@gmail.com",
+      "phone": "0988776655",
+      "status": "Active",
+      "createdAt": "2026-09-30T12:00:00Z",
+      "updatedAt": null
+    },
+    "receipt": {
+      "invoiceId": 4,
+      "invoiceNumber": "INV-20260930-ABC123",
+      "amount": 500000,
+      "paymentMethod": "CASH",
+      "invoiceStatus": "PENDING_PAYMENT",
+      "createdAt": "2026-09-30T12:00:00Z",
+      "paidAt": null,
+      "paidByStaffId": null,
+      "paidByStaffName": null,
+      "subscriptionId": 3,
+      "subscriptionStatus": "PENDING_PAYMENT",
+      "kind": "REGISTER",
+      "startDate": "2026-09-30",
+      "endDate": "2026-10-29",
+      "packageId": 11,
+      "packageName": "UC11 Monthly Test",
+      "packagePrice": 500000,
+      "durationMonths": 1,
+      "benefits": ["Gym access", "Locker access"],
+      "memberAccountId": "<guid>",
+      "memberCode": "MB2609301234",
+      "memberFullName": "Nguyễn Văn Khách Hàng",
+      "memberEmail": "khachhang@gmail.com",
+      "memberPhone": "0988776655"
+    },
+    "initialPassword": "<chi-hien-thi-mot-lan>",
+    "emailDelivery": "SENT"
   }
   ```
+  `emailDelivery` nhận một trong `SENT`, `FAILED`, `NOT_CONFIGURED`; response tuyệt đối không có `passwordHash`.
 
 ---
 
@@ -1013,17 +961,17 @@
 
 # 3. ĐỐI CHIẾU SOURCE BACKEND HIỆN TẠI VÀ CÔNG VIỆC CẦN LÀM
 
-Dựa trên việc kiểm tra mã nguồn Backend tại `D:\SWP\SportsCenterManagement`:
+Dựa trên việc kiểm tra mã nguồn repository Backend `SportsCenterManagement`:
 
 | Controller BE hiện tại | Hiện trạng mã nguồn BE | Công việc cụ thể cần BE xử lý để hoàn tất |
 | :--- | :--- | :--- |
-| **`AuthController.cs`** | Đang chia 4 API login riêng: `Login_center_manager`, `Login_coach`, `Login_member`, `Login_receptionist`. Dùng IMemoryCache để lưu Blacklist. Chưa reset `FailedLoginCount`. | 1. Xây dựng endpoint duy nhất **`POST /api/auth/login`** nhận email/password và tự động phân giải role.<br>2. Bổ sung **`GET /api/auth/me`** trả thông tin user đầy đủ.<br>3. Reset `FailedLoginCount` khi login thành công.<br>4. Trả đúng cấu trúc lỗi có `isLocked`, `failedAttemptsRemaining`. |
+| **`AuthController.cs`** | Đã có `POST /api/Auth/login`, `POST /api/Auth/check-token`, `POST /api/Auth/Logout`; login reset bộ đếm, trả session DTO và phân giải role từ DB. Token logout bị chặn trên pipeline chung tới khi hết hạn. | UC5 Sprint 1 đã nối FE và smoke test; blacklist hiện dùng `IMemoryCache`, cần đổi sang distributed store khi triển khai nhiều instance. |
 | **`AccountController.cs`** | Đang có `Create_center_manager`, `Create_coach`, `Create_member`, `Create_receptionist`. Thiếu `[Authorize]` trên các endpoint tạo vai trò quản trị. | 1. Tách endpoint công khai `POST /api/auth/register` (chỉ tạo MEMBER).<br>2. Bổ sung `[Authorize(Roles = "CENTER_MANAGER")]` cho các API quản lý nhân sự.<br>3. Thêm các endpoint cho Hồ sơ cá nhân: `PUT /api/profile`, `POST /api/profile/request-change-password-otp`, `POST /api/profile/change-password`. |
-| **`MembershipPackageController.cs`** | Đã có `GET /api/MembershipPackage/active`. Chưa có API quản lý CRUD cho Manager. | 1. Bổ sung endpoint cho Manager: `GET`, `POST`, `PUT`, `DELETE`, `PATCH visibility`.<br>2. Đảm bảo ràng buộc không xóa gói khi đã có người đăng ký. |
-| **`CounterRegistrationController.cs`** | Đã tạo stub `POST /api/counterregistration/register-member`. | 1. Kết nối lưu CSDL tài khoản và tạo đồng thời bản ghi Subscription + Invoice.<br>2. Triển khai dịch vụ Email thực tế để gửi thông tin mật khẩu khởi tạo cho khách. |
+| **`MemberController.cs`** | Đã có UC6 `GET/POST/PATCH/DELETE /api/Member`, UC13 `POST /api/Member/counter-registration` và UC14 `GET /api/Member/membership-status`. | Các luồng Long Sprint 1 đã nối FE, kiểm thử service/integration và smoke với SQL Server. |
+| **`MembershipPackageController.cs`** | Đã có `GET /api/MembershipPackage/active` công khai và CRUD/status/delete cho Manager. | UC10 đã nối FE. Các quy tắc UC9 ngoài phạm vi Long tiếp tục do chủ use case xác nhận. |
 | **`AuditLogController.cs`** | Đã có endpoint truy vấn theo bộ lọc. | 1. Tích hợp tự động ghi audit log trong các service nghiệp vụ (tạo user, đổi pass, thanh toán, đổi trạng thái).<br>2. Đảm bảo bảo mật chỉ role `CENTER_MANAGER` được xem. |
 | **Chưa có Controller:**<br>`MembershipOrderController`<br>`PaymentController` | Chưa có API tính báo giá (Quote), tạo đơn gia hạn/nâng gói, danh sách hóa đơn pending, xác nhận thu tiền mặt. | 1. Xây dựng `POST /api/memberships/quote` (thuật toán khấu trừ nâng gói).<br>2. Xây dựng `POST /api/memberships/orders`.<br>3. Xây dựng `GET /api/payments/cash/pending` và `POST /api/payments/cash/{invoiceId}/confirm`. |
-| **Cấu hình & Test:**<br>`Program.cs` & `.Tests` | Chưa bật CORS cho FE. Project Test bị lỗi thiếu reference `JwtBlacklistService`. | 1. Thêm `builder.Services.AddCors(...)` và `app.UseCors(...)` cho phép kết nối từ Frontend port 5173 / 3000.<br>2. Cập nhật hoặc dọn dẹp file test cũ trong `SportsCenterManagement.Tests`. |
+| **Cấu hình & Test:**<br>`Program.cs` & `.Tests` | Đã bật CORS theo `Cors:AllowedOrigins` (development: `http://localhost:5173`). Bộ test hiện chạy 70/70; có script import DB và smoke UC5/6/10/13/14. | Khi thêm origin hoặc môi trường mới, cấu hình ngoài source; không commit signing key, connection string hay SMTP secret. |
 
 ---
 *Tài liệu này được xuất bản làm căn cứ kỹ thuật chính thức giữa Frontend và Backend.*
