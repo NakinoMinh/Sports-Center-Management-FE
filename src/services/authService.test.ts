@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import bcrypt from "bcryptjs";
 import { authService, SESSION_DURATION_MS } from "./authService";
+import { getApiSession, saveApiSession } from "./apiClient";
 import { mockDb } from "./mockDb";
 
 const makeStorage = (): Storage => {
@@ -38,6 +39,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
 
@@ -184,13 +186,126 @@ describe("Sprint 1 auth demo adapter", () => {
 
   it("removes all session data and invalidates the old token on logout", async () => {
     const result = await authService.login(memberCredentials);
-    authService.logout();
+    await authService.logout();
     expect(localStorage.getItem("scms_auth_token")).toBeNull();
     expect(localStorage.getItem("scms_demo_session_v1")).toBeNull();
     expect(sessionStorage.getItem("scms_auth_token")).toBeNull();
     expect(authService.verifyJWT(result.token!).valid).toBe(false);
     expect(authService.getCurrentUser()).toBeNull();
     expect(mockDb.findByEmail(memberCredentials.email)).toBeDefined();
+  });
+
+  it("saves the backend JWT session when the API is configured", async () => {
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost:5198");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            accessToken: "backend-token",
+            expiresAtUtc: "2026-10-01T12:00:00Z",
+            accountId: "manager-1",
+            email: "manager@example.com",
+            role: "CenterManager",
+            fullName: "Center Manager",
+            createdAt: "2026-09-30T00:00:00Z",
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const result = await authService.login({
+      email: "manager@example.com",
+      password: "Pass@1234",
+      rememberMe: true,
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      token: "backend-token",
+      user: { role: "CENTER_MANAGER", fullName: "Center Manager" },
+    });
+    expect(getApiSession()?.token).toBe("backend-token");
+    expect(localStorage.getItem("scms_api_session_v1")).not.toBeNull();
+  });
+
+  it("uses backend registration and signs in when the API is configured", async () => {
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost:5198");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            accountId: "member-1",
+            email: "new@example.com",
+            memberCode: "MB001",
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            accessToken: "member-token",
+            expiresAtUtc: "2026-10-01T12:00:00Z",
+            accountId: "member-1",
+            email: "new@example.com",
+            role: "Member",
+            fullName: null,
+            createdAt: "2026-09-30T00:00:00Z",
+          }),
+          { status: 200 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await authService.register(registration);
+
+    expect(result).toMatchObject({ success: true, token: "member-token" });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:5198/api/Account/Register_member",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("clears the backend session even when logout delivery fails", async () => {
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost:5198");
+    saveApiSession(
+      {
+        token: "backend-token",
+        expiresAt: "2026-10-01T12:00:00Z",
+        user: {
+          id: "manager-1",
+          username: "manager@example.com",
+          email: "manager@example.com",
+          role: "CENTER_MANAGER",
+          fullName: "Center Manager",
+          createdAt: "2026-09-30T00:00:00Z",
+          failedAttempts: 0,
+          isLocked: false,
+          isActive: true,
+        },
+      },
+      true,
+    );
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+
+    await expect(authService.logout()).resolves.toBeUndefined();
+    expect(getApiSession()).toBeNull();
+  });
+
+  it("keeps the existing mock login when the API URL is absent", async () => {
+    vi.stubEnv("VITE_API_BASE_URL", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await authService.login(memberCredentials);
+
+    expect(result.success).toBe(true);
+    expect(result.token).toMatch(/^scms-demo\./);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("rejects malformed saved user fields before they can reach workspace rendering", async () => {

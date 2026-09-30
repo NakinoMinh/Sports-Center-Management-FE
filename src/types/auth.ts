@@ -58,6 +58,12 @@ export interface DemoSession {
   payload: JWTPayload;
 }
 
+export interface ApiSession {
+  token: string;
+  expiresAt: string;
+  user: Omit<User, "passwordHash">;
+}
+
 export interface AuthContextType {
   currentUser: Omit<User, "passwordHash"> | null;
   token: string | null;
@@ -67,6 +73,6 @@ export interface AuthContextType {
   sessionMessage: string;
   login: (credentials: LoginCredentials) => Promise<AuthResponse>;
   register: (data: RegisterData) => Promise<AuthResponse>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshCurrentUser: () => void;
 }

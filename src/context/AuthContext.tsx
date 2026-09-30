@@ -7,6 +7,11 @@ import type {
   User,
 } from "../types/auth";
 import { authService } from "../services/authService";
+import {
+  apiRequest,
+  clearApiSession,
+  getApiSession,
+} from "../services/apiClient";
 import { mockDb } from "../services/mockDb";
 
 import { AuthContext } from "./authContextValue";
@@ -26,7 +31,7 @@ const emptyAuth: AuthState = {
 
 const readAuth = (): AuthState => {
   try {
-    const token = mockDb.getStoredToken();
+    const token = getApiSession()?.token ?? mockDb.getStoredToken();
     if (!token) return emptyAuth;
     const verification = authService.verifyJWT(token);
     const currentUser = verification.valid
@@ -57,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [auth, setAuth] = useState(readAuth);
+  const [isInitializing, setIsInitializing] = useState(true);
   const login = useCallback(
     async (credentials: LoginCredentials): Promise<AuthResponse> => {
       const response = await authService.login(credentials);
@@ -73,11 +79,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     },
     [],
   );
-  const logout = useCallback(() => {
-    authService.logout();
+  const logout = useCallback(async () => {
     setAuth(emptyAuth);
+    await authService.logout();
   }, []);
   const refreshCurrentUser = useCallback(() => setAuth(readAuth()), []);
+
+  useEffect(() => {
+    let active = true;
+    const initialize = async () => {
+      const apiSession = getApiSession();
+      if (!apiSession) {
+        if (active) setIsInitializing(false);
+        return;
+      }
+      try {
+        await apiRequest("/api/Auth/check-token", {
+          method: "POST",
+          token: apiSession.token,
+        });
+        if (active) setAuth(readAuth());
+      } catch {
+        clearApiSession();
+        if (active) {
+          setAuth({
+            ...emptyAuth,
+            sessionMessage: "Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.",
+          });
+        }
+      } finally {
+        if (active) setIsInitializing(false);
+      }
+    };
+    void initialize();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const sync = () => setAuth(readAuth());
@@ -104,7 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         ...auth,
         isAuthenticated: !!auth.token && !!auth.currentUser,
-        isInitializing: false,
+        isInitializing,
         login,
         register,
         logout,
