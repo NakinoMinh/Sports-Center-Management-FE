@@ -9,8 +9,26 @@ import type {
 import { mockDb } from "./mockDb";
 import { accountEnabled } from "./accessControl";
 import { auditService } from "./auditService";
+import {
+  apiConfigured,
+  apiRequest,
+  clearApiSession,
+  getApiSession,
+  mapApiRole,
+  saveApiSession,
+} from "./apiClient";
 
 export const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
+
+interface ApiAuthSessionResponse {
+  accessToken: string;
+  expiresAtUtc: string;
+  accountId: string;
+  email: string;
+  role: string;
+  fullName: string | null;
+  createdAt: string;
+}
 
 const publicUser = (user: User): Omit<User, "passwordHash"> => {
   const { passwordHash, ...safeUser } = user;
@@ -42,6 +60,55 @@ const startSession = (user: User, rememberMe: boolean): AuthResponse => {
   };
 };
 
+const apiLogin = async (
+  credentials: LoginCredentials,
+): Promise<AuthResponse> => {
+  try {
+    const response = await apiRequest<ApiAuthSessionResponse>("/api/Auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: credentials.email.trim(),
+        password: credentials.password,
+      }),
+      token: null,
+    });
+    const user: Omit<User, "passwordHash"> = {
+      id: response.accountId,
+      username: response.email,
+      email: response.email,
+      role: mapApiRole(response.role),
+      fullName: response.fullName?.trim() || response.email,
+      createdAt: response.createdAt,
+      failedAttempts: 0,
+      isLocked: false,
+      isActive: true,
+    };
+    saveApiSession(
+      {
+        token: response.accessToken,
+        expiresAt: response.expiresAtUtc,
+        user,
+      },
+      credentials.rememberMe ?? true,
+    );
+    mockDb.removeToken();
+    return {
+      success: true,
+      token: response.accessToken,
+      user,
+      message: "Đăng nhập thành công.",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Không thể đăng nhập vào hệ thống.",
+    };
+  }
+};
+
 export const authService = {
   isValidEmail: (email: string): boolean =>
     /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email.trim()),
@@ -51,6 +118,35 @@ export const authService = {
   verifyJWT: (
     token: string,
   ): { valid: boolean; payload?: JWTPayload; reason?: string } => {
+    const apiSession = getApiSession();
+    if (apiSession) {
+      const expiresAt = Date.parse(apiSession.expiresAt);
+      if (
+        apiSession.token !== token ||
+        !Number.isFinite(expiresAt) ||
+        expiresAt <= Date.now() ||
+        apiSession.user.isActive === false
+      ) {
+        clearApiSession();
+        return {
+          valid: false,
+          reason: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+        };
+      }
+      return {
+        valid: true,
+        payload: {
+          userId: apiSession.user.id,
+          username: apiSession.user.username,
+          email: apiSession.user.email,
+          role: apiSession.user.role,
+          fullName: apiSession.user.fullName,
+          iat: Date.now(),
+          exp: expiresAt,
+        },
+      };
+    }
+
     const session = mockDb.getSession();
     if (!session || session.token !== token) {
       return {
@@ -110,6 +206,32 @@ export const authService = {
     if (data.password !== data.confirmPassword) {
       return { success: false, message: "Mật khẩu xác nhận không khớp." };
     }
+    if (apiConfigured()) {
+      try {
+        await apiRequest("/api/Account/Register_member", {
+          method: "POST",
+          body: JSON.stringify({
+            email: data.email.trim(),
+            password: data.password,
+            confirmPassword: data.confirmPassword,
+          }),
+          token: null,
+        });
+        return apiLogin({
+          email: data.email,
+          password: data.password,
+          rememberMe: false,
+        });
+      } catch (error) {
+        return {
+          success: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Không thể tạo tài khoản.",
+        };
+      }
+    }
     const passwordHash = await bcrypt.hash(data.password, 10);
     // Re-read after hashing so overlapping submissions cannot use stale checks.
     if (mockDb.findByEmail(data.email)) {
@@ -146,6 +268,7 @@ export const authService = {
     }
     if (!credentials.password)
       return { success: false, message: "Vui lòng nhập mật khẩu." };
+    if (apiConfigured()) return apiLogin(credentials);
     const user = mockDb.findByEmail(credentials.email);
     if (!user)
       return {
@@ -183,7 +306,20 @@ export const authService = {
     );
   },
 
-  logout: (): void => mockDb.removeToken(),
+  logout: async (): Promise<void> => {
+    const apiToken = getApiSession()?.token ?? null;
+    clearApiSession();
+    mockDb.removeToken();
+    if (!apiConfigured() || !apiToken) return;
+    try {
+      await apiRequest<void>("/api/Auth/Logout", {
+        method: "POST",
+        token: apiToken,
+      });
+    } catch {
+      // Local logout is authoritative even when the API is unreachable.
+    }
+  },
   updateProfile: (
     actor: Omit<User, "passwordHash">,
     input: Pick<User, "fullName" | "phone" | "dateOfBirth" | "avatar"> & {
@@ -311,6 +447,11 @@ export const authService = {
     };
   },
   getCurrentUser: (): Omit<User, "passwordHash"> | null => {
+    const apiSession = getApiSession();
+    if (apiSession) {
+      const result = authService.verifyJWT(apiSession.token);
+      return result.valid ? apiSession.user : null;
+    }
     const token = mockDb.getStoredToken();
     if (!token) return null;
     const result = authService.verifyJWT(token);
