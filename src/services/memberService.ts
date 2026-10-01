@@ -4,6 +4,7 @@ import { authorizeRoles, accessRules } from "./accessControl";
 import { auditService } from "./auditService";
 import type { MembershipActor } from "../types/membership";
 import type { User } from "../types/auth";
+import { apiRequest } from "./apiClient";
 
 export interface MemberInput {
   fullName: string;
@@ -11,6 +12,33 @@ export interface MemberInput {
   phone: string;
   dateOfBirth: string;
   isActive: boolean;
+}
+export interface MemberProfile {
+  accountId: string;
+  memberCode: string;
+  fullName: string;
+  dateOfBirth?: string;
+  avatarUrl?: string;
+  email: string;
+  phone?: string;
+  status: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface MemberSearchResult {
+  accountId: string;
+  memberCode: string;
+  fullName?: string;
+  email: string;
+  phone?: string;
+  status: string;
+}
+export interface UpdateMemberProfileInput {
+  fullName: string;
+  dateOfBirth: string;
+  avatarUrl?: string;
+  phone: string;
 }
 export function validateBirthDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
@@ -56,14 +84,80 @@ const safe = ({
   ...user
 }: User): MembershipActor => user;
 export const memberService = {
+  // =========================
+  // UC4 - VIEW MY PROFILE
+  // =========================
+  getMyProfile: async (): Promise<MemberProfile> => {
+    return apiRequest<MemberProfile>("/api/Member/profile", {
+      method: "GET",
+    });
+  },
+
+  // =========================
+  // UC4 - UPDATE MY PROFILE
+  // =========================
+  updateMyProfile: async (input: UpdateMemberProfileInput): Promise<void> => {
+    const session =
+      sessionStorage.getItem("scms_api_session_v1") ??
+      localStorage.getItem("scms_api_session_v1");
+
+    if (!session) {
+      throw new Error("Phiên đăng nhập không tồn tại.");
+    }
+
+    const parsedSession = JSON.parse(session) as {
+      token: string;
+    };
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_BASE_URL}/api/Member/profile`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${parsedSession.token}`,
+        },
+        body: JSON.stringify(input),
+      },
+    );
+
+    const body = await response.text();
+
+    if (!response.ok) {
+      throw new Error(body || "Không thể cập nhật hồ sơ.");
+    }
+  },
+  // =========================
+  // UC12 - QUICK SEARCH MEMBER
+  // =========================
+  quickSearch: async (keyword: string): Promise<MemberSearchResult[]> => {
+    const value = keyword.trim();
+
+    if (!value) {
+      return [];
+    }
+
+    return apiRequest<MemberSearchResult[]>(
+      `/api/Member/quick-search?keyword=${encodeURIComponent(value)}`,
+      {
+        method: "GET",
+      },
+    );
+  },
+
+  // =========================
+  // MEMBER MANAGEMENT
+  // =========================
   list(actor: MembershipActor, query = "", status = "ALL", page = 1) {
     authorizeRoles(actor, accessRules.members);
+
     const normalize = (value: string) =>
       value
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/đ/gi, "d")
         .toLowerCase();
+
     const rows = mockDb
       .getUsers()
       .filter(
@@ -79,8 +173,10 @@ export const memberService = {
               : user.isActive === false)),
       )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
     const pages = Math.max(1, Math.ceil(rows.length / 20));
     const currentPage = Math.min(pages, Math.max(1, Math.floor(page) || 1));
+
     return {
       items: rows.slice((currentPage - 1) * 20, currentPage * 20).map(safe),
       total: rows.length,
@@ -88,59 +184,112 @@ export const memberService = {
       page: currentPage,
     };
   },
+
   async create(actor: MembershipActor, input: MemberInput) {
     authorizeRoles(actor, accessRules.members);
+
     const data = validate(input);
     const password = generateInitialPassword();
     const passwordHash = await bcrypt.hash(password, 10);
+
     authorizeRoles(actor, accessRules.members);
+
     const users = mockDb.getUsers();
-    if (users.some((user) => user.email.toLowerCase() === data.email))
+
+    if (users.some((user) => user.email.toLowerCase() === data.email)) {
       throw new Error("Email đã được sử dụng.");
+    }
+
     const user: User = {
       ...data,
       id: crypto.randomUUID(),
-      username: `member_${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`,
+      username: `member_${crypto
+        .randomUUID()
+        .replaceAll("-", "")
+        .slice(0, 20)}`,
       passwordHash,
       role: "MEMBER",
       createdAt: new Date().toISOString(),
       failedAttempts: 0,
       isLocked: false,
     };
+
     mockDb.saveUsers([...users, user]);
-    auditService.record(actor, { action: "CREATE", entity: "MEMBER", entityId: user.id, description: `Tạo thành viên ${user.fullName}.` });
-    return { member: safe(user), initialPassword: password };
+
+    auditService.record(actor, {
+      action: "CREATE",
+      entity: "MEMBER",
+      entityId: user.id,
+      description: `Tạo thành viên ${user.fullName}.`,
+    });
+
+    return {
+      member: safe(user),
+      initialPassword: password,
+    };
   },
+
   update(actor: MembershipActor, id: string, input: MemberInput) {
     authorizeRoles(actor, accessRules.members);
+
     const data = validate(input);
     const users = mockDb.getUsers();
+
     const user = users.find(
       (item) => item.id === id && item.role === "MEMBER" && !item.deletedAt,
     );
-    if (!user) throw new Error("Không tìm thấy thành viên.");
+
+    if (!user) {
+      throw new Error("Không tìm thấy thành viên.");
+    }
+
     if (
       users.some(
         (item) => item.id !== id && item.email.toLowerCase() === data.email,
       )
-    )
+    ) {
       throw new Error("Email đã được sử dụng.");
+    }
+
     Object.assign(user, data);
+
     mockDb.saveUsers(users);
-    auditService.record(actor, { action: "UPDATE", entity: "MEMBER", entityId: user.id, description: `Cập nhật thành viên ${user.fullName}.` });
+
+    auditService.record(actor, {
+      action: "UPDATE",
+      entity: "MEMBER",
+      entityId: user.id,
+      description: `Cập nhật thành viên ${user.fullName}.`,
+    });
+
     return safe(user);
   },
+
   remove(actor: MembershipActor, id: string) {
     authorizeRoles(actor, accessRules.members);
+
     const users = mockDb.getUsers();
+
     const user = users.find(
       (item) => item.id === id && item.role === "MEMBER" && !item.deletedAt,
     );
-    if (!user) throw new Error("Không tìm thấy thành viên.");
-    // Soft deletion preserves membership, invoices and attendance references.
+
+    if (!user) {
+      throw new Error("Không tìm thấy thành viên.");
+    }
+
+    // Soft deletion preserves membership,
+    // invoices and attendance references.
     user.deletedAt = new Date().toISOString();
     user.isActive = false;
+
     mockDb.saveUsers(users);
-    auditService.record(actor, { action: "DEACTIVATE", entity: "MEMBER", entityId: user.id, description: `Xóa mềm thành viên ${user.fullName}.` });
+
+    auditService.record(actor, {
+      action: "DEACTIVATE",
+      entity: "MEMBER",
+      entityId: user.id,
+      description: `Xóa mềm thành viên ${user.fullName}.`,
+    });
   },
 };
