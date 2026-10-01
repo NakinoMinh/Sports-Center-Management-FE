@@ -169,7 +169,7 @@ describe("Sprint 1 API adapters", () => {
     ]);
   });
 
-  it("connects UC11 member registration and UC15 counter registration", async () => {
+  it("connects UC11 member registration and keeps counter renewal pending", async () => {
     const pending = {
       subscriptionId: 5,
       invoiceNumber: "INV-5",
@@ -186,9 +186,17 @@ describe("Sprint 1 API adapters", () => {
       paymentMethod: "CASH",
       createdAt: "2026-09-30T00:00:00Z",
     };
+    const pendingReceipt = {
+      ...receiptDto,
+      invoiceStatus: "PENDING_PAYMENT",
+      subscriptionStatus: "PENDING_PAYMENT",
+      paidAt: null,
+      paidByStaffId: null,
+      paidByStaffName: null,
+    };
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(pending, 201))
-      .mockResolvedValueOnce(json(receiptDto, 201));
+      .mockResolvedValueOnce(json(pendingReceipt, 201));
     vi.stubGlobal("fetch", fetchMock);
     const actor = {
       id: "usr_member_01",
@@ -201,6 +209,65 @@ describe("Sprint 1 API adapters", () => {
       isLocked: false,
     };
     expect((await membershipApi.registerOrRenew(actor, "1", "CASH")).invoice.status).toBe("PENDING_PAYMENT");
-    expect((await membershipApi.counterRegisterOrRenew("usr_member_01", "1", "CASH")).invoice.status).toBe("PAID");
+    expect((await membershipApi.counterRegisterOrRenew("usr_member_01", "1", "CASH")).invoice.status).toBe("PENDING_PAYMENT");
+  });
+
+  it("uses one atomic request for counter member registration", async () => {
+    const response = {
+      member: {
+        accountId: "new-member-id",
+        memberCode: "MB2610011234",
+        fullName: "Hội viên mới",
+        dateOfBirth: "2000-01-02",
+        avatarUrl: null,
+        email: "new.member@example.com",
+        phone: "0912345678",
+        status: "Active",
+        createdAt: "2026-10-01T00:00:00Z",
+        updatedAt: null,
+      },
+      receipt: {
+        ...receiptDto,
+        invoiceStatus: "PENDING_PAYMENT",
+        subscriptionStatus: "PENDING_PAYMENT",
+        paidAt: null,
+        paidByStaffId: null,
+        paidByStaffName: null,
+        memberAccountId: "new-member-id",
+        memberCode: "MB2610011234",
+        memberFullName: "Hội viên mới",
+        memberEmail: "new.member@example.com",
+        memberPhone: "0912345678",
+      },
+      initialPassword: "Tt9!ABC123",
+      emailDelivery: "NOT_CONFIGURED",
+    };
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(response, 201));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await membershipApi.counterRegisterMember({
+      fullName: "Hội viên mới",
+      email: "new.member@example.com",
+      phone: "0912345678",
+      dateOfBirth: "2000-01-02",
+      packageId: "1",
+      expectedPrice: 450000,
+      paymentMethod: "CASH",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://api.test/api/Member/counter-registration");
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      fullName: "Hội viên mới",
+      email: "new.member@example.com",
+      phone: "0912345678",
+      dateOfBirth: "2000-01-02",
+      packageId: 1,
+      expectedPrice: 450000,
+      paymentMethod: "CASH",
+    });
+    expect(result.member.username).toBe("MB2610011234");
+    expect(result.initialPassword).toBe("Tt9!ABC123");
+    expect(result.order.invoice.status).toBe("PENDING_PAYMENT");
   });
 });

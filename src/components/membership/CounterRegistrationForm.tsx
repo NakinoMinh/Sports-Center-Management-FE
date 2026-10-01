@@ -2,7 +2,6 @@ import { useState, type FormEvent } from "react";
 import { Dialog } from "../common/Dialog";
 import { membershipService } from "../../services/membershipService";
 import { isApiConfigured } from "../../services/apiClient";
-import { memberApi } from "../../services/memberApi";
 import { membershipApi } from "../../services/membershipApi";
 import type {
   MembershipActor,
@@ -11,12 +10,6 @@ import type {
   PaymentMethod,
 } from "../../types/membership";
 import { durationLabel, formatMoney } from "../../utils/format";
-
-const generateInitialPassword = (): string => {
-  const randomValues = new Uint32Array(1);
-  crypto.getRandomValues(randomValues);
-  return `Pass@${(randomValues[0] % 90000) + 10000}`;
-};
 
 export function CounterRegistrationForm({
   actor,
@@ -43,6 +36,7 @@ export function CounterRegistrationForm({
     member: MembershipActor;
     order: MembershipOrder;
     initialPassword: string;
+    emailDelivery?: "SENT" | "FAILED" | "NOT_CONFIGURED" | "NOT_CONNECTED";
   } | null>(null);
   const pkg = packages.find((p) => p.id === form.packageId);
   async function submit(event: FormEvent) {
@@ -56,28 +50,15 @@ export function CounterRegistrationForm({
     setBusy(true);
     try {
       if (isApiConfigured()) {
-        const initialPassword = generateInitialPassword();
-        const newMember = await memberApi.createMember(
-          {
-            fullName: form.fullName,
-            email: form.email,
-            phone: form.phone,
-            dateOfBirth: form.dateOfBirth,
-          },
-          initialPassword,
-        );
-
-        const order = await membershipApi.counterRegisterOrRenew(
-          newMember.id,
-          form.packageId,
-          form.paymentMethod,
-        );
-
-        setCreated({
-          member: newMember,
-          order,
-          initialPassword,
-        });
+        setCreated(await membershipApi.counterRegisterMember({
+          fullName: form.fullName,
+          email: form.email,
+          phone: form.phone,
+          dateOfBirth: form.dateOfBirth,
+          packageId: form.packageId,
+          expectedPrice: pkg.price,
+          paymentMethod: form.paymentMethod,
+        }));
         return;
       }
 
@@ -117,9 +98,10 @@ export function CounterRegistrationForm({
         </div>
         <div className="info-note">
           <p>
-            Email chưa được gửi vì dịch vụ gửi email chưa kết nối. Bàn giao
-            riêng thông tin đăng nhập cho thành viên trước khi đóng. Hóa đơn
-            đã được ghi nhận và gói tập đã kích hoạt theo giao dịch tại quầy.
+            {created.emailDelivery === "SENT"
+              ? "Thông tin đăng nhập đã được gửi qua email. "
+              : "Hãy bàn giao riêng thông tin đăng nhập cho thành viên trước khi đóng. "}
+            Hóa đơn đang chờ thanh toán; gói tập chỉ được kích hoạt sau khi thu tiền.
           </p>
         </div>
       </Dialog>

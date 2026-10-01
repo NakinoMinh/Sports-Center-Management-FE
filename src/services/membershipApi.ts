@@ -53,9 +53,9 @@ interface ReceiptDto {
   paymentMethod: PaymentMethod;
   invoiceStatus: "PAID" | "PENDING_PAYMENT" | "CANCELED";
   createdAt: string;
-  paidAt?: string;
-  paidByStaffId?: string;
-  paidByStaffName?: string;
+  paidAt?: string | null;
+  paidByStaffId?: string | null;
+  paidByStaffName?: string | null;
   subscriptionId: number;
   subscriptionStatus: "CONFIRMED" | "PENDING_PAYMENT" | "CANCELED";
   kind: "REGISTER" | "RENEW";
@@ -71,6 +71,35 @@ interface ReceiptDto {
   memberFullName?: string;
   memberEmail: string;
   memberPhone?: string;
+}
+
+interface CounterMemberDto {
+  accountId: string;
+  memberCode: string;
+  fullName?: string | null;
+  dateOfBirth?: string | null;
+  avatarUrl?: string | null;
+  email: string;
+  phone?: string | null;
+  status: string;
+  createdAt: string;
+}
+
+interface CounterRegistrationResponseDto {
+  member: CounterMemberDto;
+  receipt: ReceiptDto;
+  initialPassword: string;
+  emailDelivery: "SENT" | "FAILED" | "NOT_CONFIGURED";
+}
+
+export interface CounterMemberRegistrationInput {
+  fullName: string;
+  email: string;
+  phone: string;
+  dateOfBirth: string;
+  packageId: string;
+  expectedPrice: number;
+  paymentMethod: PaymentMethod;
 }
 
 const mapPackage = (item: PackageDto): MembershipPackage => ({
@@ -144,7 +173,7 @@ const orderFromReceipt = (data: ReceiptDto): MembershipOrder => ({
     startDate: data.startDate,
     endDate: data.endDate,
     kind: data.kind,
-    status: "CONFIRMED",
+    status: data.subscriptionStatus,
     invoiceId: String(data.invoiceId),
     createdAt: data.createdAt,
   },
@@ -165,12 +194,12 @@ const orderFromReceipt = (data: ReceiptDto): MembershipOrder => ({
     endDate: data.endDate,
     kind: data.kind,
     paymentMethod: data.paymentMethod,
-    status: "PAID",
+    status: data.invoiceStatus,
     createdAt: data.createdAt,
     createdBy: data.memberAccountId,
-    paidAt: data.paidAt,
-    paidBy: data.paidByStaffId,
-    paidByName: data.paidByStaffName,
+    paidAt: data.paidAt ?? undefined,
+    paidBy: data.paidByStaffId ?? undefined,
+    paidByName: data.paidByStaffName ?? undefined,
   },
 });
 
@@ -267,6 +296,49 @@ export const membershipApi = {
     return orderFromReceipt(result);
   },
 
+  async counterRegisterMember(input: CounterMemberRegistrationInput): Promise<{
+    member: MembershipActor;
+    order: MembershipOrder;
+    initialPassword: string;
+    emailDelivery: CounterRegistrationResponseDto["emailDelivery"];
+  }> {
+    const result = await apiRequest<CounterRegistrationResponseDto>(
+      "/Member/counter-registration",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          fullName: input.fullName.trim(),
+          email: input.email.trim(),
+          phone: input.phone.trim(),
+          dateOfBirth: input.dateOfBirth,
+          packageId: Number(input.packageId),
+          expectedPrice: input.expectedPrice,
+          paymentMethod: input.paymentMethod,
+        }),
+      },
+    );
+    const member: MembershipActor = {
+      id: result.member.accountId,
+      username: result.member.memberCode,
+      email: result.member.email,
+      role: "MEMBER",
+      fullName: result.member.fullName ?? result.member.memberCode,
+      avatar: result.member.avatarUrl ?? undefined,
+      createdAt: result.member.createdAt,
+      failedAttempts: 0,
+      isLocked: false,
+      phone: result.member.phone ?? undefined,
+      dateOfBirth: result.member.dateOfBirth ?? undefined,
+      isActive: result.member.status === "Active",
+    };
+    return {
+      member,
+      order: orderFromReceipt(result.receipt),
+      initialPassword: result.initialPassword,
+      emailDelivery: result.emailDelivery,
+    };
+  },
+
   async payInvoice(invoiceId: string, paymentMethod: PaymentMethod): Promise<MembershipOrder> {
     const result = await apiRequest<ReceiptDto>(`/MembershipInvoice/${invoiceId}/pay`, {
       method: "POST",
@@ -319,9 +391,9 @@ export const membershipApi = {
       status: dto.invoiceStatus,
       createdAt: dto.createdAt,
       createdBy: dto.memberAccountId,
-      paidAt: dto.paidAt,
-      paidBy: dto.paidByStaffId,
-      paidByName: dto.paidByStaffName,
+      paidAt: dto.paidAt ?? undefined,
+      paidBy: dto.paidByStaffId ?? undefined,
+      paidByName: dto.paidByStaffName ?? undefined,
     }));
   },
 };
