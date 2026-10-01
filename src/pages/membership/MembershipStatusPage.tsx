@@ -3,8 +3,7 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, ArrowRight, RefreshCw, Search, ShieldCheck, Users } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
-import { getMembershipStatusSummary, membershipService } from "../../services/membershipService";
-import { isApiConfigured } from "../../services/apiClient";
+import { getMembershipStatusSummary } from "../../services/membershipService";
 import { memberApi } from "../../services/memberApi";
 import { membershipApi, subscriptionFromInvoice } from "../../services/membershipApi";
 import type { MemberSubscription, MembershipActor } from "../../types/membership";
@@ -28,17 +27,12 @@ export function MembershipStatusPage() {
   const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
-      if (isApiConfigured()) {
-        const [members, invoicesRes] = await Promise.all([
-          memberApi.listAllMembers(),
-          membershipApi.listInvoices(),
-        ]);
-        const subscriptions = invoicesRes.map(subscriptionFromInvoice);
-        setData({ members, subscriptions });
-        setError("");
-        return;
-      }
-      setData({ members: membershipService.listMembers(currentUser), subscriptions: membershipService.getMemberSubscriptions(currentUser) });
+      const [members, invoicesRes] = await Promise.all([
+        memberApi.listAllMembers(),
+        membershipApi.listInvoices(),
+      ]);
+      const subscriptions = invoicesRes.map(subscriptionFromInvoice);
+      setData({ members, subscriptions });
       setError("");
     } catch (err) {
       setData({ members: [], subscriptions: [] });

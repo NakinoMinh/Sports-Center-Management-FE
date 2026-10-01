@@ -1,11 +1,5 @@
-import { mockDb } from "./mockDb";
-import { accountEnabled, authorizeRoles, accessRules } from "./accessControl";
-import {
-  addDateDays,
-  getSubscriptionStatus,
-  membershipService,
-  todayDate,
-} from "./membershipService";
+import { authorizeRoles, accessRules } from "./accessControl";
+import { addDateDays, todayDate } from "./membershipService";
 import type { MembershipActor } from "../types/membership";
 
 export const RECEPTION_STORAGE_KEY = "scms_reception_v1";
@@ -63,26 +57,11 @@ function authorize(actor: MembershipActor) {
   authorizeRoles(actor, accessRules.counter);
 }
 function memberExists(memberId: string) {
-  const member = mockDb
-    .getUsers()
-    .find((user) => user.id === memberId && user.role === "MEMBER");
-  if (!member) throw new Error("Vui lòng chọn thành viên hợp lệ.");
-  return member;
+  if (!memberId) throw new Error("Vui lòng chọn thành viên hợp lệ.");
+  return { id: memberId };
 }
-function hasAccess(actor: MembershipActor, memberId: string, date: string) {
-  const member = memberExists(memberId);
-  if (!accountEnabled(member)) throw new Error("Tài khoản thành viên đang bị khóa hoặc ngừng hoạt động.");
-  if (
-    !membershipService
-      .getMemberSubscriptions(actor, memberId)
-      .some(
-        (sub) =>
-          !sub.isSuspended && getSubscriptionStatus(sub, date) === "ACTIVE",
-      )
-  )
-    throw new Error(
-      "Thành viên cần gói tập còn hiệu lực, không tạm ngưng vào ngày sử dụng.",
-    );
+function hasAccess(_actor: MembershipActor, memberId: string, _date: string) {
+  if (!memberId) throw new Error("Vui lòng chọn thành viên hợp lệ.");
 }
 function save(state: ReceptionState) {
   try {

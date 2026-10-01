@@ -6,9 +6,7 @@ import {
   User,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
-import { auditService, type AuditEntry } from "../../services/auditService";
-import { isApiConfigured } from "../../services/apiClient";
-import { NoDatabaseNotice } from "../../components/common/NoDatabaseNotice";
+import { auditApi, type AuditEntry } from "../../services/auditApi";
 import { formatDate } from "../../utils/format";
 
 const ACTION_LABELS: Record<string, { label: string; chipClass: string }> = {
@@ -25,12 +23,21 @@ const ACTION_LABELS: Record<string, { label: string; chipClass: string }> = {
 
 const ENTITY_LABELS: Record<string, string> = {
   MEMBER: "Thành viên",
+  Member: "Thành viên",
   COACH: "Huấn luyện viên",
+  Coach: "Huấn luyện viên",
   RECEPTIONIST: "Lễ tân",
+  Receptionist: "Lễ tân",
   USER: "Người dùng",
+  User: "Người dùng",
+  CENTER_MANAGER: "Quản lý",
+  CenterManager: "Quản lý",
   MEMBERSHIP_PACKAGE: "Gói tập",
+  MembershipPackage: "Gói tập",
   MEMBERSHIP_ORDER: "Đơn gói tập",
+  MembershipOrder: "Đơn gói tập",
   INVOICE: "Hóa đơn",
+  Invoice: "Hóa đơn",
 };
 
 export function AuditLogPage() {
@@ -42,10 +49,10 @@ export function AuditLogPage() {
   const [to, setTo] = useState("");
   const [error, setError] = useState("");
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
-      const data = auditService.list(currentUser, { query, action, from, to });
+      const data = await auditApi.list({ query, action, from, to });
       setItems(data);
       setError("");
     } catch (err) {
@@ -58,7 +65,7 @@ export function AuditLogPage() {
   }, [currentUser, query, action, from, to]);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
   const clearFilters = () => {
@@ -91,13 +98,7 @@ export function AuditLogPage() {
         </div>
       )}
 
-      {isApiConfigured() ? (
-        <NoDatabaseNotice
-          featureName="Lịch sử thao tác (Audit Log)"
-          description="Backend hiện tại chưa cung cấp cơ sở dữ liệu và API truy xuất lịch sử thay đổi/kiểm toán hệ thống."
-        />
-      ) : (
-        <section className="panel" aria-labelledby="audit-log-title">
+      <section className="panel" aria-labelledby="audit-log-title">
         <div className="panel-heading">
           <div>
             <h2 id="audit-log-title">Nhật ký kiểm toán (Audit Log)</h2>
@@ -269,7 +270,6 @@ export function AuditLogPage() {
           </div>
         )}
       </section>
-      )}
     </>
   );
 }

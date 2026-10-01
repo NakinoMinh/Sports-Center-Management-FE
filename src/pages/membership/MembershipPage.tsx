@@ -18,7 +18,6 @@ import {
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
 import {
-  membershipService,
   addDateDays,
   addMonthsClamped,
   getSubscriptionStatus,
@@ -31,7 +30,6 @@ import {
   subscriptionFromInvoice,
 } from "../../services/membershipApi";
 import { memberApi } from "../../services/memberApi";
-import { isApiConfigured } from "../../services/apiClient";
 import type {
   MemberSubscription,
   MembershipActor,
@@ -92,7 +90,6 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
   const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
-      if (isApiConfigured()) {
         const publicPackages = (await membershipApi.listPublicPackages()).sort((a, b) => a.price - b.price);
         const membersList = isCounter
           ? await memberApi.listAllMembers()
@@ -113,27 +110,6 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
             : null,
         );
         setError("");
-        return;
-      }
-      const invoices = memberId
-        ? membershipService.listInvoices(currentUser, memberId)
-        : [];
-      setSnapshot({
-        packages: membershipService.listPackages(currentUser).sort((a, b) => a.price - b.price),
-        members: isCounter
-          ? membershipService.listMembers(currentUser)
-          : [currentUser],
-        subscriptions: memberId
-          ? membershipService.getMemberSubscriptions(currentUser, memberId)
-          : [],
-        invoices,
-      });
-      setInvoice((opened) =>
-        opened
-          ? (invoices.find((item) => item.id === opened.id) ?? null)
-          : null,
-      );
-      setError("");
     } catch (err) {
       setSnapshot(emptySnapshot);
       setError(
@@ -179,8 +155,7 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
     setNotice("");
     setQuoteError("");
     try {
-      if (isApiConfigured()) {
-        const target = member ?? currentUser;
+      const target = member ?? currentUser;
         const confirmedSubs = snapshot.subscriptions.filter(
           (sub) => sub.status === "CONFIRMED" && !sub.replacedOn,
         );
@@ -211,16 +186,6 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
           kind: orderKind,
           paymentMethod: "CASH",
         });
-        return;
-      }
-      setQuote(
-        membershipService.quoteMembershipOrder(currentUser, {
-          memberId,
-          packageId: pkg.id,
-          kind: resolveOrderKind(snapshot.subscriptions, pkg),
-          paymentMethod: "CASH",
-        }),
-      );
     } catch (err) {
       refresh();
       setError(err instanceof Error ? err.message : "Không thể lập đăng ký.");
@@ -232,8 +197,7 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
     setSubmitting(true);
     setQuoteError("");
     try {
-      if (isApiConfigured()) {
-        const order = isCounter
+      const order = isCounter
           ? await membershipApi.counterRegisterOrRenew(
               quote.memberId,
               quote.packageId,
@@ -256,24 +220,6 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
             ? "Đã đăng ký/gia hạn và ghi nhận thanh toán tại quầy."
             : "Đã tạo yêu cầu và hóa đơn chờ thanh toán. Gói mới chưa được kích hoạt.",
         );
-        return;
-      }
-      // Re-quote before saving so an edit in another tab cannot silently change the confirmed price/dates.
-      const latest = membershipService.quoteMembershipOrder(currentUser, quote);
-      if (JSON.stringify(latest) !== JSON.stringify(quote)) {
-        setQuote(latest);
-        setQuoteError(
-          "Thông tin gói vừa thay đổi. Vui lòng kiểm tra lại trước khi xác nhận.",
-        );
-        return;
-      }
-      const order = membershipService.createMembershipOrder(currentUser, quote);
-      setQuote(null);
-      setInvoice(order.invoice);
-      setNotice(
-        "Đã tạo yêu cầu và hóa đơn chờ thanh toán. Gói mới chưa được kích hoạt.",
-      );
-      refresh();
     } catch (err) {
       setQuoteError(
         err instanceof Error
@@ -814,14 +760,7 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                 className="button danger"
                 onClick={async () => {
                   try {
-                    if (isApiConfigured()) {
-                      await membershipApi.cancelPendingOrder(invoice.id);
-                    } else {
-                      membershipService.cancelPendingOrder(
-                        currentUser,
-                        invoice.id,
-                      );
-                    }
+                    await membershipApi.cancelPendingOrder(invoice.id);
                     setInvoice(null);
                     setCanceling(false);
                     await refresh();

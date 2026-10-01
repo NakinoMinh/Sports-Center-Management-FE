@@ -9,14 +9,13 @@ import {
 } from "lucide-react";
 import { Dialog } from "../../components/common/Dialog";
 import { useAuth } from "../../hooks/useAuth";
-import { membershipService, todayDate } from "../../services/membershipService";
+import { todayDate } from "../../services/membershipService";
+import { memberApi } from "../../services/memberApi";
 import {
   receptionService,
   type ReceptionState,
   type SupportStatus,
 } from "../../services/receptionService";
-import { isApiConfigured } from "../../services/apiClient";
-import { NoDatabaseNotice } from "../../components/common/NoDatabaseNotice";
 import type { MembershipActor } from "../../types/membership";
 import { formatDate } from "../../utils/format";
 
@@ -79,12 +78,13 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
   const [category, setCategory] = useState("Gói tập");
   const [supportStatus, setSupportStatus] =
     useState<SupportStatus>("IN_PROGRESS");
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
       setState(receptionService.getSnapshot(currentUser));
       setNow(Date.now());
-      setMembers(membershipService.listMembers(currentUser));
+      const realMembers = await memberApi.listAllMembers();
+      setMembers(realMembers);
       setError("");
     } catch (err) {
       setState(empty);
@@ -206,14 +206,7 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
           </button>
         </div>
       )}
-      {isApiConfigured() ? (
-        <NoDatabaseNotice
-          featureName={titles[mode]}
-          description={`Nghiệp vụ "${titles[mode]}" chưa được xây dựng bảng lưu trữ và API xử lý trong cơ sở dữ liệu Backend.`}
-        />
-      ) : (
-        <>
-          <section className="panel reception-member-panel">
+      <section className="panel reception-member-panel">
             <div className="panel-heading">
               <div>
                 <h2>Thành viên cần hỗ trợ</h2>
@@ -621,8 +614,6 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
               )}
             </section>
           )}
-        </>
-      )}
       {dialog && (
         <Dialog
           title={

@@ -7,7 +7,6 @@ import type {
   User,
 } from "../types/auth";
 import { authService } from "../services/authService";
-import { mockDb } from "../services/mockDb";
 import { API_UNAUTHORIZED_EVENT } from "../services/apiClient";
 
 import { AuthContext } from "./authContextValue";
@@ -27,7 +26,7 @@ const emptyAuth: AuthState = {
 
 const readAuth = (): AuthState => {
   try {
-    const token = mockDb.getStoredToken();
+    const token = authService.getStoredToken();
     if (!token) return emptyAuth;
     const verification = authService.verifyJWT(token);
     const currentUser = verification.valid
@@ -41,7 +40,7 @@ const readAuth = (): AuthState => {
         sessionMessage: "",
       };
     }
-    mockDb.removeToken();
+    authService.clearSession();
     return {
       ...emptyAuth,
       sessionMessage: verification.reason || "Vui lòng đăng nhập lại.",

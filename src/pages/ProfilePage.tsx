@@ -9,7 +9,6 @@ import {
   AlertCircle,
   Sparkles,
   Lock,
-  Clock,
   Briefcase,
   Phone,
   Calendar,
@@ -69,7 +68,7 @@ export function ProfilePage() {
   const [pwdConfirm, setPwdConfirm] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [simulatedOtp, setSimulatedOtp] = useState<string | null>(null);
+
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [pwdMessage, setPwdMessage] = useState("");
   const [pwdError, setPwdError] = useState("");
@@ -154,7 +153,6 @@ export function ProfilePage() {
     try {
       const res = await authService.requestPasswordChangeOtp(currentUser);
       setOtpSent(true);
-      setSimulatedOtp(res.code ?? null);
       setOtpCountdown(res.expiresInSeconds);
       setPwdMessage("Mã xác thực OTP đã được gửi đến email của bạn.");
     } catch (err) {
@@ -192,7 +190,6 @@ export function ProfilePage() {
       setPwdConfirm("");
       setOtpCode("");
       setOtpSent(false);
-      setSimulatedOtp(null);
       setOtpCountdown(0);
     } catch (err) {
       setPwdError(err instanceof Error ? err.message : "Đổi mật khẩu thất bại.");
@@ -455,27 +452,7 @@ export function ProfilePage() {
               </div>
             )}
 
-            {/* Simulated Email Notification Banner */}
-            {simulatedOtp && (
-              <div className="otp-simulation-notice" role="alert">
-                <div className="otp-sim-header">
-                  <Mail size={18} />
-                  <strong>[Hộp thư điện tử mô phỏng]</strong>
-                  {otpCountdown > 0 && (
-                    <span className="otp-timer">
-                      <Clock size={13} /> Còn {otpCountdown}s
-                    </span>
-                  )}
-                </div>
-                <p>
-                  Mã xác thực OTP gửi tới email <u>{currentUser.email}</u>:
-                </p>
-                <div className="otp-display-code">
-                  <span>{simulatedOtp}</span>
-                </div>
-                <small>Nhập mã gồm 6 số trên vào ô xác nhận bên dưới để hoàn tất đổi mật khẩu.</small>
-              </div>
-            )}
+
 
             <form onSubmit={handlePasswordSubmit} className="profile-form">
               <div className="field-grid">

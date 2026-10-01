@@ -17,12 +17,8 @@ import {
   Users,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import {
-  membershipService,
-  type PublicMembershipPackage,
-} from "../services/membershipService";
+import type { MembershipPackage } from "../types/membership";
 import { membershipApi } from "../services/membershipApi";
-import { isApiConfigured } from "../services/apiClient";
 import { durationLabel, formatMoney } from "../utils/format";
 import { homeForRole } from "../utils/navigation";
 import "../styles/homepage.css";
@@ -112,28 +108,13 @@ const faqs = [
   },
 ];
 
-function readCatalog(): { packages: PublicMembershipPackage[]; error: string } {
-  try {
-    return {
-      packages: membershipService
-        .listPublicPackages()
-        .sort((a, b) => a.price - b.price),
-      error: "",
-    };
-  } catch {
-    return {
-      packages: [],
-      error: "Chưa thể tải danh sách gói tập. Vui lòng thử lại.",
-    };
-  }
-}
-
 export function HomePage() {
   const { currentUser } = useAuth();
   const [activityIndex, setActivityIndex] = useState(0);
-  const [catalog, setCatalog] = useState(() =>
-    isApiConfigured() ? { packages: [], error: "" } : readCatalog(),
-  );
+  const [catalog, setCatalog] = useState<{
+    packages: MembershipPackage[];
+    error: string;
+  }>({ packages: [], error: "" });
   const activity = activities[activityIndex];
   const accountPath = currentUser ? homeForRole(currentUser.role) : "/register";
   const accountLabel = currentUser
@@ -150,27 +131,23 @@ export function HomePage() {
 
   useEffect(() => {
     const refresh = () => {
-      if (isApiConfigured()) {
-        membershipApi
-          .listPublicPackages()
-          .then((pkgs) => {
-            setCatalog({
-              packages: pkgs.sort((a, b) => a.price - b.price),
-              error: "",
-            });
-          })
-          .catch((error: unknown) => {
-            setCatalog({
-              packages: [],
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Chưa thể tải danh sách gói tập từ máy chủ.",
-            });
+      membershipApi
+        .listPublicPackages()
+        .then((pkgs) => {
+          setCatalog({
+            packages: pkgs.sort((a, b) => a.price - b.price),
+            error: "",
           });
-      } else {
-        setCatalog(readCatalog());
-      }
+        })
+        .catch((error: unknown) => {
+          setCatalog({
+            packages: [],
+            error:
+              error instanceof Error
+                ? error.message
+                : "Chưa thể tải danh sách gói tập từ máy chủ.",
+          });
+        });
     };
     refresh();
     window.addEventListener("focus", refresh);
@@ -425,7 +402,25 @@ export function HomePage() {
                 <button
                   className="home-button home-button-dark"
                   type="button"
-                  onClick={() => setCatalog(readCatalog())}
+                  onClick={() =>
+                    membershipApi
+                      .listPublicPackages()
+                      .then((pkgs) =>
+                        setCatalog({
+                          packages: pkgs.sort((a, b) => a.price - b.price),
+                          error: "",
+                        }),
+                      )
+                      .catch((err: unknown) =>
+                        setCatalog({
+                          packages: [],
+                          error:
+                            err instanceof Error
+                              ? err.message
+                              : "Chưa thể tải danh sách gói tập từ máy chủ.",
+                        }),
+                      )
+                  }
                 >
                   Thử lại <ArrowRight size={18} aria-hidden="true" />
                 </button>

@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, Dumbbell, Scale } from "lucide-react";
-import {
-  membershipService,
-  type PublicMembershipPackage,
-} from "../services/membershipService";
+import type { MembershipPackage } from "../types/membership";
 import { membershipApi } from "../services/membershipApi";
-import { isApiConfigured } from "../services/apiClient";
 import { useAuth } from "../hooks/useAuth";
 import { homeForRole } from "../utils/navigation";
 import { durationLabel, formatMoney } from "../utils/format";
@@ -14,23 +10,15 @@ import { durationLabel, formatMoney } from "../utils/format";
 export function PackageCatalogPage() {
   const { currentUser, isAuthenticated } = useAuth();
   const inWorkspace = isAuthenticated && !!currentUser;
-  const [packages, setPackages] = useState<PublicMembershipPackage[]>([]);
+  const [packages, setPackages] = useState<MembershipPackage[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [duration, setDuration] = useState("ALL");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const refresh = useCallback(async () => {
     try {
-      if (isApiConfigured()) {
-        const items = await membershipApi.listPublicPackages();
-        setPackages(items.sort((a, b) => a.price - b.price));
-      } else {
-        setPackages(
-          membershipService
-            .listPublicPackages()
-            .sort((a, b) => a.price - b.price),
-        );
-      }
+      const items = await membershipApi.listPublicPackages();
+      setPackages(items.sort((a, b) => a.price - b.price));
       setError("");
     } catch (err) {
       setPackages([]);

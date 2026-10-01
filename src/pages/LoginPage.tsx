@@ -165,7 +165,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
                 <Send size={14} /> {countdown > 0 ? `Gửi lại sau ${countdown}s` : "Gửi mã"}
               </button>
             </div>
-            {demoCode && <p className="scms-demo-code" role="status">Mã xác nhận demo: <strong>{demoCode}</strong></p>}
+            {import.meta.env.DEV && demoCode && <p className="scms-demo-code" role="status">Mã xác nhận demo: <strong>{demoCode}</strong></p>}
             <InputField
               label="Mã xác nhận gồm 6 chữ số"
               name="emailVerificationCode"
@@ -219,20 +219,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
           Tạo tài khoản <ArrowRight size={14} />
         </button>
       </div>
-      <details className="scms-demo-accounts">
-        <summary>Khám phá bằng tài khoản mẫu</summary>
-        <QuickAccounts
-          onSelectAccount={(selectedEmail, selectedPassword) => {
-            setEmail(selectedEmail);
-            setPassword(selectedPassword);
-            setEmailError("");
-            setPasswordError("");
-            clearError();
-            resetVerification();
-          }}
-          disabled={isLoading}
-        />
-      </details>
+      {import.meta.env.DEV && (
+        <details className="scms-demo-accounts">
+          <summary>Khám phá bằng tài khoản mẫu</summary>
+          <QuickAccounts
+            onSelectAccount={(selectedEmail, selectedPassword) => {
+              setEmail(selectedEmail);
+              setPassword(selectedPassword);
+              setEmailError("");
+              setPasswordError("");
+              clearError();
+              resetVerification();
+            }}
+            disabled={isLoading}
+          />
+        </details>
+      )}
     </div>
   );
 };

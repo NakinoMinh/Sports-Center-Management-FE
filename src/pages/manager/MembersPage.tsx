@@ -2,18 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Search, Users, Plus, RefreshCw, ArrowUpRight } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
-import { memberService, type MemberInput } from "../../services/memberService";
-import { memberApi } from "../../services/memberApi";
+import { memberApi, type CreateMemberInput } from "../../services/memberApi";
 import { membershipApi, subscriptionFromInvoice } from "../../services/membershipApi";
-import { isApiConfigured } from "../../services/apiClient";
-import {
-  membershipService,
-  getMembershipStatusSummary,
-} from "../../services/membershipService";
+import { getMembershipStatusSummary } from "../../services/membershipService";
 import type { MembershipActor } from "../../types/membership";
 import { formatDate } from "../../utils/format";
 
-const blank: MemberInput = {
+const blank: CreateMemberInput & { isActive: boolean } = {
   fullName: "",
   email: "",
   phone: "",
@@ -25,7 +20,7 @@ export function MembersPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("ALL");
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<ReturnType<typeof memberService.list>>({
+  const [data, setData] = useState<{ items: MembershipActor[]; total: number; page: number; pages: number }>({
     items: [],
     total: 0,
     page: 1,
@@ -51,12 +46,8 @@ export function MembersPage() {
     if (!currentUser) return;
     setLoading(true);
     try {
-      if (isApiConfigured()) {
-        const result = await memberApi.listMembers(page, 20, query, status);
-        setData(result);
-      } else {
-        setData(memberService.list(currentUser, query, status, page));
-      }
+      const result = await memberApi.listMembers(page, 20, query, status);
+      setData(result);
       setError("");
     } catch (err) {
       setData({ items: [], total: 0, page: 1, pages: 1 });
@@ -209,13 +200,8 @@ export function MembersPage() {
                           onClick={async () => {
                             if (!currentUser) return;
                             try {
-                              const subscriptions = isApiConfigured()
-                                ? (await membershipApi.listInvoices({ memberId: member.id }))
-                                    .map(subscriptionFromInvoice)
-                                : membershipService.getMemberSubscriptions(
-                                    currentUser,
-                                    member.id,
-                                  );
+                              const subscriptions = (await membershipApi.listInvoices({ memberId: member.id }))
+                                .map(subscriptionFromInvoice);
                               setSummary(
                                 getMembershipStatusSummary(subscriptions),
                               );
@@ -302,28 +288,24 @@ export function MembersPage() {
               setBusy(true);
               setFormError("");
               try {
-                if (isApiConfigured()) {
-                  if (editing === "new") {
-                    const initialPassword = "Test@12345";
-                    await memberApi.createMember(form, initialPassword);
-                    setPassword({
-                      email: form.email,
-                      value: initialPassword,
-                    });
-                  } else {
-                    await memberApi.updateMember(editing.id, form);
-                    if (editing.isActive !== form.isActive) {
-                      await memberApi.setMemberStatus(editing.id, form.isActive);
-                    }
-                  }
+                if (editing === "new") {
+                  const initialPassword = "Test@12345";
+                  await memberApi.createMember(form, initialPassword);
+                  setPassword({
+                    email: form.email,
+                    value: initialPassword,
+                  });
                 } else {
-                  if (editing === "new") {
-                    const created = await memberService.create(currentUser, form);
-                    setPassword({
-                      email: created.member.email,
-                      value: created.initialPassword,
-                    });
-                  } else memberService.update(currentUser, editing.id, form);
+                  const hasProfileChanges =
+                    form.fullName.trim() !== editing.fullName.trim() ||
+                    form.phone.trim() !== (editing.phone ?? "").trim() ||
+                    form.dateOfBirth !== (editing.dateOfBirth ?? "");
+                  if (hasProfileChanges) {
+                    await memberApi.updateMember(editing.id, form);
+                  }
+                  if (editing.isActive !== form.isActive) {
+                    await memberApi.setMemberStatus(editing.id, form.isActive);
+                  }
                 }
                 setEditing(null);
                 setNotice("Đã lưu hồ sơ thành viên.");
@@ -429,11 +411,7 @@ export function MembersPage() {
                 onClick={async () => {
                   if (!currentUser) return;
                   try {
-                    if (isApiConfigured()) {
-                      await memberApi.setMemberStatus(removing.id, false);
-                    } else {
-                      memberService.remove(currentUser, removing.id);
-                    }
+                    await memberApi.setMemberStatus(removing.id, false);
                     setRemoving(null);
                     setNotice(
                       "Đã cập nhật trạng thái ngừng hoạt động cho thành viên.",

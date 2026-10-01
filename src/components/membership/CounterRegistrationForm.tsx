@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Dialog } from "../common/Dialog";
-import { membershipService } from "../../services/membershipService";
-import { isApiConfigured } from "../../services/apiClient";
+
 import { memberApi } from "../../services/memberApi";
 import { membershipApi } from "../../services/membershipApi";
 import type {
@@ -19,7 +18,7 @@ const generateInitialPassword = (): string => {
 };
 
 export function CounterRegistrationForm({
-  actor,
+  actor: _actor,
   packages,
   onClose,
   onCreated,
@@ -55,38 +54,28 @@ export function CounterRegistrationForm({
     }
     setBusy(true);
     try {
-      if (isApiConfigured()) {
-        const initialPassword = generateInitialPassword();
-        const newMember = await memberApi.createMember(
-          {
-            fullName: form.fullName,
-            email: form.email,
-            phone: form.phone,
-            dateOfBirth: form.dateOfBirth,
-          },
-          initialPassword,
-        );
+      const initialPassword = generateInitialPassword();
+      const newMember = await memberApi.createMember(
+        {
+          fullName: form.fullName,
+          email: form.email,
+          phone: form.phone,
+          dateOfBirth: form.dateOfBirth,
+        },
+        initialPassword,
+      );
 
-        const order = await membershipApi.counterRegisterOrRenew(
-          newMember.id,
-          form.packageId,
-          form.paymentMethod,
-        );
+      const order = await membershipApi.counterRegisterOrRenew(
+        newMember.id,
+        form.packageId,
+        form.paymentMethod,
+      );
 
-        setCreated({
-          member: newMember,
-          order,
-          initialPassword,
-        });
-        return;
-      }
-
-      const result =
-        await membershipService.registerMemberWithGeneratedCredentials(actor, {
-          ...form,
-          expectedPrice: pkg.price,
-        });
-      setCreated(result);
+      setCreated({
+        member: newMember,
+        order,
+        initialPassword,
+      });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Không thể đăng ký thành viên.",

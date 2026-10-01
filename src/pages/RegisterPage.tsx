@@ -13,19 +13,16 @@ import { useAuth } from "../hooks/useAuth";
 import { InputField } from "../components/common/InputField";
 import { AlertBadge } from "../components/common/AlertBadge";
 import { authService } from "../services/authService";
-import { isApiConfigured } from "../services/apiClient";
 
 interface RegisterPageProps {
   onSwitchToLogin: () => void;
 }
-type Fields =
-  "username" | "email" | "fullName" | "password" | "confirmPassword";
+type Fields = "username" | "email" | "fullName" | "password" | "confirmPassword";
 
 export const RegisterPage: React.FC<RegisterPageProps> = ({
   onSwitchToLogin,
 }) => {
   const { register } = useAuth();
-  const apiMode = isApiConfigured();
   const [form, setForm] = useState<Record<Fields, string>>({
     username: "",
     email: "",
@@ -81,8 +78,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
     event.preventDefault();
     if (isLoading) return;
     const next: Partial<Record<Fields, string>> = {};
-    if (!apiMode && form.username.trim().length < 3)
-      next.username = "Tên đăng nhập phải có ít nhất 3 ký tự.";
+
     if (!authService.isValidEmail(form.email))
       next.email = "Vui lòng nhập email hợp lệ.";
     if (form.password.length < 8)
@@ -129,21 +125,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
         noValidate
         aria-busy={isLoading}
       >
-        {!apiMode && (
-          <InputField
-            label="Tên đăng nhập"
-            name="username"
-            placeholder="vd: tuan_fitness"
-            value={form.username}
-            onChange={(event) => update("username", event.target.value)}
-            icon={<UserIcon size={18} />}
-            error={errors.username}
-            required
-            autoComplete="username"
-            disabled={isLoading}
-            helperText="Ít nhất 3 ký tự."
-          />
-        )}
+
         <InputField
           label="Địa chỉ email"
           name="email"
@@ -165,7 +147,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
                 <Send size={14} /> {countdown > 0 ? `Gửi lại sau ${countdown}s` : "Gửi mã"}
               </button>
             </div>
-            {demoCode && <p className="scms-demo-code" role="status">Mã xác nhận demo: <strong>{demoCode}</strong></p>}
+            {import.meta.env.DEV && demoCode && <p className="scms-demo-code" role="status">Mã xác nhận demo: <strong>{demoCode}</strong></p>}
             <InputField
               label="Mã xác nhận gồm 6 chữ số"
               name="emailVerificationCode"

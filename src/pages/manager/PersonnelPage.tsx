@@ -14,12 +14,10 @@ import {
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
 import {
-  personnelService,
+  personnelApi,
   type PersonnelInput,
   type PersonnelRole,
-} from "../../services/personnelService";
-import { isApiConfigured } from "../../services/apiClient";
-import { NoDatabaseNotice } from "../../components/common/NoDatabaseNotice";
+} from "../../services/personnelApi";
 import type { User } from "../../types/auth";
 
 const blankInput: PersonnelInput = {
@@ -47,19 +45,19 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
   const isCoach = role === "COACH";
   const title = isCoach ? "Huấn luyện viên" : "Nhân viên lễ tân";
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
-      const data = personnelService.list(currentUser, role);
+      const data = await personnelApi.list(role, searchQuery, statusFilter);
       setItems(data);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể tải danh sách.");
     }
-  }, [currentUser, role]);
+  }, [currentUser, role, searchQuery, statusFilter]);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
   const handleOpenEdit = (item: Omit<User, "passwordHash"> | "new") => {
@@ -83,7 +81,7 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
     }
   };
 
-  const handleToggleActive = (item: Omit<User, "passwordHash">) => {
+  const handleToggleActive = async (item: Omit<User, "passwordHash">) => {
     if (!currentUser) return;
     const targetStatus = item.isActive === false;
     const actionLabel = targetStatus ? "kích hoạt" : "vô hiệu hóa";
@@ -96,9 +94,9 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
     }
 
     try {
-      personnelService.setActive(currentUser, role, item.id, targetStatus);
+      await personnelApi.setActive(role, item.id, targetStatus);
       setNotice(`Đã ${actionLabel} tài khoản của ${item.fullName}.`);
-      refresh();
+      void refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Thao tác thất bại.");
     }
@@ -112,23 +110,28 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
     setIsSubmitting(true);
     try {
       if (editing === "new") {
-        const result = await personnelService.create(
-          currentUser,
+        const result = await personnelApi.create(
           role,
           email,
-          username,
           form,
         );
         setCredential(
-          `Tài khoản: ${result.user.email}\nTên đăng nhập: ${result.user.username}\nMật khẩu khởi tạo: ${result.initialPassword}`,
+          `Tài khoản: ${result.user.email}\nMật khẩu khởi tạo: ${result.initialPassword}`,
         );
         setNotice(`Đã tạo hồ sơ cho ${result.user.fullName}.`);
       } else if (editing) {
-        personnelService.update(currentUser, role, editing.id, form);
+        const hasProfileChanges =
+          form.fullName.trim() !== editing.fullName.trim() ||
+          form.phone.trim() !== (editing.phone ?? "").trim() ||
+          (isCoach && (form.specialization ?? "").trim() !== (editing.specialization ?? "").trim()) ||
+          (form.workSchedule ?? "").trim() !== (editing.workSchedule ?? "").trim();
+        if (hasProfileChanges) {
+          await personnelApi.update(role, editing.id, form);
+        }
         setNotice(`Đã cập nhật hồ sơ cho ${form.fullName}.`);
       }
       setEditing(null);
-      refresh();
+      void refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể lưu hồ sơ.");
     } finally {
@@ -166,13 +169,11 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
               : "Quản lý hồ sơ nhân viên lễ tân trực quầy, ca làm việc và phân công nhiệm vụ."}
           </p>
         </div>
-        {!isApiConfigured() && (
-          <div className="page-actions">
-            <button className="button primary" onClick={() => handleOpenEdit("new")}>
-              <Plus size={18} aria-hidden="true" /> Thêm {title.toLowerCase()}
-            </button>
-          </div>
-        )}
+        <div className="page-actions">
+          <button className="button primary" onClick={() => handleOpenEdit("new")}>
+            <Plus size={18} aria-hidden="true" /> Thêm {title.toLowerCase()}
+          </button>
+        </div>
       </div>
 
       {notice && (
@@ -186,13 +187,7 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
         </div>
       )}
 
-      {isApiConfigured() ? (
-        <NoDatabaseNotice
-          featureName={`Quản lý ${title.toLowerCase()}`}
-          description={`Cơ sở dữ liệu Backend hiện tại chưa có API tra cứu và quản lý danh sách ${title} (${isCoach ? "Huấn luyện viên" : "Lễ tân"}).`}
-        />
-      ) : (
-        <section className="panel" aria-labelledby="personnel-list-title">
+      <section className="panel" aria-labelledby="personnel-list-title">
         <div className="panel-heading">
           <div>
             <h2 id="personnel-list-title">Danh sách {title.toLowerCase()}</h2>
@@ -380,7 +375,6 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
           </div>
         )}
       </section>
-      )}
 
       {/* Edit / Create Dialog */}
       {editing && (
@@ -435,7 +429,7 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
                 </label>
               )}
 
-              <label className="field">
+              <label className="field field-full">
                 <span>Số điện thoại liên hệ *</span>
                 <input
                   required
@@ -445,19 +439,6 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
                   placeholder="0xxxxxxxxx"
                 />
                 <small>10 chữ số, bắt đầu bằng số 0</small>
-              </label>
-
-              <label className="field">
-                <span>Trạng thái tài khoản</span>
-                <select
-                  value={String(form.isActive)}
-                  onChange={(e) =>
-                    setForm({ ...form, isActive: e.target.value === "true" })
-                  }
-                >
-                  <option value="true">Đang hoạt động</option>
-                  <option value="false">Ngừng hoạt động</option>
-                </select>
               </label>
 
               {isCoach && (

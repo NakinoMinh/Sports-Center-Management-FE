@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   BadgeCheck,
   Eye,
@@ -17,14 +17,8 @@ import {
   type PackageFormValues,
 } from "../../components/membership/PackageForm";
 import { useAuth } from "../../hooks/useAuth";
-import { membershipService } from "../../services/membershipService";
 import { membershipApi } from "../../services/membershipApi";
-import { isApiConfigured } from "../../services/apiClient";
-import type {
-  MemberSubscription,
-  MembershipActor,
-  MembershipPackage,
-} from "../../types/membership";
+import type { MembershipPackage } from "../../types/membership";
 
 const currency = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -37,30 +31,9 @@ const errorMessage = (error: unknown) =>
     ? error.message
     : "Không thể thực hiện thao tác. Vui lòng thử lại.";
 
-function readCatalog(actor: MembershipActor | null): {
-  packages: MembershipPackage[];
-  subscriptions: MemberSubscription[];
-  error: string;
-} {
-  if (!actor || actor.role !== "CENTER_MANAGER")
-    return { packages: [], subscriptions: [], error: "" };
-  try {
-    return {
-      packages: membershipService
-        .listPackages(actor, { includeHidden: true })
-        .sort((a, b) => a.price - b.price),
-      subscriptions: membershipService.getMemberSubscriptions(actor),
-      error: "",
-    };
-  } catch (caught) {
-    return { packages: [], subscriptions: [], error: errorMessage(caught) };
-  }
-}
-
 export function MembershipPackagesPage() {
   const { currentUser } = useAuth();
-  const [catalog, setCatalog] = useState(() => readCatalog(currentUser));
-  const { packages, subscriptions } = catalog;
+  const [packages, setPackages] = useState<MembershipPackage[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "hidden">("all");
   const [editing, setEditing] = useState<MembershipPackage | "new" | null>(
@@ -70,18 +43,13 @@ export function MembershipPackagesPage() {
   const [formError, setFormError] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [loading, setLoading] = useState(isApiConfigured());
+  const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     if (!currentUser) return;
-    if (!isApiConfigured()) {
-      setCatalog(readCatalog(currentUser));
-      setError("");
-      return;
-    }
     setLoading(true);
     try {
-      setCatalog({ packages: await membershipApi.listPackages(), subscriptions: [], error: "" });
+      setPackages(await membershipApi.listPackages());
       setError("");
     } catch (caught) {
       setError(errorMessage(caught));
@@ -97,16 +65,6 @@ export function MembershipPackagesPage() {
     return () => window.clearTimeout(refreshTimer);
   }, [refresh]);
 
-  const subscribers = useMemo(() => {
-    const counts = new Map<string, Set<string>>();
-    for (const subscription of subscriptions) {
-      if (!counts.has(subscription.packageId))
-        counts.set(subscription.packageId, new Set());
-      counts.get(subscription.packageId)!.add(subscription.memberId);
-    }
-    return counts;
-  }, [subscriptions]);
-
   const visiblePackages = packages
     .filter((item) => {
       const matchesSearch = item.name
@@ -119,10 +77,8 @@ export function MembershipPackagesPage() {
     })
     .sort((a, b) => a.price - b.price);
   const activeCount = packages.filter((item) => item.isActive).length;
-  const subscriberCount = (item: MembershipPackage) =>
-    isApiConfigured()
-      ? item.subscriberCount ?? 0
-      : subscribers.get(item.id)?.size ?? 0;
+  const subscriberCount = (item: MembershipPackage): number =>
+    item.subscriberCount ?? 0;
   const deletingHasSubscribers = Boolean(
     deleting && subscriberCount(deleting),
   );
@@ -131,8 +87,7 @@ export function MembershipPackagesPage() {
     if (!currentUser) return;
     try {
       const packageId = editing && editing !== "new" ? editing.id : undefined;
-      if (isApiConfigured()) await membershipApi.savePackage(values, packageId);
-      else membershipService.savePackage(currentUser, values, packageId);
+      await membershipApi.savePackage(values, packageId);
       setNotice(
         editing === "new"
           ? "Đã tạo gói tập mới. Thành viên có thể đăng ký ngay."
@@ -149,8 +104,7 @@ export function MembershipPackagesPage() {
   async function changeVisibility(item: MembershipPackage) {
     if (!currentUser) return;
     try {
-      if (isApiConfigured()) await membershipApi.setPackageStatus(item.id, !item.isActive);
-      else membershipService.setPackageVisibility(currentUser, item.id, !item.isActive);
+      await membershipApi.setPackageStatus(item.id, !item.isActive);
       setNotice(
         item.isActive
           ? `Đã ẩn “${item.name}”. Gói tập đã đăng ký vẫn còn hiệu lực.`
@@ -168,8 +122,7 @@ export function MembershipPackagesPage() {
   async function deletePackage() {
     if (!currentUser || !deleting) return;
     try {
-      if (isApiConfigured()) await membershipApi.deletePackage(deleting.id);
-      else membershipService.deletePackage(currentUser, deleting.id);
+      await membershipApi.deletePackage(deleting.id);
       setNotice(`Đã xóa “${deleting.name}”.`);
       setDeleting(null);
       setFormError("");
@@ -256,9 +209,9 @@ export function MembershipPackagesPage() {
           {notice}
         </div>
       )}
-      {(error || catalog.error) && (
+      {error && (
         <div className="feedback error" role="alert">
-          {error || catalog.error}
+          {error}
           <button type="button" className="button secondary" onClick={refresh}>
             Thử lại
           </button>
@@ -368,7 +321,7 @@ export function MembershipPackagesPage() {
                           onClick={async () => {
                             setEditing(item);
                             setFormError("");
-                            if (isApiConfigured() && (!item.benefits || item.benefits.length === 0)) {
+                            if (!item.benefits || item.benefits.length === 0) {
                               try {
                                 const full = await membershipApi.getPackageById(item.id);
                                 if (full) setEditing(full);

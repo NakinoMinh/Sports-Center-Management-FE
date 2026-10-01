@@ -103,7 +103,7 @@ export const memberApi = {
   async setMemberStatus(accountId: string, isActive: boolean): Promise<void> {
     await apiRequest(`/Member/${accountId}/status`, {
       method: "PATCH",
-      body: JSON.stringify({ isActive }),
+      body: JSON.stringify({ status: isActive ? "Active" : "Inactive" }),
     });
   },
 

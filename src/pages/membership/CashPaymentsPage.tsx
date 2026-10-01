@@ -14,11 +14,9 @@ import { InvoiceDocument } from "../../components/membership/InvoiceDocument";
 import {
   addDateDays,
   addMonthsClamped,
-  membershipService,
   orderKindLabels,
   todayDate,
 } from "../../services/membershipService";
-import { isApiConfigured } from "../../services/apiClient";
 import { membershipApi } from "../../services/membershipApi";
 import type { MembershipInvoice } from "../../types/membership";
 import { formatDate, formatMoney } from "../../utils/format";
@@ -40,17 +38,8 @@ export function CashPaymentsPage() {
   const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
-      if (isApiConfigured()) {
-        const items = await membershipApi.listInvoices({ paymentMethod: "CASH" });
-        setInvoices(items);
-        setError("");
-        return;
-      }
-      setInvoices(
-        membershipService
-          .listInvoices(currentUser)
-          .filter((i) => i.paymentMethod === "CASH"),
-      );
+      const items = await membershipApi.listInvoices({ paymentMethod: "CASH" });
+      setInvoices(items);
       setError("");
     } catch (err) {
       setInvoices([]);
@@ -106,25 +95,10 @@ export function CashPaymentsPage() {
     setBusy(true);
     setDialogError("");
     try {
-      if (isApiConfigured()) {
-        const order = await membershipApi.payInvoice(invoice.id, "CASH");
-        await refresh();
-        setNotice(
-          `Đã xác nhận ${order.invoice.number}: ${formatMoney(order.invoice.amount)}. Gói đã được kích hoạt.`,
-        );
-        setChecked(false);
-        setReceived("");
-        close();
-        return;
-      }
-      const result = membershipService.confirmCashPayment(
-        currentUser,
-        invoice.id,
-        Number(received),
-      );
+      const order = await membershipApi.payInvoice(invoice.id, "CASH");
       await refresh();
       setNotice(
-        `Đã xác nhận ${result.invoice.number}: ${formatMoney(result.invoice.amount)}. ${result.subscription.startDate > todayDate() ? "Gói chờ đến ngày bắt đầu." : "Gói đã được kích hoạt."}`,
+        `Đã xác nhận ${order.invoice.number}: ${formatMoney(order.invoice.amount)}. Gói đã được kích hoạt.`,
       );
       setChecked(false);
       setReceived("");
@@ -404,14 +378,7 @@ export function CashPaymentsPage() {
                 onClick={async () => {
                   if (!currentUser) return;
                   try {
-                    if (isApiConfigured()) {
-                      await membershipApi.cancelPendingOrder(invoice.id);
-                    } else {
-                      membershipService.cancelPendingOrder(
-                        currentUser,
-                        invoice.id,
-                      );
-                    }
+                    await membershipApi.cancelPendingOrder(invoice.id);
                     await refresh();
                     setNotice(
                       `Đã hủy ${invoice.number}. Không thay đổi gói đang hoạt động.`,
