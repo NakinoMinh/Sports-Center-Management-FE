@@ -17,7 +17,7 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { authService } from "../services/authService";
 import { roleLabels } from "../utils/navigation";
-
+import { memberService } from "../services/memberService";
 // Preset modern avatars for quick selection
 const AVATAR_PRESETS = [
   {
@@ -62,7 +62,7 @@ export function ProfilePage() {
   const [profileError, setProfileError] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
-
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   // Password change state
   const [pwdCurrent, setPwdCurrent] = useState("");
   const [pwdNew, setPwdNew] = useState("");
@@ -76,8 +76,11 @@ export function ProfilePage() {
   const [isSubmittingPwd, setIsSubmittingPwd] = useState(false);
 
   // Update local form state when currentUser updates
+  // Load profile from Backend API for Member
   useEffect(() => {
-    if (currentUser) {
+    if (!currentUser) return;
+
+    if (currentUser.role !== "MEMBER") {
       setForm({
         fullName: currentUser.fullName ?? "",
         phone: currentUser.phone ?? "",
@@ -86,7 +89,35 @@ export function ProfilePage() {
         specialization: currentUser.specialization ?? "",
         workSchedule: currentUser.workSchedule ?? "",
       });
+      return;
     }
+
+    const loadProfile = async () => {
+      setIsLoadingProfile(true);
+      setProfileError("");
+
+      try {
+        const profile = await memberService.getMyProfile();
+
+        setForm((prev) => ({
+          ...prev,
+          fullName: profile.fullName ?? "",
+          phone: profile.phone ?? "",
+          dateOfBirth: profile.dateOfBirth
+            ? profile.dateOfBirth.slice(0, 10)
+            : "",
+          avatar: profile.avatarUrl ?? "",
+        }));
+      } catch (err) {
+        setProfileError(
+          err instanceof Error ? err.message : "Không thể tải thông tin hồ sơ.",
+        );
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    void loadProfile();
   }, [currentUser]);
 
   // Countdown timer for OTP
@@ -114,18 +145,54 @@ export function ProfilePage() {
         .toUpperCase()
     : "SC";
 
-  const handleProfileSubmit = (event: React.FormEvent) => {
+  const handleProfileSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
     setProfileError("");
     setProfileMessage("");
+
+    const fullName = form.fullName.trim();
+    const phone = form.phone.trim();
+    const dateOfBirth = form.dateOfBirth.trim();
+    const avatar = form.avatar.trim();
+
+    if (fullName.length < 2 || fullName.length > 80) {
+      setProfileError("Họ tên cần từ 2 đến 80 ký tự.");
+      return;
+    }
+
+    if (!/^0\d{9}$/.test(phone)) {
+      setProfileError("Số điện thoại phải có 10 chữ số, bắt đầu bằng 0.");
+      return;
+    }
+
+    if (!dateOfBirth) {
+      setProfileError("Vui lòng chọn ngày sinh.");
+      return;
+    }
+
     setIsSavingProfile(true);
 
     try {
-      authService.updateProfile(currentUser, form);
-      refreshCurrentUser();
-      setProfileMessage("Cập nhật thông tin hồ sơ thành công!");
+      if (currentUser.role === "MEMBER") {
+        await memberService.updateMyProfile({
+          fullName,
+          phone,
+          dateOfBirth,
+          avatarUrl: avatar || undefined,
+        });
+
+        setProfileMessage("Cập nhật thông tin hồ sơ thành công!");
+      } else {
+        authService.updateProfile(currentUser, form);
+        refreshCurrentUser();
+
+        setProfileMessage("Cập nhật thông tin hồ sơ thành công!");
+      }
     } catch (err) {
-      setProfileError(err instanceof Error ? err.message : "Không thể cập nhật hồ sơ.");
+      setProfileError(
+        err instanceof Error ? err.message : "Không thể cập nhật hồ sơ.",
+      );
     } finally {
       setIsSavingProfile(false);
     }
@@ -168,7 +235,9 @@ export function ProfilePage() {
     setPwdMessage("");
 
     if (!otpSent) {
-      setPwdError("Vui lòng bấm 'Gửi mã OTP qua Email' trước khi xác nhận đổi mật khẩu.");
+      setPwdError(
+        "Vui lòng bấm 'Gửi mã OTP qua Email' trước khi xác nhận đổi mật khẩu.",
+      );
       return;
     }
     if (!otpCode || otpCode.trim().length !== 6) {
@@ -194,7 +263,9 @@ export function ProfilePage() {
       setSimulatedOtp(null);
       setOtpCountdown(0);
     } catch (err) {
-      setPwdError(err instanceof Error ? err.message : "Đổi mật khẩu thất bại.");
+      setPwdError(
+        err instanceof Error ? err.message : "Đổi mật khẩu thất bại.",
+      );
     } finally {
       setIsSubmittingPwd(false);
     }
@@ -207,7 +278,9 @@ export function ProfilePage() {
         <div>
           <span className="eyebrow">TÀI KHOẢN & BẢO MẬT</span>
           <h1>Hồ sơ cá nhân</h1>
-          <p>Quản lý thông tin định danh, hình ảnh đại diện và bảo mật tài khoản.</p>
+          <p>
+            Quản lý thông tin định danh, hình ảnh đại diện và bảo mật tài khoản.
+          </p>
         </div>
         <span className="page-icon">
           <UserRound size={26} />
@@ -246,8 +319,10 @@ export function ProfilePage() {
             </div>
 
             <div className="avatar-caption">
-              <h2>{currentUser.fullName}</h2>
-              <span className={`role-badge role-${currentUser.role.toLowerCase()}`}>
+              <h2>{form.fullName}</h2>
+              <span
+                className={`role-badge role-${currentUser.role.toLowerCase()}`}
+              >
                 {roleLabels[currentUser.role]}
               </span>
               <p className="avatar-email">{currentUser.email}</p>
@@ -291,7 +366,9 @@ export function ProfilePage() {
                     type="url"
                     placeholder="https://..."
                     value={form.avatar}
-                    onChange={(e) => setForm({ ...form, avatar: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, avatar: e.target.value })
+                    }
                   />
                 </label>
               </div>
@@ -302,7 +379,10 @@ export function ProfilePage() {
             <ShieldCheck size={20} className="security-icon" />
             <div>
               <strong>Xác thực an toàn</strong>
-              <p>Mật khẩu được mã hóa BCrypt đa lớp kết hợp bảo vệ phiên làm việc.</p>
+              <p>
+                Mật khẩu được mã hóa BCrypt đa lớp kết hợp bảo vệ phiên làm
+                việc.
+              </p>
             </div>
           </div>
         </div>
@@ -314,7 +394,9 @@ export function ProfilePage() {
             <div className="panel-heading">
               <div>
                 <h2>Thông tin cá nhân</h2>
-                <p>Cập nhật họ tên, số điện thoại liên hệ và thông tin chuyên môn</p>
+                <p>
+                  Cập nhật họ tên, số điện thoại liên hệ và thông tin chuyên môn
+                </p>
               </div>
             </div>
 
@@ -339,7 +421,9 @@ export function ProfilePage() {
                     required
                     maxLength={80}
                     value={form.fullName}
-                    onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, fullName: e.target.value })
+                    }
                     placeholder="Nhập họ và tên đầy đủ"
                   />
                 </label>
@@ -349,8 +433,14 @@ export function ProfilePage() {
                     <span>Email đăng nhập</span>
                     <Lock size={12} className="lock-icon" />
                   </span>
-                  <input value={currentUser.email} disabled className="input-locked" />
-                  <small>Email là định danh tài khoản, không thể thay đổi</small>
+                  <input
+                    value={currentUser.email}
+                    disabled
+                    className="input-locked"
+                  />
+                  <small>
+                    Email là định danh tài khoản, không thể thay đổi
+                  </small>
                 </label>
 
                 <label className="field">
@@ -362,7 +452,9 @@ export function ProfilePage() {
                     type="tel"
                     maxLength={10}
                     value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, phone: e.target.value })
+                    }
                     placeholder="0xxxxxxxxx"
                   />
                   <small>Gồm 10 chữ số, bắt đầu bằng 0</small>
@@ -376,7 +468,9 @@ export function ProfilePage() {
                   <input
                     type="date"
                     value={form.dateOfBirth}
-                    onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, dateOfBirth: e.target.value })
+                    }
                   />
                 </label>
 
@@ -390,10 +484,14 @@ export function ProfilePage() {
                     <input
                       maxLength={200}
                       value={form.specialization}
-                      onChange={(e) => setForm({ ...form, specialization: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, specialization: e.target.value })
+                      }
                       placeholder="Ví dụ: Gym, Fitness cá nhân, Yoga nâng cao, Bơi lội..."
                     />
-                    <small>Mô tả chuyên môn chính để trung tâm và học viên theo dõi</small>
+                    <small>
+                      Mô tả chuyên môn chính để trung tâm và học viên theo dõi
+                    </small>
                   </label>
                 )}
 
@@ -408,10 +506,15 @@ export function ProfilePage() {
                       maxLength={300}
                       rows={3}
                       value={form.workSchedule}
-                      onChange={(e) => setForm({ ...form, workSchedule: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, workSchedule: e.target.value })
+                      }
                       placeholder="Ví dụ: Ca sáng: Thứ 2 - Thứ 7 (06:00 - 14:00)..."
                     />
-                    <small>Ca làm việc cố định hoặc các khung giờ hỗ trợ tại trung tâm</small>
+                    <small>
+                      Ca làm việc cố định hoặc các khung giờ hỗ trợ tại trung
+                      tâm
+                    </small>
                   </label>
                 )}
               </div>
@@ -420,9 +523,13 @@ export function ProfilePage() {
                 <button
                   type="submit"
                   className="button primary"
-                  disabled={isSavingProfile}
+                  disabled={isSavingProfile || isLoadingProfile}
                 >
-                  {isSavingProfile ? "Đang lưu..." : "Lưu thay đổi hồ sơ"}
+                  {isLoadingProfile
+                    ? "Đang tải..."
+                    : isSavingProfile
+                      ? "Đang lưu..."
+                      : "Lưu thay đổi hồ sơ"}
                 </button>
               </div>
             </form>
@@ -434,7 +541,10 @@ export function ProfilePage() {
               <div>
                 <span className="eyebrow">BẢO MẬT TÀI KHOẢN</span>
                 <h2>Đổi mật khẩu xác thực OTP</h2>
-                <p>Mật khẩu mới yêu cầu xác thực bằng mã OTP gửi về hòm thư của bạn</p>
+                <p>
+                  Mật khẩu mới yêu cầu xác thực bằng mã OTP gửi về hòm thư của
+                  bạn
+                </p>
               </div>
               <span className="panel-badge-icon">
                 <KeyRound size={20} />
@@ -472,7 +582,10 @@ export function ProfilePage() {
                 <div className="otp-display-code">
                   <span>{simulatedOtp}</span>
                 </div>
-                <small>Nhập mã gồm 6 số trên vào ô xác nhận bên dưới để hoàn tất đổi mật khẩu.</small>
+                <small>
+                  Nhập mã gồm 6 số trên vào ô xác nhận bên dưới để hoàn tất đổi
+                  mật khẩu.
+                </small>
               </div>
             )}
 
@@ -532,7 +645,8 @@ export function ProfilePage() {
                       : "Gửi mã OTP về email"}
                   </button>
                   <span className="otp-target-hint">
-                    Mã 6 chữ số sẽ được gửi tới <strong>{currentUser.email}</strong>
+                    Mã 6 chữ số sẽ được gửi tới{" "}
+                    <strong>{currentUser.email}</strong>
                   </span>
                 </div>
 
@@ -547,7 +661,9 @@ export function ProfilePage() {
                         className="otp-code-input"
                         placeholder="123456"
                         value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                        onChange={(e) =>
+                          setOtpCode(e.target.value.replace(/\D/g, ""))
+                        }
                       />
                     </label>
 
@@ -556,7 +672,9 @@ export function ProfilePage() {
                       className="button primary otp-submit-btn"
                       disabled={isSubmittingPwd || otpCode.length !== 6}
                     >
-                      {isSubmittingPwd ? "Đang xác nhận..." : "Xác nhận đổi mật khẩu"}
+                      {isSubmittingPwd
+                        ? "Đang xác nhận..."
+                        : "Xác nhận đổi mật khẩu"}
                     </button>
                   </div>
                 )}
