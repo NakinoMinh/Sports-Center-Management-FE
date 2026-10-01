@@ -1,6 +1,7 @@
 import React from "react";
 import { Crown, Dumbbell, User as UserIcon, Headphones } from "lucide-react";
 import type { UserRole } from "../../types/auth";
+import { apiConfigured } from "../../services/apiClient";
 
 interface QuickAccountItem {
   role: UserRole;
@@ -20,6 +21,8 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
   onSelectAccount,
   disabled = false,
 }) => {
+  if (apiConfigured()) return null;
+
   const accounts: QuickAccountItem[] = [
     {
       role: "CENTER_MANAGER",
@@ -56,37 +59,40 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
   ];
 
   return (
-    <div className="scms-quick-accounts">
-      <div className="scms-quick-header">
-        <span className="scms-quick-title">
-          Tài khoản dùng thử theo vai trò
-        </span>
-        <span className="scms-quick-sub">
-          Mật khẩu mặc định: <code>Pass@1234</code>
-        </span>
-      </div>
+    <details className="scms-demo-accounts">
+      <summary>Khám phá bằng tài khoản mẫu</summary>
+      <div className="scms-quick-accounts">
+        <div className="scms-quick-header">
+          <span className="scms-quick-title">
+            Tài khoản dùng thử theo vai trò
+          </span>
+          <span className="scms-quick-sub">
+            Mật khẩu mặc định: <code>Pass@1234</code>
+          </span>
+        </div>
 
-      <div className="scms-quick-grid">
-        {accounts.map((acc) => (
-          <button
-            key={acc.email}
-            type="button"
-            className="scms-quick-btn"
-            onClick={() => onSelectAccount(acc.email, "Pass@1234")}
-            disabled={disabled}
-            title={`Điền thông tin ${acc.roleTitle}`}
-          >
-            <div className="scms-quick-btn-top">
-              <span className={`scms-role-tag ${acc.badgeClass}`}>
-                {acc.icon}
-                {acc.roleTitle}
-              </span>
-            </div>
-            <span className="scms-quick-name">{acc.name}</span>
-            <span className="scms-quick-email">{acc.email}</span>
-          </button>
-        ))}
+        <div className="scms-quick-grid">
+          {accounts.map((acc) => (
+            <button
+              key={acc.email}
+              type="button"
+              className="scms-quick-btn"
+              onClick={() => onSelectAccount(acc.email, "Pass@1234")}
+              disabled={disabled}
+              title={`Điền thông tin ${acc.roleTitle}`}
+            >
+              <div className="scms-quick-btn-top">
+                <span className={`scms-role-tag ${acc.badgeClass}`}>
+                  {acc.icon}
+                  {acc.roleTitle}
+                </span>
+              </div>
+              <span className="scms-quick-name">{acc.name}</span>
+              <span className="scms-quick-email">{acc.email}</span>
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
+    </details>
   );
 };
