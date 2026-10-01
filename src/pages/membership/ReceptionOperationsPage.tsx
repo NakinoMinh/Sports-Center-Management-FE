@@ -11,6 +11,10 @@ import { Dialog } from "../../components/common/Dialog";
 import { useAuth } from "../../hooks/useAuth";
 import { membershipService, todayDate } from "../../services/membershipService";
 import {
+  memberService,
+  type MemberSearchResult,
+} from "../../services/memberService";
+import {
   receptionService,
   type ReceptionState,
   type SupportStatus,
@@ -60,6 +64,9 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
   const [members, setMembers] = useState<MembershipActor[]>([]);
   const [memberId, setMemberId] = useState("");
   const [search, setSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<MemberSearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const [date, setDate] = useState(todayDate());
   const [filter, setFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
@@ -121,6 +128,35 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
       else setActionError(message);
     }
   }
+  useEffect(() => {
+    const keyword = search.trim();
+
+    if (!keyword) {
+      setSearchResults([]);
+      setSearchError("");
+      setSearchLoading(false);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        setSearchLoading(true);
+        setSearchError("");
+
+        const results = await memberService.quickSearch(keyword);
+        setSearchResults(results);
+      } catch (err) {
+        setSearchResults([]);
+        setSearchError(
+          err instanceof Error ? err.message : "Không thể tìm kiếm thành viên.",
+        );
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [search]);
   function open(kind: NonNullable<typeof dialog>["kind"], id = "") {
     setDialog({ kind, id });
     setDialogError("");
@@ -248,7 +284,67 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
             </select>
           </label>
         </div>
-        {!filteredMembers.length && !loading && (
+
+        {/* UC12 - Kết quả tìm kiếm Member từ API */}
+        {search.trim() && (
+          <div className="table-wrap">
+            {searchLoading ? (
+              <p className="membership-status-help">
+                Đang tìm kiếm thành viên...
+              </p>
+            ) : searchError ? (
+              <p className="form-error" role="alert">
+                {searchError}
+              </p>
+            ) : searchResults.length > 0 ? (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Mã thành viên</th>
+                    <th>Họ tên</th>
+                    <th>Email</th>
+                    <th>Số điện thoại</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {searchResults.map((member) => (
+                    <tr key={member.accountId}>
+                      <td>{member.memberCode}</td>
+
+                      <td>
+                        <strong>{member.fullName || "Chưa cập nhật"}</strong>
+                      </td>
+
+                      <td>{member.email}</td>
+
+                      <td>{member.phone || "Chưa cập nhật"}</td>
+
+                      <td>
+                        <span
+                          className={`status-chip ${
+                            member.status.toLowerCase() === "active"
+                              ? "active"
+                              : "expired"
+                          }`}
+                        >
+                          {member.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="membership-status-help">
+                Không tìm thấy thành viên phù hợp.
+              </p>
+            )}
+          </div>
+        )}
+
+        {!filteredMembers.length && !loading && !search.trim() && (
           <p className="membership-status-help">
             Không tìm thấy thành viên phù hợp.
           </p>

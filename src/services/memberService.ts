@@ -26,6 +26,14 @@ export interface MemberProfile {
   updatedAt?: string;
 }
 
+export interface MemberSearchResult {
+  accountId: string;
+  memberCode: string;
+  fullName?: string;
+  email: string;
+  phone?: string;
+  status: string;
+}
 export interface UpdateMemberProfileInput {
   fullName: string;
   dateOfBirth: string;
@@ -118,6 +126,23 @@ export const memberService = {
     if (!response.ok) {
       throw new Error(body || "Không thể cập nhật hồ sơ.");
     }
+  },
+  // =========================
+  // UC12 - QUICK SEARCH MEMBER
+  // =========================
+  quickSearch: async (keyword: string): Promise<MemberSearchResult[]> => {
+    const value = keyword.trim();
+
+    if (!value) {
+      return [];
+    }
+
+    return apiRequest<MemberSearchResult[]>(
+      `/api/Member/quick-search?keyword=${encodeURIComponent(value)}`,
+      {
+        method: "GET",
+      },
+    );
   },
 
   // =========================
