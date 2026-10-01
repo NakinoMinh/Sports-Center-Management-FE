@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   User as UserIcon,
   Mail,
@@ -6,11 +6,14 @@ import {
   CheckCheck,
   ArrowLeft,
   UserPlus,
+  ShieldCheck,
+  Send,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { InputField } from "../components/common/InputField";
 import { AlertBadge } from "../components/common/AlertBadge";
 import { authService } from "../services/authService";
+import { isApiConfigured } from "../services/apiClient";
 
 interface RegisterPageProps {
   onSwitchToLogin: () => void;
@@ -22,6 +25,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
   onSwitchToLogin,
 }) => {
   const { register } = useAuth();
+  const apiMode = isApiConfigured();
   const [form, setForm] = useState<Record<Fields, string>>({
     username: "",
     email: "",
@@ -32,16 +36,52 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
   const [errors, setErrors] = useState<Partial<Record<Fields, string>>>({});
   const [generalError, setGeneralError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationError, setVerificationError] = useState("");
+  const [demoCode, setDemoCode] = useState("");
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = window.setInterval(() => setCountdown((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [countdown]);
+
+  const resetVerification = () => {
+    setVerificationCode("");
+    setVerificationError("");
+    setDemoCode("");
+    setCountdown(0);
+  };
   const update = (field: Fields, value: string) => {
     setForm((previous) => ({ ...previous, [field]: value }));
     setErrors((previous) => ({ ...previous, [field]: "" }));
     setGeneralError("");
+    if (field === "email") resetVerification();
+  };
+  const sendVerificationCode = async () => {
+    if (!authService.isValidEmail(form.email)) {
+      setErrors((previous) => ({ ...previous, email: "Vui lòng nhập email hợp lệ." }));
+      return;
+    }
+    setIsLoading(true);
+    setGeneralError("");
+    const response = await authService.requestEmailVerification({ email: form.email, purpose: "REGISTER" });
+    setIsLoading(false);
+    if (!response.success) {
+      setGeneralError(response.message);
+      return;
+    }
+    setDemoCode(response.demoCode ?? "");
+    setCountdown(response.expiresInSeconds ?? 300);
+    setVerificationCode("");
+    setVerificationError("");
   };
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (isLoading) return;
     const next: Partial<Record<Fields, string>> = {};
-    if (form.username.trim().length < 3)
+    if (!apiMode && form.username.trim().length < 3)
       next.username = "Tên đăng nhập phải có ít nhất 3 ký tự.";
     if (!authService.isValidEmail(form.email))
       next.email = "Vui lòng nhập email hợp lệ.";
@@ -51,12 +91,18 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
       next.password = "Mật khẩu quá dài (tối đa 72 byte).";
     if (!form.confirmPassword || form.password !== form.confirmPassword)
       next.confirmPassword = "Mật khẩu xác nhận không khớp.";
+    if (!verificationCode.trim())
+      setVerificationError("Vui lòng nhập mã xác nhận email.");
     setErrors(next);
-    if (Object.keys(next).length) return;
+    if (Object.keys(next).length || !verificationCode.trim()) return;
     setGeneralError("");
     setIsLoading(true);
     try {
-      const response = await register(form);
+      const response = await register({
+        ...form,
+        username: form.username.trim() || form.email.split("@")[0],
+        emailVerificationCode: verificationCode,
+      });
       if (!response.success) setGeneralError(response.message);
     } catch {
       setGeneralError(
@@ -83,19 +129,21 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
         noValidate
         aria-busy={isLoading}
       >
-        <InputField
-          label="Tên đăng nhập"
-          name="username"
-          placeholder="vd: tuan_fitness"
-          value={form.username}
-          onChange={(event) => update("username", event.target.value)}
-          icon={<UserIcon size={18} />}
-          error={errors.username}
-          required
-          autoComplete="username"
-          disabled={isLoading}
-          helperText="Ít nhất 3 ký tự."
-        />
+        {!apiMode && (
+          <InputField
+            label="Tên đăng nhập"
+            name="username"
+            placeholder="vd: tuan_fitness"
+            value={form.username}
+            onChange={(event) => update("username", event.target.value)}
+            icon={<UserIcon size={18} />}
+            error={errors.username}
+            required
+            autoComplete="username"
+            disabled={isLoading}
+            helperText="Ít nhất 3 ký tự."
+          />
+        )}
         <InputField
           label="Địa chỉ email"
           name="email"
@@ -110,6 +158,33 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
           disabled={isLoading}
           helperText="Dùng email này để đăng nhập."
         />
+        <div className="scms-email-verification">
+            <div className="scms-verification-heading">
+              <span><ShieldCheck size={17} /> Xác nhận email</span>
+              <button type="button" className="scms-send-code-btn" onClick={sendVerificationCode} disabled={isLoading || countdown > 0}>
+                <Send size={14} /> {countdown > 0 ? `Gửi lại sau ${countdown}s` : "Gửi mã"}
+              </button>
+            </div>
+            {demoCode && <p className="scms-demo-code" role="status">Mã xác nhận demo: <strong>{demoCode}</strong></p>}
+            <InputField
+              label="Mã xác nhận gồm 6 chữ số"
+              name="emailVerificationCode"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              placeholder="Nhập mã đã gửi đến email"
+              value={verificationCode}
+              onChange={(event) => {
+                setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                setVerificationError("");
+                setGeneralError("");
+              }}
+              icon={<ShieldCheck size={18} />}
+              error={verificationError}
+              required
+              disabled={isLoading || countdown <= 0}
+            />
+          </div>
         <InputField
           label="Họ và tên (tùy chọn)"
           name="fullName"

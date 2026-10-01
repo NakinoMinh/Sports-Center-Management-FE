@@ -33,7 +33,7 @@ Nguồn đối chiếu:
 - Hai tài liệu PRODUCT và DESIGN người dùng cung cấp, cùng mô tả actor/flow ngày 27/09/2026.
 - FE: `D:/SWP/Sports-Center-Management-System-FE`, HEAD `6557581`, **bao gồm các thay đổi chưa commit** tại thời điểm đọc.
 - BE: `D:/SWP/SportsCenterManagement`, HEAD `e273a16`.
-- [Sprint 1 của Minh](docs/SPRINT1_MINH.md) và [đề xuất bàn giao API](docs/BE_API_HANDOFF.md) là tài liệu phạm vi hẹp; không giới hạn phạm vi toàn dự án.
+- [Sprint 1](docs/Sprint1.md) là tài liệu phạm vi hẹp; không giới hạn phạm vi toàn dự án.
 - Đối chiếu tĩnh từ source; chưa xác nhận HTTP, database đang chạy hoặc nghiệm thu end-to-end. Có file test không đồng nghĩa các test đã chạy đạt trong lần đối chiếu này.
 
 ## 0.1. Sáu flow và mức ưu tiên

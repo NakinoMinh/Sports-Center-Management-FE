@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Mail, Lock, LogIn, ArrowRight } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Mail, Lock, LogIn, ArrowRight, ShieldCheck, Send } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { InputField } from "../components/common/InputField";
 import { AlertBadge } from "../components/common/AlertBadge";
@@ -22,11 +22,51 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
   const [failedAttemptsRemaining, setFailedAttemptsRemaining] =
     useState<number>();
   const [isLocked, setIsLocked] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationError, setVerificationError] = useState("");
+  const [demoCode, setDemoCode] = useState("");
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = window.setInterval(() => setCountdown((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [countdown]);
 
   const clearError = () => {
     setGeneralError("");
     setIsLocked(false);
     setFailedAttemptsRemaining(undefined);
+  };
+  const resetVerification = () => {
+    setVerificationCode("");
+    setVerificationError("");
+    setDemoCode("");
+    setCountdown(0);
+  };
+  const sendVerificationCode = async () => {
+    const invalidEmail = !authService.isValidEmail(email);
+    setEmailError(invalidEmail ? "Vui lòng nhập địa chỉ email hợp lệ." : "");
+    setPasswordError(!password ? "Vui lòng nhập mật khẩu." : "");
+    if (invalidEmail || !password || isLoading) return;
+    setIsLoading(true);
+    clearError();
+    const result = await authService.requestEmailVerification({
+      email,
+      password,
+      purpose: "LOGIN",
+    });
+    setIsLoading(false);
+    if (!result.success) {
+      setGeneralError(result.message);
+      setFailedAttemptsRemaining(result.failedAttemptsRemaining);
+      setIsLocked(!!result.isLocked);
+      return;
+    }
+    setDemoCode(result.demoCode ?? "");
+    setCountdown(result.expiresInSeconds ?? 300);
+    setVerificationCode("");
+    setVerificationError("");
   };
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -34,11 +74,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
     const invalidEmail = !authService.isValidEmail(email);
     setEmailError(invalidEmail ? "Vui lòng nhập địa chỉ email hợp lệ." : "");
     setPasswordError(!password ? "Vui lòng nhập mật khẩu." : "");
-    if (invalidEmail || !password) return;
+    if (!verificationCode.trim()) setVerificationError("Vui lòng nhập mã xác nhận email.");
+    if (invalidEmail || !password || !verificationCode.trim()) return;
     setIsLoading(true);
     clearError();
     try {
-      const result = await login({ email: email.trim(), password, rememberMe });
+      const result = await login({
+        email: email.trim(),
+        password,
+        rememberMe,
+        emailVerificationCode: verificationCode,
+      });
       if (!result.success) {
         setGeneralError(result.message);
         setFailedAttemptsRemaining(result.failedAttemptsRemaining);
@@ -86,6 +132,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
             setEmail(event.target.value);
             setEmailError("");
             clearError();
+            resetVerification();
           }}
           icon={<Mail size={18} />}
           error={emailError}
@@ -103,6 +150,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
             setPassword(event.target.value);
             setPasswordError("");
             clearError();
+            resetVerification();
           }}
           icon={<Lock size={18} />}
           error={passwordError}
@@ -110,6 +158,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
           autoComplete="current-password"
           disabled={isLoading}
         />
+          <div className="scms-email-verification">
+            <div className="scms-verification-heading">
+              <span><ShieldCheck size={17} /> Xác nhận email</span>
+              <button type="button" className="scms-send-code-btn" onClick={sendVerificationCode} disabled={isLoading || countdown > 0}>
+                <Send size={14} /> {countdown > 0 ? `Gửi lại sau ${countdown}s` : "Gửi mã"}
+              </button>
+            </div>
+            {demoCode && <p className="scms-demo-code" role="status">Mã xác nhận demo: <strong>{demoCode}</strong></p>}
+            <InputField
+              label="Mã xác nhận gồm 6 chữ số"
+              name="emailVerificationCode"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              placeholder="Nhập mã đã gửi đến email"
+              value={verificationCode}
+              onChange={(event) => {
+                setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                setVerificationError("");
+                clearError();
+              }}
+              icon={<ShieldCheck size={18} />}
+              error={verificationError}
+              required
+              disabled={isLoading || countdown <= 0}
+            />
+          </div>
         <div className="scms-form-row-between">
           <label className="scms-checkbox-label">
             <input
@@ -153,6 +228,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
             setEmailError("");
             setPasswordError("");
             clearError();
+            resetVerification();
           }}
           disabled={isLoading}
         />

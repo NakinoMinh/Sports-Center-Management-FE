@@ -8,6 +8,7 @@ import type {
 } from "../types/auth";
 import { authService } from "../services/authService";
 import { mockDb } from "../services/mockDb";
+import { API_UNAUTHORIZED_EVENT } from "../services/apiClient";
 
 import { AuthContext } from "./authContextValue";
 
@@ -73,19 +74,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     },
     [],
   );
-  const logout = useCallback(() => {
-    authService.logout();
+  const logout = useCallback(async () => {
+    await authService.logout();
     setAuth(emptyAuth);
   }, []);
   const refreshCurrentUser = useCallback(() => setAuth(readAuth()), []);
 
   useEffect(() => {
     const sync = () => setAuth(readAuth());
+    const onUnauthorized = () => setAuth({
+      ...emptyAuth,
+      sessionMessage: "Phiên đăng nhập đã hết hạn hoặc không còn hợp lệ. Vui lòng đăng nhập lại.",
+    });
     const onVisibility = () => {
       if (document.visibilityState === "visible") sync();
     };
     window.addEventListener("focus", sync);
     window.addEventListener("storage", sync);
+    window.addEventListener(API_UNAUTHORIZED_EVENT, onUnauthorized);
     document.addEventListener("visibilitychange", onVisibility);
     const remaining = auth.jwtPayload ? auth.jwtPayload.exp - Date.now() : 0;
     const timeout = auth.token
@@ -94,6 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => {
       window.removeEventListener("focus", sync);
       window.removeEventListener("storage", sync);
+      window.removeEventListener(API_UNAUTHORIZED_EVENT, onUnauthorized);
       document.removeEventListener("visibilitychange", onVisibility);
       if (timeout !== undefined) window.clearTimeout(timeout);
     };

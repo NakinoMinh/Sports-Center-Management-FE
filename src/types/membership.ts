@@ -25,6 +25,8 @@ export interface MembershipPackageInput {
 export interface MembershipPackage extends MembershipPackageInput {
   id: string;
   isActive: boolean;
+  /** Number of distinct members that have ever subscribed to this package. */
+  subscriberCount?: number;
   createdAt: string;
   updatedAt: string;
 }

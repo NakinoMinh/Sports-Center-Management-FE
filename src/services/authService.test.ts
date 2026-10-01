@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import bcrypt from "bcryptjs";
+import type { LoginCredentials, RegisterData } from "../types/auth";
 import { authService, SESSION_DURATION_MS } from "./authService";
 import { mockDb } from "./mockDb";
 
@@ -32,6 +33,22 @@ const registration = {
   confirmPassword: "Training@123",
 };
 
+const verifiedLogin = async (credentials: LoginCredentials = memberCredentials) => {
+  const otp = await authService.requestEmailVerification({
+    email: credentials.email,
+    password: credentials.password,
+    purpose: "LOGIN",
+  });
+  expect(otp.success).toBe(true);
+  return authService.login({ ...credentials, emailVerificationCode: otp.demoCode });
+};
+
+const verifiedRegistration = async <T extends RegisterData>(data: T) => {
+  const otp = await authService.requestEmailVerification({ email: data.email, purpose: "REGISTER" });
+  expect(otp.success).toBe(true);
+  return authService.register({ ...data, emailVerificationCode: otp.demoCode });
+};
+
 beforeEach(() => {
   vi.stubGlobal("localStorage", makeStorage());
   vi.stubGlobal("sessionStorage", makeStorage());
@@ -42,8 +59,21 @@ afterEach(() => {
 });
 
 describe("Sprint 1 auth demo adapter", () => {
+  it("requires a matching email OTP before login or registration", async () => {
+    expect(await authService.login(memberCredentials)).toMatchObject({ success: false });
+    const loginOtp = await authService.requestEmailVerification({ ...memberCredentials, purpose: "LOGIN" });
+    expect(await authService.login({ ...memberCredentials, emailVerificationCode: "000000" })).toMatchObject({
+      success: false,
+      message: "Mã xác nhận email không chính xác.",
+    });
+    expect(await authService.login({ ...memberCredentials, emailVerificationCode: loginOtp.demoCode })).toMatchObject({ success: true });
+
+    expect(await authService.register(registration)).toMatchObject({ success: false });
+    const registerOtp = await authService.requestEmailVerification({ email: registration.email, purpose: "REGISTER" });
+    expect(await authService.register({ ...registration, emailVerificationCode: registerOtp.demoCode })).toMatchObject({ success: true });
+  });
   it("registers a member with a bcrypt hash and no hash in its public result", async () => {
-    const result = await authService.register({
+    const result = await verifiedRegistration({
       ...registration,
       email: " New@Example.com ",
       fullName: "Minh",
@@ -88,7 +118,7 @@ describe("Sprint 1 auth demo adapter", () => {
   });
 
   it("enforces case-insensitive unique emails and usernames", async () => {
-    await authService.register(registration);
+    await verifiedRegistration(registration);
     const emailDuplicate = await authService.register({
       ...registration,
       email: " NEW@EXAMPLE.COM ",
@@ -106,7 +136,7 @@ describe("Sprint 1 auth demo adapter", () => {
 
   it("does not allow a caller to choose a privileged registration role", async () => {
     const injected = { ...registration, role: "CENTER_MANAGER" };
-    const result = await authService.register(injected);
+    const result = await verifiedRegistration(injected);
     expect(result.user?.role).toBe("MEMBER");
   });
 
@@ -129,7 +159,7 @@ describe("Sprint 1 auth demo adapter", () => {
 
   it("resets consecutive failed attempts after a successful login", async () => {
     await authService.login({ ...memberCredentials, password: "wrong" });
-    const success = await authService.login(memberCredentials);
+    const success = await verifiedLogin();
     expect(success.success).toBe(true);
     expect(success.user?.failedAttempts).toBe(0);
     expect(mockDb.findByEmail(memberCredentials.email)?.failedAttempts).toBe(0);
@@ -140,13 +170,13 @@ describe("Sprint 1 auth demo adapter", () => {
   });
 
   it("respects remember-me and uses a fresh token on every login", async () => {
-    const persistent = await authService.login({
+    const persistent = await verifiedLogin({
       ...memberCredentials,
       rememberMe: true,
     });
     expect(localStorage.getItem("scms_auth_token")).toBe(persistent.token);
     expect(sessionStorage.getItem("scms_auth_token")).toBeNull();
-    const temporary = await authService.login({
+    const temporary = await verifiedLogin({
       ...memberCredentials,
       rememberMe: false,
     });
@@ -157,7 +187,7 @@ describe("Sprint 1 auth demo adapter", () => {
   });
 
   it("expires exactly after 24 hours", async () => {
-    const result = await authService.login(memberCredentials);
+    const result = await verifiedLogin();
     const session = mockDb.getSession()!;
     expect(session.payload.exp - session.payload.iat).toBe(SESSION_DURATION_MS);
     vi.spyOn(Date, "now").mockReturnValue(session.payload.exp - 1);
@@ -167,7 +197,7 @@ describe("Sprint 1 auth demo adapter", () => {
   });
 
   it("rejects token replacement, malformed stored data, and role mismatch", async () => {
-    const result = await authService.login(memberCredentials);
+    const result = await verifiedLogin();
     expect(authService.verifyJWT(`${result.token}.changed`).valid).toBe(false);
     const session = mockDb.getSession()!;
     localStorage.setItem("scms_demo_session_v1", "{broken");
@@ -183,7 +213,7 @@ describe("Sprint 1 auth demo adapter", () => {
   });
 
   it("removes all session data and invalidates the old token on logout", async () => {
-    const result = await authService.login(memberCredentials);
+    const result = await verifiedLogin();
     authService.logout();
     expect(localStorage.getItem("scms_auth_token")).toBeNull();
     expect(localStorage.getItem("scms_demo_session_v1")).toBeNull();

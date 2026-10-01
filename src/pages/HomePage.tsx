@@ -21,6 +21,8 @@ import {
   membershipService,
   type PublicMembershipPackage,
 } from "../services/membershipService";
+import { membershipApi } from "../services/membershipApi";
+import { isApiConfigured } from "../services/apiClient";
 import { durationLabel, formatMoney } from "../utils/format";
 import { homeForRole } from "../utils/navigation";
 import "../styles/homepage.css";
@@ -115,9 +117,7 @@ function readCatalog(): { packages: PublicMembershipPackage[]; error: string } {
     return {
       packages: membershipService
         .listPublicPackages()
-        .sort(
-          (a, b) => a.durationMonths - b.durationMonths || a.price - b.price,
-        ),
+        .sort((a, b) => a.price - b.price),
       error: "",
     };
   } catch {
@@ -131,7 +131,9 @@ function readCatalog(): { packages: PublicMembershipPackage[]; error: string } {
 export function HomePage() {
   const { currentUser } = useAuth();
   const [activityIndex, setActivityIndex] = useState(0);
-  const [catalog, setCatalog] = useState(readCatalog);
+  const [catalog, setCatalog] = useState(() =>
+    isApiConfigured() ? { packages: [], error: "" } : readCatalog(),
+  );
   const activity = activities[activityIndex];
   const accountPath = currentUser ? homeForRole(currentUser.role) : "/register";
   const accountLabel = currentUser
@@ -147,7 +149,30 @@ export function HomePage() {
           : "Không gian của tôi";
 
   useEffect(() => {
-    const refresh = () => setCatalog(readCatalog());
+    const refresh = () => {
+      if (isApiConfigured()) {
+        membershipApi
+          .listPublicPackages()
+          .then((pkgs) => {
+            setCatalog({
+              packages: pkgs.sort((a, b) => a.price - b.price),
+              error: "",
+            });
+          })
+          .catch((error: unknown) => {
+            setCatalog({
+              packages: [],
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Chưa thể tải danh sách gói tập từ máy chủ.",
+            });
+          });
+      } else {
+        setCatalog(readCatalog());
+      }
+    };
+    refresh();
     window.addEventListener("focus", refresh);
     window.addEventListener("storage", refresh);
     return () => {
@@ -460,7 +485,7 @@ export function HomePage() {
                       )}
                     </div>
                     <ul>
-                      {pkg.benefits.map((benefit, index) => (
+                      {(pkg.benefits ?? []).map((benefit, index) => (
                         <li key={`${index}-${benefit}`}>
                           <Check size={17} aria-hidden="true" />
                           <span>{benefit}</span>

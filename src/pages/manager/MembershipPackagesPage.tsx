@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
   Eye,
@@ -18,6 +18,8 @@ import {
 } from "../../components/membership/PackageForm";
 import { useAuth } from "../../hooks/useAuth";
 import { membershipService } from "../../services/membershipService";
+import { membershipApi } from "../../services/membershipApi";
+import { isApiConfigured } from "../../services/apiClient";
 import type {
   MemberSubscription,
   MembershipActor,
@@ -44,7 +46,9 @@ function readCatalog(actor: MembershipActor | null): {
     return { packages: [], subscriptions: [], error: "" };
   try {
     return {
-      packages: membershipService.listPackages(actor, { includeHidden: true }),
+      packages: membershipService
+        .listPackages(actor, { includeHidden: true })
+        .sort((a, b) => a.price - b.price),
       subscriptions: membershipService.getMemberSubscriptions(actor),
       error: "",
     };
@@ -66,11 +70,32 @@ export function MembershipPackagesPage() {
   const [formError, setFormError] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(isApiConfigured());
 
-  function refresh() {
-    setCatalog(readCatalog(currentUser));
-    setError("");
-  }
+  const refresh = useCallback(async () => {
+    if (!currentUser) return;
+    if (!isApiConfigured()) {
+      setCatalog(readCatalog(currentUser));
+      setError("");
+      return;
+    }
+    setLoading(true);
+    try {
+      setCatalog({ packages: await membershipApi.listPackages(), subscriptions: [], error: "" });
+      setError("");
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    const refreshTimer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(refreshTimer);
+  }, [refresh]);
 
   const subscribers = useMemo(() => {
     const counts = new Map<string, Set<string>>();
@@ -82,28 +107,32 @@ export function MembershipPackagesPage() {
     return counts;
   }, [subscriptions]);
 
-  const visiblePackages = packages.filter((item) => {
-    const matchesSearch = item.name
-      .toLocaleLowerCase("vi")
-      .includes(search.trim().toLocaleLowerCase("vi"));
-    const matchesStatus =
-      filter === "all" ||
-      (filter === "active" ? item.isActive : !item.isActive);
-    return matchesSearch && matchesStatus;
-  });
+  const visiblePackages = packages
+    .filter((item) => {
+      const matchesSearch = item.name
+        .toLocaleLowerCase("vi")
+        .includes(search.trim().toLocaleLowerCase("vi"));
+      const matchesStatus =
+        filter === "all" ||
+        (filter === "active" ? item.isActive : !item.isActive);
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => a.price - b.price);
   const activeCount = packages.filter((item) => item.isActive).length;
+  const subscriberCount = (item: MembershipPackage) =>
+    isApiConfigured()
+      ? item.subscriberCount ?? 0
+      : subscribers.get(item.id)?.size ?? 0;
   const deletingHasSubscribers = Boolean(
-    deleting && subscribers.get(deleting.id)?.size,
+    deleting && subscriberCount(deleting),
   );
 
-  function savePackage(values: PackageFormValues) {
+  async function savePackage(values: PackageFormValues) {
     if (!currentUser) return;
     try {
-      membershipService.savePackage(
-        currentUser,
-        values,
-        editing && editing !== "new" ? editing.id : undefined,
-      );
+      const packageId = editing && editing !== "new" ? editing.id : undefined;
+      if (isApiConfigured()) await membershipApi.savePackage(values, packageId);
+      else membershipService.savePackage(currentUser, values, packageId);
       setNotice(
         editing === "new"
           ? "Đã tạo gói tập mới. Thành viên có thể đăng ký ngay."
@@ -111,20 +140,17 @@ export function MembershipPackagesPage() {
       );
       setEditing(null);
       setFormError("");
-      refresh();
+      await refresh();
     } catch (caught) {
       setFormError(errorMessage(caught));
     }
   }
 
-  function changeVisibility(item: MembershipPackage) {
+  async function changeVisibility(item: MembershipPackage) {
     if (!currentUser) return;
     try {
-      membershipService.setPackageVisibility(
-        currentUser,
-        item.id,
-        !item.isActive,
-      );
+      if (isApiConfigured()) await membershipApi.setPackageStatus(item.id, !item.isActive);
+      else membershipService.setPackageVisibility(currentUser, item.id, !item.isActive);
       setNotice(
         item.isActive
           ? `Đã ẩn “${item.name}”. Gói tập đã đăng ký vẫn còn hiệu lực.`
@@ -132,21 +158,22 @@ export function MembershipPackagesPage() {
       );
       setDeleting(null);
       setFormError("");
-      refresh();
+      await refresh();
     } catch (caught) {
       if (deleting) setFormError(errorMessage(caught));
       else setError(errorMessage(caught));
     }
   }
 
-  function deletePackage() {
+  async function deletePackage() {
     if (!currentUser || !deleting) return;
     try {
-      membershipService.deletePackage(currentUser, deleting.id);
+      if (isApiConfigured()) await membershipApi.deletePackage(deleting.id);
+      else membershipService.deletePackage(currentUser, deleting.id);
       setNotice(`Đã xóa “${deleting.name}”.`);
       setDeleting(null);
       setFormError("");
-      refresh();
+      await refresh();
     } catch (caught) {
       setFormError(errorMessage(caught));
     }
@@ -159,6 +186,10 @@ export function MembershipPackagesPage() {
         <p>Chỉ quản lý trung tâm có thể quản lý danh mục gói tập.</p>
       </div>
     );
+  }
+
+  if (loading) {
+    return <div className="empty-state" role="status">Đang tải danh mục gói tập…</div>;
   }
 
   return (
@@ -288,9 +319,9 @@ export function MembershipPackagesPage() {
                         <div>
                           <strong>{item.name}</strong>
                           <details className="package-benefits">
-                            <summary>{item.benefits.length} quyền lợi</summary>
+                            <summary>{item.benefits?.length ?? 0} quyền lợi</summary>
                             <ul>
-                              {item.benefits.map((benefit, index) => (
+                              {(item.benefits ?? []).map((benefit, index) => (
                                 <li key={`${index}-${benefit}`}>{benefit}</li>
                               ))}
                             </ul>
@@ -316,7 +347,7 @@ export function MembershipPackagesPage() {
                     <td>
                       <span className="inline-icon">
                         <Users size={16} aria-hidden="true" />
-                        {subscribers.get(item.id)?.size ?? 0}
+                        {subscriberCount(item)}
                       </span>
                       <small className="cell-caption">Đã đăng ký</small>
                     </td>
@@ -334,9 +365,17 @@ export function MembershipPackagesPage() {
                           className="icon-button"
                           aria-label={`Chỉnh sửa ${item.name}`}
                           title="Chỉnh sửa gói tập"
-                          onClick={() => {
+                          onClick={async () => {
                             setEditing(item);
                             setFormError("");
+                            if (isApiConfigured() && (!item.benefits || item.benefits.length === 0)) {
+                              try {
+                                const full = await membershipApi.getPackageById(item.id);
+                                if (full) setEditing(full);
+                              } catch {
+                                // fallback to item
+                              }
+                            }
                           }}
                         >
                           <Pencil size={17} aria-hidden="true" />

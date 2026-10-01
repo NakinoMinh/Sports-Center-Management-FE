@@ -584,6 +584,64 @@ body:has(.scms-auth-page) {
   gap: 16px;
 }
 
+.scms-email-verification {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(6, 182, 212, 0.28);
+  border-radius: 12px;
+  background: rgba(6, 182, 212, 0.06);
+}
+
+.scms-verification-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.scms-verification-heading > span,
+.scms-send-code-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scms-send-code-btn {
+  padding: 7px 10px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 8px;
+  background: rgba(14, 165, 233, 0.12);
+  color: #7dd3fc;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.scms-send-code-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.scms-demo-code {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #a7f3d0;
+  font-size: 12px;
+}
+
+.scms-demo-code strong {
+  margin-left: 4px;
+  color: #fff;
+  font-size: 16px;
+  letter-spacing: 0.18em;
+}
+
 .scms-field-group {
   display: flex;
   flex-direction: column;

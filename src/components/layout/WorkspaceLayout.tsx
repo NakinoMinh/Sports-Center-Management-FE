@@ -143,8 +143,8 @@ export function WorkspaceLayout() {
         </div>
         <button
           className="sidebar-logout"
-          onClick={() => {
-            logout();
+          onClick={async () => {
+            await logout();
             navigate("/login", { replace: true });
           }}
         >

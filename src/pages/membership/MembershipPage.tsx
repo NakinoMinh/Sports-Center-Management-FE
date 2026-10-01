@@ -19,10 +19,19 @@ import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
 import {
   membershipService,
+  addDateDays,
+  addMonthsClamped,
   getSubscriptionStatus,
   resolveOrderKind,
   orderKindLabels,
+  todayDate,
 } from "../../services/membershipService";
+import {
+  membershipApi,
+  subscriptionFromInvoice,
+} from "../../services/membershipApi";
+import { memberApi } from "../../services/memberApi";
+import { isApiConfigured } from "../../services/apiClient";
 import type {
   MemberSubscription,
   MembershipActor,
@@ -80,14 +89,37 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
   const isCounter = mode === "receptionist";
   const memberId = isCounter ? selectedMember : (currentUser?.id ?? "");
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
+      if (isApiConfigured()) {
+        const publicPackages = (await membershipApi.listPublicPackages()).sort((a, b) => a.price - b.price);
+        const membersList = isCounter
+          ? await memberApi.listAllMembers()
+          : [currentUser];
+        const memberInvoices = memberId
+          ? await membershipApi.listInvoices({ memberId })
+          : [];
+        const memberSubs = memberInvoices.map(subscriptionFromInvoice);
+        setSnapshot({
+          packages: publicPackages,
+          members: membersList,
+          subscriptions: memberSubs,
+          invoices: memberInvoices,
+        });
+        setInvoice((opened) =>
+          opened
+            ? (memberInvoices.find((item) => item.id === opened.id) ?? null)
+            : null,
+        );
+        setError("");
+        return;
+      }
       const invoices = memberId
         ? membershipService.listInvoices(currentUser, memberId)
         : [];
       setSnapshot({
-        packages: membershipService.listPackages(currentUser),
+        packages: membershipService.listPackages(currentUser).sort((a, b) => a.price - b.price),
         members: isCounter
           ? membershipService.listMembers(currentUser)
           : [currentUser],
@@ -117,13 +149,14 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
   useEffect(() => {
     // Synchronize with the external localStorage adapter when the selected member changes.
     // oxlint-disable-next-line react/set-state-in-effect
-    refresh();
-    window.addEventListener("storage", refresh);
-    window.addEventListener("focus", refresh);
-    const timer = window.setInterval(refresh, 60000);
+    void refresh();
+    const sync = () => void refresh();
+    window.addEventListener("storage", sync);
+    window.addEventListener("focus", sync);
+    const timer = window.setInterval(sync, 60000);
     return () => {
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("focus", sync);
       window.clearInterval(timer);
     };
   }, [refresh]);
@@ -146,6 +179,40 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
     setNotice("");
     setQuoteError("");
     try {
+      if (isApiConfigured()) {
+        const target = member ?? currentUser;
+        const confirmedSubs = snapshot.subscriptions.filter(
+          (sub) => sub.status === "CONFIRMED" && !sub.replacedOn,
+        );
+        const today = todayDate();
+        const latestEnd = confirmedSubs.reduce(
+          (latest, item) => (item.endDate > latest ? item.endDate : latest),
+          "",
+        );
+        const orderKind = resolveOrderKind(snapshot.subscriptions, pkg);
+        const startDate =
+          orderKind !== "UPGRADE" && latestEnd >= today
+            ? addDateDays(latestEnd, 1)
+            : today;
+        const endDate = addDateDays(addMonthsClamped(startDate, pkg.durationMonths), -1);
+
+        setQuote({
+          memberId: target.id,
+          memberName: target.fullName,
+          memberEmail: target.email,
+          packageId: pkg.id,
+          packageName: pkg.name,
+          packagePrice: pkg.price,
+          durationMonths: pkg.durationMonths,
+          benefits: pkg.benefits,
+          amount: pkg.price,
+          startDate,
+          endDate,
+          kind: orderKind,
+          paymentMethod: "CASH",
+        });
+        return;
+      }
       setQuote(
         membershipService.quoteMembershipOrder(currentUser, {
           memberId,
@@ -160,11 +227,37 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
     }
   }
 
-  function confirmOrder() {
+  async function confirmOrder() {
     if (!quote || !currentUser || submitting) return;
     setSubmitting(true);
     setQuoteError("");
     try {
+      if (isApiConfigured()) {
+        const order = isCounter
+          ? await membershipApi.counterRegisterOrRenew(
+              quote.memberId,
+              quote.packageId,
+              quote.paymentMethod,
+            )
+          : await membershipApi.registerOrRenew(
+              currentUser,
+              quote.packageId,
+              quote.paymentMethod,
+            );
+        setQuote(null);
+        setInvoice(order.invoice);
+        setSnapshot((previous) => ({
+          ...previous,
+          subscriptions: [order.subscription, ...previous.subscriptions],
+          invoices: [order.invoice, ...previous.invoices],
+        }));
+        setNotice(
+          isCounter
+            ? "Đã đăng ký/gia hạn và ghi nhận thanh toán tại quầy."
+            : "Đã tạo yêu cầu và hóa đơn chờ thanh toán. Gói mới chưa được kích hoạt.",
+        );
+        return;
+      }
       // Re-quote before saving so an edit in another tab cannot silently change the confirmed price/dates.
       const latest = membershipService.quoteMembershipOrder(currentUser, quote);
       if (JSON.stringify(latest) !== JSON.stringify(quote)) {
@@ -383,7 +476,7 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                 </p>
               </div>
               <div className="package-card-grid">
-                {snapshot.packages.map((pkg) => (
+                {snapshot.packages.slice().sort((a, b) => a.price - b.price).map((pkg) => (
                   <article
                     className={`membership-package ${pkg.durationMonths === 3 ? "featured" : ""}`}
                     key={pkg.id}
@@ -719,22 +812,26 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
               </button>
               <button
                 className="button danger"
-                onClick={() => {
+                onClick={async () => {
                   try {
-                    membershipService.cancelPendingOrder(
-                      currentUser,
-                      invoice.id,
-                    );
+                    if (isApiConfigured()) {
+                      await membershipApi.cancelPendingOrder(invoice.id);
+                    } else {
+                      membershipService.cancelPendingOrder(
+                        currentUser,
+                        invoice.id,
+                      );
+                    }
                     setInvoice(null);
                     setCanceling(false);
-                    refresh();
+                    await refresh();
                     setNotice(
                       "Đã hủy yêu cầu chưa thanh toán. Gói đang hoạt động không thay đổi.",
                     );
                   } catch (err) {
                     setCanceling(false);
                     setInvoice(null);
-                    refresh();
+                    await refresh();
                     setError(
                       err instanceof Error ? err.message : "Không thể hủy.",
                     );

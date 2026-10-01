@@ -1,6 +1,6 @@
-# Sprint 1 — phần FE của Minh
+# Sprint 1
 
-> Phạm vi toàn dự án, ưu tiên bắt buộc/tùy chọn và đối chiếu code ngày 27/09/2026 nằm ở [PRODUCT.md](../PRODUCT.md) và [DESIGN.md](../DESIGN.md). Tài liệu này mô tả phần Sprint 1 của Minh; các giới hạn phạm vi bên dưới không loại bỏ yêu cầu của toàn dự án hoặc các mock lễ tân đã được bổ sung.
+> Phạm vi toàn dự án, ưu tiên bắt buộc/tùy chọn và đối chiếu code ngày 27/09/2026 nằm ở [PRODUCT.md](../PRODUCT.md) và [DESIGN.md](../DESIGN.md). Tài liệu này mô tả phần Sprint 1 của FE; các giới hạn phạm vi bên dưới không loại bỏ yêu cầu của toàn dự án hoặc các mock lễ tân đã được bổ sung.
 
 Nguồn: `Sprint1_SCMS.xlsx`, sheet **Sprint 1 - Swimlane**, các dòng 5, 6, 7, 13, 15, 19. Người dùng đã xác nhận ưu tiên bảng chi tiết khi sheet Team Distribution ghi khác (SCMS-3 / SCMS-5).
 

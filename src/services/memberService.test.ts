@@ -108,9 +108,15 @@ describe("UC5 and UC6 member management", () => {
     expect(memberService.list(manager, "KHACH", "INACTIVE").total).toBe(20);
   });
   it("revokes an existing session and blocks downstream operations after deactivation", async () => {
+    const verification = await authService.requestEmailVerification({
+      email: member.email,
+      password: "Pass@1234",
+      purpose: "LOGIN",
+    });
     const result = await authService.login({
       email: member.email,
       password: "Pass@1234",
+      emailVerificationCode: verification.demoCode,
     });
     expect(result.success).toBe(true);
     memberService.update(manager, member.id, {
