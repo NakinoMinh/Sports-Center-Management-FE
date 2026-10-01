@@ -1,5 +1,7 @@
 # Hệ thống Quản lý Trung tâm Thể thao (Sports Center Management System)
 
+> Nhánh `long/swp-sprint1-integration` dùng API và SQL Server thật. Để dựng đầy đủ FE + BE + database trên máy mới, đọc [Kịch bản demo Sprint 1 của Long](docs/LONG_SPRINT1_DEMO.md) và chạy `scripts/run-long-fe.ps1` thay cho lệnh Vite thủ công.
+
 **Công nghệ:** Sử dụng React JS (Vite + TypeScript) cho hiệu năng tốt và hỗ trợ type chặt chẽ.
 
 ## Tài liệu định hướng phát triển
