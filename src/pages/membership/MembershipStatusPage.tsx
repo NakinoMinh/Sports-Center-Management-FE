@@ -80,12 +80,12 @@ export function MembershipStatusPage() {
           </div>
           {loading ? <div className="empty-state" role="status">Đang tải thông tin thành viên...</div> : !error && <>
             <p className="membership-status-help">{visible.length} thành viên · Số ngày còn lại tính cả hôm nay và ngày cuối sử dụng. Tạm ngưng không tự động kéo dài kỳ hạn.</p>
-            {visible.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Thành viên</th><th>Gói tập</th><th>Trạng thái</th><th>Ngày hết hạn</th><th>Còn lại</th><th>Thao tác</th></tr></thead><tbody>
+            {visible.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Thành viên</th><th>Gói tập</th><th>Trạng thái</th><th>Thời hạn sử dụng</th><th>Còn lại</th><th>Thao tác</th></tr></thead><tbody>
               {visible.map((row) => <tr key={row.member.id}>
                 <td><strong>{row.member.fullName || row.member.username}</strong><small>{row.member.email}</small><small>{row.member.phone || "Chưa có số điện thoại"}</small></td>
                 <td>{row.subscription?.packageName ?? "—"}{row.upcoming && row.upcoming !== row.subscription && <small>Đã có kỳ tiếp theo từ {formatDate(row.upcoming.startDate)}</small>}</td>
                 <td><span className={`status-chip ${row.status.toLowerCase()}`}>{labels[row.status]}</span></td>
-                <td>{row.subscription ? formatDate(row.subscription.endDate) : "—"}{row.status === "PENDING_PAYMENT" && <small>Dự kiến, chưa kích hoạt</small>}</td>
+                <td>{row.subscription ? <>{formatDate(row.subscription.startDate)} &rarr; {formatDate(row.subscription.endDate)}</> : "—"}{row.status === "PENDING_PAYMENT" && <small>Dự kiến, chưa kích hoạt</small>}</td>
                 <td><strong>{row.status === "NONE" || row.status === "PENDING_PAYMENT" || row.status === "UPCOMING" || row.status === "SCHEDULED_DOWNGRADE" ? "—" : `${row.remainingDays} ngày`}</strong>{row.expiringSoon && <small className="membership-expiry-warning"><AlertTriangle size={14} /> Sắp hết hạn</small>}</td>
                 <td><button className="text-button" onClick={() => setSelectedId(row.member.id)}>Xem chi tiết <ArrowRight size={15} /></button></td>
               </tr>)}
@@ -95,9 +95,10 @@ export function MembershipStatusPage() {
     {selected && <Dialog title="Thông tin thành viên & gói tập" onClose={() => setSelectedId(null)} footer={<><button className="button secondary" onClick={() => setSelectedId(null)}>Đóng</button><Link className="button primary" to={`/receptionist/memberships?member=${encodeURIComponent(selected.member.id)}`}>Đăng ký / Gia hạn <ArrowRight size={16} /></Link></>}>
       <div className="order-summary"><h3>{selected.member.fullName || selected.member.username}</h3><dl>
         <div><dt>Mã thành viên</dt><dd>{selected.member.username || selected.member.id}</dd></div><div><dt>Email</dt><dd>{selected.member.email}</dd></div><div><dt>Số điện thoại</dt><dd>{selected.member.phone || "Chưa cập nhật"}</dd></div>
-        <div><dt>Gói tập</dt><dd>{selected.subscription?.packageName ?? "Chưa có gói"}</dd></div><div><dt>Trạng thái</dt><dd><span className={`status-chip ${selected.status.toLowerCase()}`}>{labels[selected.status]}</span></dd></div>
-        {selected.subscription && <><div><dt>Ngày bắt đầu</dt><dd>{formatDate(selected.subscription.startDate)}</dd></div><div><dt>Sử dụng đến hết</dt><dd>{formatDate(selected.subscription.endDate)}</dd></div></>}
+        <div><dt>{selected.status === "ACTIVE" ? "Gói đang sử dụng" : "Gói tập"}</dt><dd>{selected.subscription?.packageName ?? "Chưa có gói"}</dd></div><div><dt>Trạng thái</dt><dd><span className={`status-chip ${selected.status.toLowerCase()}`}>{labels[selected.status]}</span></dd></div>
+        {selected.subscription && <div><dt>Thời hạn sử dụng</dt><dd>{formatDate(selected.subscription.startDate)} &rarr; {formatDate(selected.subscription.endDate)}</dd></div>}
         {["ACTIVE", "SUSPENDED", "EXPIRED"].includes(selected.status) && <div><dt>Số ngày còn lại</dt><dd>{selected.remainingDays} ngày</dd></div>}
+        {selected.upcoming && selected.upcoming !== selected.subscription && <div><dt>Kỳ tiếp theo</dt><dd>{selected.upcoming.packageName} &middot; {formatDate(selected.upcoming.startDate)} &rarr; {formatDate(selected.upcoming.endDate)}</dd></div>}
       </dl></div>
       {selected.expiringSoon && <div className="pending-notice" role="status"><AlertTriangle size={22} /><div><strong>Gói sắp hết hạn: còn {selected.remainingDays} ngày</strong><p>{selected.upcoming ? `Đã có kỳ tiếp theo bắt đầu ${formatDate(selected.upcoming.startDate)}.` : "Nhắc thành viên gia hạn để tiếp tục tập luyện."}</p></div></div>}
       {selected.status === "SUSPENDED" && <div className="info-note"><ShieldCheck size={20} /><p>Gói đang tạm ngưng, chưa được sử dụng để vào tập. {selected.subscription?.suspensionReason || "Liên hệ quản lý trung tâm để kiểm tra lý do và hỗ trợ."}</p></div>}

@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Search, Users, Plus, RefreshCw, ArrowUpRight } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
+import { ApiError } from "../../services/apiClient";
 import { memberApi, type CreateMemberInput } from "../../services/memberApi";
 import { membershipApi, subscriptionFromInvoice } from "../../services/membershipApi";
 import { getMembershipStatusSummary } from "../../services/membershipService";
 import type { MembershipActor } from "../../types/membership";
 import { formatDate } from "../../utils/format";
+import { membershipStatusLabels } from "../../utils/membershipLabels";
 
 const blank: CreateMemberInput & { isActive: boolean } = {
   fullName: "",
@@ -32,6 +34,9 @@ export function MembersPage() {
   const [editing, setEditing] = useState<MembershipActor | "new" | null>(null);
   const [form, setForm] = useState(blank);
   const [removing, setRemoving] = useState<MembershipActor | null>(null);
+  // Set when the API refuses a hard delete because the member has membership
+  // history; the dialog then offers deactivation instead.
+  const [mustDeactivate, setMustDeactivate] = useState(false);
   const [detail, setDetail] = useState<MembershipActor | null>(null);
   const [password, setPassword] = useState<{
     email: string;
@@ -225,6 +230,7 @@ export function MembersPage() {
                           aria-label={`Xóa ${member.fullName}`}
                           onClick={() => {
                             setRemoving(member);
+                            setMustDeactivate(false);
                             setFormError("");
                           }}
                         >
@@ -396,40 +402,87 @@ export function MembersPage() {
       )}
       {removing && (
         <Dialog
-          title="Xóa thành viên khỏi danh sách?"
-          onClose={() => setRemoving(null)}
+          title={mustDeactivate ? "Chuyển sang ngừng hoạt động?" : "Xóa thành viên khỏi hệ thống?"}
+          onClose={() => {
+            if (busy) return;
+            setRemoving(null);
+            setMustDeactivate(false);
+          }}
           footer={
             <>
               <button
                 className="button secondary"
-                onClick={() => setRemoving(null)}
+                disabled={busy}
+                onClick={() => {
+                  setRemoving(null);
+                  setMustDeactivate(false);
+                }}
               >
                 Quay lại
               </button>
               <button
                 className="button danger"
+                disabled={busy}
                 onClick={async () => {
-                  if (!currentUser) return;
+                  if (!currentUser || busy) return;
+                  setBusy(true);
+                  setFormError("");
                   try {
-                    await memberApi.setMemberStatus(removing.id, false);
+                    if (mustDeactivate) {
+                      await memberApi.setMemberStatus(removing.id, false);
+                      setNotice(
+                        `${removing.fullName} đã chuyển sang ngừng hoạt động. Lịch sử gói tập và hóa đơn được giữ nguyên.`,
+                      );
+                    } else {
+                      await memberApi.deleteMember(removing.id);
+                      setNotice(`Đã xóa ${removing.fullName} khỏi hệ thống.`);
+                    }
                     setRemoving(null);
-                    setNotice(
-                      "Đã cập nhật trạng thái ngừng hoạt động cho thành viên.",
-                    );
+                    setMustDeactivate(false);
                     void refresh();
                   } catch (err) {
-                    setFormError((err as Error).message);
+                    // The member turned out to have membership history, so the
+                    // only safe action left is deactivating: switch the dialog
+                    // over instead of leaving the manager at a dead end.
+                    if (
+                      err instanceof ApiError &&
+                      err.code === "MEMBER_HAS_MEMBERSHIP_HISTORY"
+                    ) {
+                      setMustDeactivate(true);
+                      setFormError(
+                        "Thành viên này đã có gói tập hoặc hóa đơn nên không thể xóa vĩnh viễn. Bấm lần nữa để chuyển sang ngừng hoạt động.",
+                      );
+                    } else {
+                      setFormError((err as Error).message);
+                    }
+                  } finally {
+                    setBusy(false);
                   }
                 }}
               >
-                Xác nhận xóa
+                {busy
+                  ? "Đang xử lý..."
+                  : mustDeactivate
+                    ? "Ngừng hoạt động"
+                    : "Xác nhận xóa"}
               </button>
             </>
           }
         >
           <p>
-            <strong>{removing.fullName}</strong> sẽ bị ngừng truy cập. Lịch sử
-            gói, hóa đơn và điểm danh được giữ nguyên.
+            {mustDeactivate ? (
+              <>
+                <strong>{removing.fullName}</strong> sẽ bị ngừng truy cập. Lịch
+                sử gói tập và hóa đơn được giữ nguyên.
+              </>
+            ) : (
+              <>
+                <strong>{removing.fullName}</strong> sẽ bị xóa vĩnh viễn khỏi hệ
+                thống. Thao tác này không thể hoàn tác. Thành viên đã từng đăng
+                ký gói tập sẽ không xóa được — hệ thống sẽ đề nghị ngừng hoạt
+                động thay thế.
+              </>
+            )}
           </p>
           {formError && <p role="alert">{formError}</p>}
         </Dialog>
@@ -484,13 +537,42 @@ export function MembersPage() {
                 <dd>{summary?.subscription?.packageName ?? "Chưa có gói"}</dd>
               </div>
               <div>
-                <dt>Thời hạn</dt>
+                <dt>Trạng thái gói</dt>
+                <dd>
+                  {summary ? (
+                    <span className={`status-chip ${summary.status.toLowerCase()}`}>
+                      {membershipStatusLabels[summary.status] ?? summary.status}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Thời hạn sử dụng</dt>
                 <dd>
                   {summary?.subscription
-                    ? formatDate(summary.subscription.endDate)
+                    ? `${formatDate(summary.subscription.startDate)} → ${formatDate(summary.subscription.endDate)}`
                     : "—"}
                 </dd>
               </div>
+              {summary?.status === "ACTIVE" && (
+                <div>
+                  <dt>Số ngày còn lại</dt>
+                  <dd>{summary.remainingDays} ngày</dd>
+                </div>
+              )}
+              {summary?.upcoming &&
+                summary.upcoming !== summary.subscription && (
+                  <div>
+                    <dt>Kỳ tiếp theo</dt>
+                    <dd>
+                      {summary.upcoming.packageName} ·{" "}
+                      {formatDate(summary.upcoming.startDate)} →{" "}
+                      {formatDate(summary.upcoming.endDate)}
+                    </dd>
+                  </div>
+                )}
             </dl>
           </div>
         </Dialog>

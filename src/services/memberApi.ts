@@ -107,6 +107,15 @@ export const memberApi = {
     });
   },
 
+  /**
+   * Permanently removes a member that never bought a package. The API answers
+   * 409 MEMBER_HAS_MEMBERSHIP_HISTORY when subscriptions or invoices exist,
+   * because deleting those rows would destroy financial history.
+   */
+  async deleteMember(accountId: string): Promise<void> {
+    await apiRequest(`/Member/${accountId}`, { method: "DELETE" });
+  },
+
   async createMember(
     input: CreateMemberInput,
     password?: string,

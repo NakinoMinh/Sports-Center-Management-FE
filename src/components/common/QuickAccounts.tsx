@@ -1,7 +1,15 @@
 import React from "react";
-import { Crown, User as UserIcon, Headphones } from "lucide-react";
+import { Crown, User as UserIcon, Headphones, Dumbbell } from "lucide-react";
 import type { UserRole } from "../../types/auth";
 
+
+/**
+ * CẢNH BÁO: DB đang chạy KHÔNG khớp SportsCenterManagement_Official.sql.
+ * Script seed đặt mọi tài khoản là "Admin@123", nhưng DB thực tế có mật khẩu
+ * khác nhau theo từng tài khoản. Các giá trị dưới đây đã được xác minh bằng
+ * POST /api/Auth/request-login-email-verification (trả HTTP 200).
+ * Khi nào DB được dựng lại từ script seed thì mới gộp về một hằng số chung.
+ */
 
 interface QuickAccountItem {
   role: UserRole;
@@ -28,25 +36,34 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
     {
       role: "CENTER_MANAGER",
       roleTitle: "Quản Lý Trung Tâm",
-      name: "Nguyễn Quản Lý",
+      name: "Center Manager",
       email: "uchihaminh6969@gmail.com",
-      password: "Test@12345",
+      password: "Admin@123",
       badgeClass: "badge-manager",
       icon: <Crown size={14} />,
     },
     {
       role: "RECEPTIONIST",
       roleTitle: "Nhân Viên Lễ Tân",
-      name: "Nguyễn Thị Lễ Tân",
+      name: "Receptionist Staff",
       email: "makitonati@gmail.com",
-      password: "Test@12345",
+      password: "Admin@123",
       badgeClass: "badge-receptionist",
       icon: <Headphones size={14} />,
     },
     {
+      role: "COACH",
+      roleTitle: "Huấn Luyện Viên",
+      name: "Nguyen Van The",
+      email: "coach.demo@sportscenter.local",
+      password: "Admin@123",
+      badgeClass: "badge-coach",
+      icon: <Dumbbell size={14} />,
+    },
+    {
       role: "MEMBER",
       roleTitle: "Hội Viên Trung Tâm",
-      name: "Lê Thành Viên",
+      name: "Nguyen Van Test Updated",
       email: "member01@sportscenter.local",
       password: "Test@12345",
       badgeClass: "badge-member",
@@ -71,7 +88,7 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
             key={acc.email}
             type="button"
             className="scms-quick-btn"
-            onClick={() => onSelectAccount(acc.email, acc.password || "Test@12345")}
+            onClick={() => onSelectAccount(acc.email, acc.password ?? "")}
             disabled={disabled}
             title={`Điền thông tin ${acc.roleTitle}`}
           >

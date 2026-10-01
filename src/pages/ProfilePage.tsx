@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   UserRound,
   Camera,
@@ -12,10 +12,15 @@ import {
   Briefcase,
   Phone,
   Calendar,
+  Upload,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { authService } from "../services/authService";
+import { resolveAssetUrl } from "../services/apiClient";
 import { roleLabels } from "../utils/navigation";
+
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 // Preset modern avatars for quick selection
 const AVATAR_PRESETS = [
@@ -61,6 +66,9 @@ export function ProfilePage() {
   const [profileError, setProfileError] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Password change state
   const [pwdCurrent, setPwdCurrent] = useState("");
@@ -113,6 +121,55 @@ export function ProfilePage() {
         .toUpperCase()
     : "SC";
 
+  const handleAvatarFile = async (file: File | undefined) => {
+    if (!file || !currentUser) return;
+    setAvatarError("");
+    // Checked here too so an oversized pick fails instantly instead of after a
+    // long upload; the server enforces the same limit and the real format.
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+      setAvatarError("Chỉ chấp nhận ảnh JPG, PNG hoặc WEBP.");
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarError("Ảnh không được vượt quá 2 MB.");
+      return;
+    }
+    setAvatarBusy(true);
+    try {
+      const updated = await authService.uploadAvatar(currentUser, file);
+      setForm((prev) => ({ ...prev, avatar: updated.avatar ?? "" }));
+      refreshCurrentUser();
+      setShowAvatarPicker(false);
+      setProfileMessage("Đã cập nhật ảnh đại diện.");
+    } catch (err) {
+      setAvatarError(
+        err instanceof Error ? err.message : "Không thể tải ảnh lên.",
+      );
+    } finally {
+      setAvatarBusy(false);
+      // Clear the input so picking the same file again still fires onChange.
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!currentUser) return;
+    setAvatarError("");
+    setAvatarBusy(true);
+    try {
+      await authService.removeAvatar(currentUser);
+      setForm((prev) => ({ ...prev, avatar: "" }));
+      refreshCurrentUser();
+      setProfileMessage("Đã xóa ảnh đại diện.");
+    } catch (err) {
+      setAvatarError(
+        err instanceof Error ? err.message : "Không thể xóa ảnh đại diện.",
+      );
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
   const handleProfileSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setProfileError("");
@@ -153,7 +210,9 @@ export function ProfilePage() {
     try {
       const res = await authService.requestPasswordChangeOtp(currentUser);
       setOtpSent(true);
-      setOtpCountdown(res.expiresInSeconds);
+      // Gate the resend button on the resend cooldown, not on how long the code
+      // remains valid, otherwise it stays disabled for the full 5 minutes.
+      setOtpCountdown(res.cooldownSeconds);
       setPwdMessage("Mã xác thực OTP đã được gửi đến email của bạn.");
     } catch (err) {
       setPwdError(err instanceof Error ? err.message : "Không thể tạo mã OTP.");
@@ -219,7 +278,7 @@ export function ProfilePage() {
             <div className="avatar-circle-wrapper">
               {form.avatar ? (
                 <img
-                  src={form.avatar}
+                  src={resolveAssetUrl(form.avatar)}
                   alt={form.fullName}
                   className="avatar-image-lg"
                   onError={() => {
@@ -256,7 +315,7 @@ export function ProfilePage() {
           {showAvatarPicker && (
             <div className="avatar-picker-box">
               <div className="avatar-picker-header">
-                <span>Chọn ảnh mẫu hoặc nhập URL</span>
+                <span>Tải ảnh lên, chọn ảnh mẫu hoặc nhập URL</span>
                 <button
                   type="button"
                   className="text-button"
@@ -265,6 +324,43 @@ export function ProfilePage() {
                   Đóng
                 </button>
               </div>
+
+              <div className="avatar-upload-row">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+                  onChange={(e) => void handleAvatarFile(e.target.files?.[0])}
+                />
+                <button
+                  type="button"
+                  className="button primary"
+                  disabled={avatarBusy}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload size={16} aria-hidden="true" />
+                  {avatarBusy ? "Đang tải lên..." : "Tải ảnh từ máy"}
+                </button>
+                {form.avatar && (
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={avatarBusy}
+                    onClick={() => void handleAvatarRemove()}
+                  >
+                    <Trash2 size={16} aria-hidden="true" /> Xóa ảnh
+                  </button>
+                )}
+              </div>
+              <p className="avatar-upload-hint">
+                JPG, PNG hoặc WEBP · tối đa 2 MB
+              </p>
+              {avatarError && (
+                <p className="avatar-upload-error" role="alert">
+                  {avatarError}
+                </p>
+              )}
 
               <div className="avatar-preset-grid">
                 {AVATAR_PRESETS.map((preset) => (

@@ -305,8 +305,14 @@ export const authService = {
     if (phone && !/^0\d{9}$/.test(phone)) {
       throw new Error("Số điện thoại phải có 10 chữ số, bắt đầu bằng 0.");
     }
-    if (avatar && (!/^https:\/\//.test(avatar) || avatar.length > 500)) {
+    // Uploaded avatars come back as a server-relative path ("/uploads/..."),
+    // presets and pasted links are absolute HTTPS URLs. Both are valid.
+    const isUploadedPath: boolean = avatar.startsWith("/uploads/");
+    if (avatar && !isUploadedPath && !/^https:\/\//.test(avatar)) {
       throw new Error("Ảnh đại diện phải là đường dẫn HTTPS hợp lệ.");
+    }
+    if (avatar.length > 500) {
+      throw new Error("Đường dẫn ảnh đại diện quá dài (tối đa 500 ký tự).");
     }
     const profile: AccountProfileDto = await apiRequest<AccountProfileDto>("/Account/profile", {
       method: "PATCH",
@@ -325,11 +331,20 @@ export const authService = {
   },
 
   requestPasswordChangeOtp: async (actor: Omit<User, "passwordHash">) => {
-    const response: { message: string; expiresInSeconds: number } = await apiRequest<{ message: string; expiresInSeconds: number }>(
-      "/Auth/request-change-password-otp",
-      { method: "POST" },
-    );
-    return { email: actor.email, code: undefined, expiresInSeconds: response.expiresInSeconds };
+    const response: { message: string; expiresInSeconds: number; cooldownSeconds?: number } =
+      await apiRequest<{ message: string; expiresInSeconds: number; cooldownSeconds?: number }>(
+        "/Auth/request-change-password-otp",
+        { method: "POST" },
+      );
+    return {
+      email: actor.email,
+      code: undefined,
+      // How long the code stays usable (300s).
+      expiresInSeconds: response.expiresInSeconds,
+      // How long until another code may be requested (60s). Gating the resend
+      // button on expiresInSeconds locked it for the full 5 minutes.
+      cooldownSeconds: response.cooldownSeconds ?? 60,
+    };
   },
 
   changePasswordWithOtp: async (
@@ -347,6 +362,38 @@ export const authService = {
     });
     clearSession();
     return { success: true, message: "Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới." };
+  },
+
+  /**
+   * Uploads an avatar file and returns the refreshed profile. The server stores
+   * the file, validates its real format from the file signature, and persists the
+   * resulting path on the account.
+   */
+  uploadAvatar: async (
+    actor: Omit<User, "passwordHash">,
+    file: File,
+  ): Promise<Omit<User, "passwordHash">> => {
+    const body = new FormData();
+    body.append("file", file);
+    const profile: AccountProfileDto = await apiRequest<AccountProfileDto>(
+      "/Account/profile/avatar",
+      { method: "POST", body },
+    );
+    const updated: Omit<User, "passwordHash"> = mergeProfile(actor, profile);
+    saveUser(updated);
+    return updated;
+  },
+
+  removeAvatar: async (
+    actor: Omit<User, "passwordHash">,
+  ): Promise<Omit<User, "passwordHash">> => {
+    const profile: AccountProfileDto = await apiRequest<AccountProfileDto>(
+      "/Account/profile/avatar",
+      { method: "DELETE" },
+    );
+    const updated: Omit<User, "passwordHash"> = mergeProfile(actor, profile);
+    saveUser(updated);
+    return updated;
   },
 
   getCurrentUser: (): Omit<User, "passwordHash"> | null =>
