@@ -1,24 +1,33 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Dialog } from "../common/Dialog";
-import { sportsCenterApi } from "../../services/sportsCenterApi";
+
+import { memberApi } from "../../services/memberApi";
+import { membershipApi } from "../../services/membershipApi";
 import type {
-  CounterRegistrationResult,
   MembershipActor,
   MembershipOrder,
+  MembershipPackage,
   PaymentMethod,
-  PublicMembershipPackage,
 } from "../../types/membership";
 import { durationLabel, formatMoney } from "../../utils/format";
 
+const generateInitialPassword = (): string => {
+  const randomValues = new Uint32Array(1);
+  crypto.getRandomValues(randomValues);
+  return `Pass@${(randomValues[0] % 90000) + 10000}`;
+};
+
 export function CounterRegistrationForm({
+  actor: _actor,
+  packages,
   onClose,
   onCreated,
 }: {
+  actor: MembershipActor;
+  packages: MembershipPackage[];
   onClose: () => void;
   onCreated: (member: MembershipActor, order: MembershipOrder) => void;
 }) {
-  const [packages, setPackages] = useState<PublicMembershipPackage[]>([]);
-  const [loadingPackages, setLoadingPackages] = useState(true);
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -29,29 +38,12 @@ export function CounterRegistrationForm({
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [created, setCreated] = useState<CounterRegistrationResult | null>(null);
+  const [created, setCreated] = useState<{
+    member: MembershipActor;
+    order: MembershipOrder;
+    initialPassword: string;
+  } | null>(null);
   const pkg = packages.find((p) => p.id === form.packageId);
-  useEffect(() => {
-    let canceled = false;
-    void sportsCenterApi
-      .listActivePackages()
-      .then((result) => {
-        if (!canceled) setPackages(result);
-      })
-      .catch((err: unknown) => {
-        if (!canceled) {
-          setError(
-            err instanceof Error ? err.message : "Không thể tải gói tập.",
-          );
-        }
-      })
-      .finally(() => {
-        if (!canceled) setLoadingPackages(false);
-      });
-    return () => {
-      canceled = true;
-    };
-  }, []);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
@@ -62,11 +54,28 @@ export function CounterRegistrationForm({
     }
     setBusy(true);
     try {
-      const result = await sportsCenterApi.registerMemberAtCounter({
-        ...form,
-        expectedPrice: pkg.price,
+      const initialPassword = generateInitialPassword();
+      const newMember = await memberApi.createMember(
+        {
+          fullName: form.fullName,
+          email: form.email,
+          phone: form.phone,
+          dateOfBirth: form.dateOfBirth,
+        },
+        initialPassword,
+      );
+
+      const order = await membershipApi.counterRegisterOrRenew(
+        newMember.id,
+        form.packageId,
+        form.paymentMethod,
+      );
+
+      setCreated({
+        member: newMember,
+        order,
+        initialPassword,
       });
-      setCreated(result);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Không thể đăng ký thành viên.",
@@ -96,18 +105,11 @@ export function CounterRegistrationForm({
           <code className="initial-password">{created.initialPassword}</code>
         </div>
         <div className="info-note">
-          {created.emailDelivery === "SENT" ? (
-            <p>
-              Email thông tin đăng nhập đã được gửi cho thành viên. Gói tập
-              đang chờ thanh toán.
-            </p>
-          ) : (
-            <p>
-              Email chưa được gửi vì dịch vụ gửi email chưa kết nối. Bàn giao
-              riêng thông tin đăng nhập cho thành viên trước khi đóng. Gói tập
-              đang chờ thanh toán.
-            </p>
-          )}
+          <p>
+            Email chưa được gửi vì dịch vụ gửi email chưa kết nối. Bàn giao
+            riêng thông tin đăng nhập cho thành viên trước khi đóng. Hóa đơn
+            đã được ghi nhận và gói tập đã kích hoạt theo giao dịch tại quầy.
+          </p>
         </div>
       </Dialog>
     );
@@ -120,7 +122,7 @@ export function CounterRegistrationForm({
       }}
     >
       <form onSubmit={submit}>
-        <fieldset disabled={busy || loadingPackages} className="counter-fieldset">
+        <fieldset disabled={busy} className="counter-fieldset">
           <div className="field-grid">
             <label className="field">
               <span>Họ và tên *</span>
@@ -189,7 +191,7 @@ export function CounterRegistrationForm({
                 }
               >
                 <option value="">— Chọn gói cho thành viên mới —</option>
-                {packages.map((p) => (
+                {packages.slice().sort((a, b) => a.price - b.price).map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} · {durationLabel(p.durationMonths)} ·{" "}
                     {formatMoney(p.price)}
@@ -241,7 +243,7 @@ export function CounterRegistrationForm({
             <button
               type="submit"
               className="button primary"
-              disabled={!pkg || busy || loadingPackages}
+              disabled={!pkg || busy}
             >
               {busy ? "Đang tạo…" : "Tạo thành viên & đăng ký gói"}
             </button>

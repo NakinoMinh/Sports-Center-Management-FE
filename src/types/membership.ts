@@ -25,6 +25,8 @@ export interface MembershipPackageInput {
 export interface MembershipPackage extends MembershipPackageInput {
   id: string;
   isActive: boolean;
+  /** Number of distinct members that have ever subscribed to this package. */
+  subscriberCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -108,58 +110,4 @@ export interface CounterRegistrationInput {
   packageId: string;
   paymentMethod: PaymentMethod;
   expectedPrice: number;
-}
-
-export type CounterMemberRegistrationInput = Omit<
-  CounterRegistrationInput,
-  "username" | "password"
-> & { dateOfBirth: string };
-
-export interface MemberPage {
-  items: MembershipActor[];
-  total: number;
-  page: number;
-  pages: number;
-}
-
-export type PublicMembershipPackage = Pick<
-  MembershipPackage,
-  "id" | "name" | "price" | "durationMonths" | "benefits"
->;
-
-export type MembershipStatusFilter =
-  | "ALL"
-  | "ACTIVE"
-  | "EXPIRING"
-  | "EXPIRED"
-  | "SUSPENDED"
-  | "UPCOMING"
-  | "PENDING_PAYMENT"
-  | "NONE";
-
-export interface MembershipStatusSubscription {
-  id: string;
-  packageName: string;
-  startDate: string;
-  endDate: string;
-  suspensionReason?: string;
-}
-
-export interface MembershipStatusRow {
-  member: Pick<
-    MembershipActor,
-    "id" | "username" | "fullName" | "email" | "phone"
-  >;
-  status: Exclude<MembershipStatusFilter, "ALL" | "EXPIRING">;
-  remainingDays: number;
-  expiringSoon: boolean;
-  subscription?: MembershipStatusSubscription;
-  upcoming?: MembershipStatusSubscription;
-}
-
-export interface CounterRegistrationResult {
-  member: MembershipActor;
-  order: MembershipOrder;
-  initialPassword: string;
-  emailDelivery: "SENT" | "FAILED" | "NOT_CONFIGURED";
 }

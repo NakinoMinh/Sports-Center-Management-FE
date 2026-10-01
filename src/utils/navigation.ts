@@ -1,5 +1,4 @@
 import type { UserRole } from "../types/auth";
-import { apiConfigured } from "../services/apiClient";
 
 export const roleLabels: Record<UserRole, string> = {
   CENTER_MANAGER: "Quản lý trung tâm",
@@ -10,7 +9,7 @@ export const roleLabels: Record<UserRole, string> = {
 
 export function homeForRole(role: UserRole) {
   return {
-    CENTER_MANAGER: apiConfigured() ? "/manager/members" : "/manager/packages",
+    CENTER_MANAGER: "/manager/packages",
     MEMBER: "/member/membership",
     RECEPTIONIST: "/receptionist/memberships",
     COACH: "/coach",

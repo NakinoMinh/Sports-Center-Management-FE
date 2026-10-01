@@ -29,7 +29,7 @@ export function PackageForm({
     initialValues?.durationMonths ?? 1,
   );
   const [benefits, setBenefits] = useState(
-    initialValues?.benefits.join("\n") ?? "",
+    initialValues?.benefits?.join("\n") ?? "",
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
 

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, Dumbbell, Scale } from "lucide-react";
-import { sportsCenterApi } from "../services/sportsCenterApi";
-import type { PublicMembershipPackage } from "../types/membership";
+import type { MembershipPackage } from "../types/membership";
+import { membershipApi } from "../services/membershipApi";
 import { useAuth } from "../hooks/useAuth";
 import { homeForRole } from "../utils/navigation";
 import { durationLabel, formatMoney } from "../utils/format";
@@ -10,38 +10,33 @@ import { durationLabel, formatMoney } from "../utils/format";
 export function PackageCatalogPage() {
   const { currentUser, isAuthenticated } = useAuth();
   const inWorkspace = isAuthenticated && !!currentUser;
-  const [packages, setPackages] = useState<PublicMembershipPackage[]>([]);
+  const [packages, setPackages] = useState<MembershipPackage[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [duration, setDuration] = useState("ALL");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const refresh = useCallback(async (isCanceled: () => boolean = () => false) => {
+  const refresh = useCallback(async () => {
     try {
-      const result = await sportsCenterApi.listActivePackages();
-      if (isCanceled()) return;
-      setPackages(result);
+      const items = await membershipApi.listPublicPackages();
+      setPackages(items.sort((a, b) => a.price - b.price));
       setError("");
     } catch (err) {
-      if (isCanceled()) return;
       setPackages([]);
       setError((err as Error).message);
     } finally {
-      if (!isCanceled()) setLoading(false);
+      setLoading(false);
     }
   }, []);
   useEffect(() => {
-    let canceled = false;
-    const handleRefresh = () => void refresh(() => canceled);
     // Synchronize public catalog changes without requiring a signed-in account.
     // oxlint-disable-next-line react/set-state-in-effect
-    handleRefresh();
-    window.addEventListener("focus", handleRefresh);
-    window.addEventListener("storage", handleRefresh);
-    const timer = window.setInterval(handleRefresh, 60000);
+    refresh();
+    window.addEventListener("focus", refresh);
+    window.addEventListener("storage", refresh);
+    const timer = window.setInterval(refresh, 60000);
     return () => {
-      canceled = true;
-      window.removeEventListener("focus", handleRefresh);
-      window.removeEventListener("storage", handleRefresh);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", refresh);
       window.clearInterval(timer);
     };
   }, [refresh]);
@@ -98,7 +93,7 @@ export function PackageCatalogPage() {
         {error && (
           <div className="error-notice" role="alert">
             {error}
-            <button className="button secondary" onClick={() => void refresh()}>
+            <button className="button secondary" onClick={refresh}>
               Thử lại
             </button>
           </div>
@@ -110,6 +105,8 @@ export function PackageCatalogPage() {
         ) : (
           <div className="package-card-grid">
             {packages
+              .slice()
+              .sort((a, b) => a.price - b.price)
               .filter(
                 (pkg) =>
                   duration === "ALL" || String(pkg.durationMonths) === duration,
@@ -130,7 +127,7 @@ export function PackageCatalogPage() {
                     /tháng
                   </p>
                   <ul>
-                    {pkg.benefits.map((benefit, index) => (
+                    {(pkg.benefits ?? []).map((benefit, index) => (
                       <li key={index}>
                         <Check size={16} />
                         <span>{benefit}</span>
@@ -228,7 +225,7 @@ export function PackageCatalogPage() {
                     {compared.map((pkg) => (
                       <td key={pkg.id}>
                         <ul className="catalog-benefits">
-                          {pkg.benefits.map((benefit, index) => (
+                          {(pkg.benefits ?? []).map((benefit, index) => (
                             <li key={index}>{benefit}</li>
                           ))}
                         </ul>

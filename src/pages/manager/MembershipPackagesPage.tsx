@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   BadgeCheck,
   Eye,
@@ -17,12 +17,8 @@ import {
   type PackageFormValues,
 } from "../../components/membership/PackageForm";
 import { useAuth } from "../../hooks/useAuth";
-import { membershipService } from "../../services/membershipService";
-import type {
-  MemberSubscription,
-  MembershipActor,
-  MembershipPackage,
-} from "../../types/membership";
+import { membershipApi } from "../../services/membershipApi";
+import type { MembershipPackage } from "../../types/membership";
 
 const currency = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -35,28 +31,9 @@ const errorMessage = (error: unknown) =>
     ? error.message
     : "Không thể thực hiện thao tác. Vui lòng thử lại.";
 
-function readCatalog(actor: MembershipActor | null): {
-  packages: MembershipPackage[];
-  subscriptions: MemberSubscription[];
-  error: string;
-} {
-  if (!actor || actor.role !== "CENTER_MANAGER")
-    return { packages: [], subscriptions: [], error: "" };
-  try {
-    return {
-      packages: membershipService.listPackages(actor, { includeHidden: true }),
-      subscriptions: membershipService.getMemberSubscriptions(actor),
-      error: "",
-    };
-  } catch (caught) {
-    return { packages: [], subscriptions: [], error: errorMessage(caught) };
-  }
-}
-
 export function MembershipPackagesPage() {
   const { currentUser } = useAuth();
-  const [catalog, setCatalog] = useState(() => readCatalog(currentUser));
-  const { packages, subscriptions } = catalog;
+  const [packages, setPackages] = useState<MembershipPackage[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "hidden">("all");
   const [editing, setEditing] = useState<MembershipPackage | "new" | null>(
@@ -66,44 +43,51 @@ export function MembershipPackagesPage() {
   const [formError, setFormError] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  function refresh() {
-    setCatalog(readCatalog(currentUser));
-    setError("");
-  }
-
-  const subscribers = useMemo(() => {
-    const counts = new Map<string, Set<string>>();
-    for (const subscription of subscriptions) {
-      if (!counts.has(subscription.packageId))
-        counts.set(subscription.packageId, new Set());
-      counts.get(subscription.packageId)!.add(subscription.memberId);
+  const refresh = useCallback(async () => {
+    if (!currentUser) return;
+    setLoading(true);
+    try {
+      setPackages(await membershipApi.listPackages());
+      setError("");
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setLoading(false);
     }
-    return counts;
-  }, [subscriptions]);
+  }, [currentUser]);
 
-  const visiblePackages = packages.filter((item) => {
-    const matchesSearch = item.name
-      .toLocaleLowerCase("vi")
-      .includes(search.trim().toLocaleLowerCase("vi"));
-    const matchesStatus =
-      filter === "all" ||
-      (filter === "active" ? item.isActive : !item.isActive);
-    return matchesSearch && matchesStatus;
-  });
+  useEffect(() => {
+    const refreshTimer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(refreshTimer);
+  }, [refresh]);
+
+  const visiblePackages = packages
+    .filter((item) => {
+      const matchesSearch = item.name
+        .toLocaleLowerCase("vi")
+        .includes(search.trim().toLocaleLowerCase("vi"));
+      const matchesStatus =
+        filter === "all" ||
+        (filter === "active" ? item.isActive : !item.isActive);
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => a.price - b.price);
   const activeCount = packages.filter((item) => item.isActive).length;
+  const subscriberCount = (item: MembershipPackage): number =>
+    item.subscriberCount ?? 0;
   const deletingHasSubscribers = Boolean(
-    deleting && subscribers.get(deleting.id)?.size,
+    deleting && subscriberCount(deleting),
   );
 
-  function savePackage(values: PackageFormValues) {
+  async function savePackage(values: PackageFormValues) {
     if (!currentUser) return;
     try {
-      membershipService.savePackage(
-        currentUser,
-        values,
-        editing && editing !== "new" ? editing.id : undefined,
-      );
+      const packageId = editing && editing !== "new" ? editing.id : undefined;
+      await membershipApi.savePackage(values, packageId);
       setNotice(
         editing === "new"
           ? "Đã tạo gói tập mới. Thành viên có thể đăng ký ngay."
@@ -111,20 +95,16 @@ export function MembershipPackagesPage() {
       );
       setEditing(null);
       setFormError("");
-      refresh();
+      await refresh();
     } catch (caught) {
       setFormError(errorMessage(caught));
     }
   }
 
-  function changeVisibility(item: MembershipPackage) {
+  async function changeVisibility(item: MembershipPackage) {
     if (!currentUser) return;
     try {
-      membershipService.setPackageVisibility(
-        currentUser,
-        item.id,
-        !item.isActive,
-      );
+      await membershipApi.setPackageStatus(item.id, !item.isActive);
       setNotice(
         item.isActive
           ? `Đã ẩn “${item.name}”. Gói tập đã đăng ký vẫn còn hiệu lực.`
@@ -132,21 +112,21 @@ export function MembershipPackagesPage() {
       );
       setDeleting(null);
       setFormError("");
-      refresh();
+      await refresh();
     } catch (caught) {
       if (deleting) setFormError(errorMessage(caught));
       else setError(errorMessage(caught));
     }
   }
 
-  function deletePackage() {
+  async function deletePackage() {
     if (!currentUser || !deleting) return;
     try {
-      membershipService.deletePackage(currentUser, deleting.id);
+      await membershipApi.deletePackage(deleting.id);
       setNotice(`Đã xóa “${deleting.name}”.`);
       setDeleting(null);
       setFormError("");
-      refresh();
+      await refresh();
     } catch (caught) {
       setFormError(errorMessage(caught));
     }
@@ -159,6 +139,10 @@ export function MembershipPackagesPage() {
         <p>Chỉ quản lý trung tâm có thể quản lý danh mục gói tập.</p>
       </div>
     );
+  }
+
+  if (loading) {
+    return <div className="empty-state" role="status">Đang tải danh mục gói tập…</div>;
   }
 
   return (
@@ -225,9 +209,9 @@ export function MembershipPackagesPage() {
           {notice}
         </div>
       )}
-      {(error || catalog.error) && (
+      {error && (
         <div className="feedback error" role="alert">
-          {error || catalog.error}
+          {error}
           <button type="button" className="button secondary" onClick={refresh}>
             Thử lại
           </button>
@@ -288,9 +272,9 @@ export function MembershipPackagesPage() {
                         <div>
                           <strong>{item.name}</strong>
                           <details className="package-benefits">
-                            <summary>{item.benefits.length} quyền lợi</summary>
+                            <summary>{item.benefits?.length ?? 0} quyền lợi</summary>
                             <ul>
-                              {item.benefits.map((benefit, index) => (
+                              {(item.benefits ?? []).map((benefit, index) => (
                                 <li key={`${index}-${benefit}`}>{benefit}</li>
                               ))}
                             </ul>
@@ -316,7 +300,7 @@ export function MembershipPackagesPage() {
                     <td>
                       <span className="inline-icon">
                         <Users size={16} aria-hidden="true" />
-                        {subscribers.get(item.id)?.size ?? 0}
+                        {subscriberCount(item)}
                       </span>
                       <small className="cell-caption">Đã đăng ký</small>
                     </td>
@@ -334,9 +318,17 @@ export function MembershipPackagesPage() {
                           className="icon-button"
                           aria-label={`Chỉnh sửa ${item.name}`}
                           title="Chỉnh sửa gói tập"
-                          onClick={() => {
+                          onClick={async () => {
                             setEditing(item);
                             setFormError("");
+                            if (!item.benefits || item.benefits.length === 0) {
+                              try {
+                                const full = await membershipApi.getPackageById(item.id);
+                                if (full) setEditing(full);
+                              } catch {
+                                // fallback to item
+                              }
+                            }
                           }}
                         >
                           <Pencil size={17} aria-hidden="true" />

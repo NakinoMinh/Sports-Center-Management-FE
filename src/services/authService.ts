@@ -1,111 +1,175 @@
-import bcrypt from "bcryptjs";
 import type {
   AuthResponse,
+  EmailVerificationPurpose,
+  EmailVerificationResponse,
   JWTPayload,
   LoginCredentials,
   RegisterData,
   User,
 } from "../types/auth";
-import { mockDb } from "./mockDb";
-import { accountEnabled } from "./accessControl";
-import { auditService } from "./auditService";
-import {
-  apiConfigured,
-  apiRequest,
-  clearApiSession,
-  getApiSession,
-  mapApiRole,
-  saveApiSession,
-} from "./apiClient";
+import { ApiError, apiRequest } from "./apiClient";
 
 export const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
+const TOKEN_KEY = "scms_auth_token";
+const SESSION_KEY = "scms_api_session";
+const USER_KEY = "scms_api_user";
 
-interface ApiAuthSessionResponse {
+interface AuthSessionDto {
   accessToken: string;
+  tokenType: string;
   expiresAtUtc: string;
   accountId: string;
   email: string;
-  role: string;
-  fullName: string | null;
+  role: "CenterManager" | "Coach" | "Member" | "Receptionist";
+}
+
+interface EmailVerificationOtpDto {
+  message: string;
+  expiresInSeconds: number;
+  cooldownSeconds: number;
+  demoCode?: string | null;
+}
+
+interface AccountProfileDto {
+  accountId: string;
+  email: string;
+  role: AuthSessionDto["role"];
+  fullName: string;
+  phone?: string | null;
+  dateOfBirth?: string | null;
+  avatarUrl?: string | null;
+  specialization?: string | null;
+  workSchedule?: string | null;
+  memberCode?: string | null;
   createdAt: string;
 }
 
-const publicUser = (user: User): Omit<User, "passwordHash"> => {
-  const { passwordHash, ...safeUser } = user;
-  void passwordHash;
-  return safeUser;
+const roleFromApi = (role: AuthSessionDto["role"]): User["role"] => ({
+  CenterManager: "CENTER_MANAGER",
+  Coach: "COACH",
+  Member: "MEMBER",
+  Receptionist: "RECEPTIONIST",
+})[role] as User["role"];
+
+const allStores = (): Storage[] => [sessionStorage, localStorage];
+
+const clearSession = (): void => {
+  for (const storage of allStores()) {
+    storage.removeItem(TOKEN_KEY);
+    storage.removeItem(SESSION_KEY);
+    storage.removeItem(USER_KEY);
+  }
 };
 
-const startSession = (user: User, rememberMe: boolean): AuthResponse => {
-  const safeUser = publicUser(user);
-  const now = Date.now();
+const selectedStore = (rememberMe: boolean): Storage =>
+  rememberMe ? localStorage : sessionStorage;
+
+const readJson = <T,>(key: string): T | null => {
+  for (const storage of allStores()) {
+    const raw: string | null = storage.getItem(key);
+    if (!raw) continue;
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      clearSession();
+      return null;
+    }
+  }
+  return null;
+};
+
+const getStoredToken = (): string | null =>
+  sessionStorage.getItem(TOKEN_KEY) ?? localStorage.getItem(TOKEN_KEY);
+
+const saveUser = (user: Omit<User, "passwordHash">): void => {
+  const storage: Storage = localStorage.getItem(TOKEN_KEY) ? localStorage : sessionStorage;
+  for (const item of allStores()) item.removeItem(USER_KEY);
+  storage.setItem(USER_KEY, JSON.stringify(user));
+};
+
+const mergeProfile = (
+  user: Omit<User, "passwordHash">,
+  profile: AccountProfileDto,
+): Omit<User, "passwordHash"> => ({
+  ...user,
+  username: profile.memberCode || user.username,
+  email: profile.email,
+  fullName: profile.fullName,
+  phone: profile.phone || undefined,
+  dateOfBirth: profile.dateOfBirth || undefined,
+  avatar: profile.avatarUrl || undefined,
+  specialization: profile.specialization || undefined,
+  workSchedule: profile.workSchedule || undefined,
+  createdAt: profile.createdAt,
+});
+
+const saveSession = (session: AuthSessionDto, rememberMe: boolean): AuthResponse => {
+  const now: number = Date.now();
+  const role: User["role"] = roleFromApi(session.role);
+  const username: string = session.email.split("@")[0];
+  const user: Omit<User, "passwordHash"> = {
+    id: session.accountId,
+    username,
+    email: session.email,
+    role,
+    fullName: username,
+    createdAt: new Date(now).toISOString(),
+    failedAttempts: 0,
+    isLocked: false,
+    isActive: true,
+  };
   const payload: JWTPayload = {
     userId: user.id,
-    username: user.username,
+    username,
     email: user.email,
-    role: user.role,
+    role,
     fullName: user.fullName,
     iat: now,
-    exp: now + SESSION_DURATION_MS,
+    exp: Date.parse(session.expiresAtUtc),
   };
-  // Opaque demo session, NOT a signed JWT or a security boundary.
-  // Replace this adapter with the server-issued JWT when the API is connected.
-  const token = `scms-demo.${crypto.randomUUID()}`;
-  mockDb.saveSession({ token, payload }, rememberMe);
-  return {
-    success: true,
-    token,
-    user: safeUser,
-    message: "Đăng nhập thành công.",
-  };
+  clearSession();
+  const storage: Storage = selectedStore(rememberMe);
+  storage.setItem(TOKEN_KEY, session.accessToken);
+  storage.setItem(SESSION_KEY, JSON.stringify(payload));
+  storage.setItem(USER_KEY, JSON.stringify(user));
+  return { success: true, token: session.accessToken, user, message: "Đăng nhập thành công." };
 };
 
-const apiLogin = async (
-  credentials: LoginCredentials,
-): Promise<AuthResponse> => {
+const apiFailure = (error: unknown, fallback: string): AuthResponse => {
+  if (error instanceof ApiError) {
+    return {
+      success: false,
+      message: error.message,
+      isLocked: error.code === "ACCOUNT_LOCKED",
+      failedAttemptsRemaining: error.code === "ACCOUNT_LOCKED" ? 0 : undefined,
+    };
+  }
+  return { success: false, message: fallback };
+};
+
+const loginWithApi = async (credentials: LoginCredentials): Promise<AuthResponse> => {
   try {
-    const response = await apiRequest<ApiAuthSessionResponse>("/api/Auth/login", {
+    const session: AuthSessionDto = await apiRequest<AuthSessionDto>("/Auth/login", {
       method: "POST",
       body: JSON.stringify({
         email: credentials.email.trim(),
         password: credentials.password,
+        emailVerificationCode: credentials.emailVerificationCode,
       }),
-      token: null,
     });
-    const user: Omit<User, "passwordHash"> = {
-      id: response.accountId,
-      username: response.email,
-      email: response.email,
-      role: mapApiRole(response.role),
-      fullName: response.fullName?.trim() || response.email,
-      createdAt: response.createdAt,
-      failedAttempts: 0,
-      isLocked: false,
-      isActive: true,
-    };
-    saveApiSession(
-      {
-        token: response.accessToken,
-        expiresAt: response.expiresAtUtc,
-        user,
-      },
-      credentials.rememberMe ?? true,
-    );
-    mockDb.removeToken();
-    return {
-      success: true,
-      token: response.accessToken,
-      user,
-      message: "Đăng nhập thành công.",
-    };
+    const response: AuthResponse = saveSession(session, credentials.rememberMe ?? true);
+    if (response.user) {
+      try {
+        const profile: AccountProfileDto = await apiRequest<AccountProfileDto>("/Account/profile");
+        response.user = mergeProfile(response.user, profile);
+        saveUser(response.user);
+      } catch {
+        // Phiên BE vẫn hợp lệ nếu endpoint hồ sơ tạm thời không phản hồi.
+      }
+    }
+    return response;
   } catch (error) {
-    return {
-      success: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "Không thể đăng nhập vào hệ thống.",
-    };
+    return apiFailure(error, "Không thể kết nối đến máy chủ đăng nhập.");
   }
 };
 
@@ -113,350 +177,225 @@ export const authService = {
   isValidEmail: (email: string): boolean =>
     /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/.test(email.trim()),
 
-  // Compatibility adapter for the future JWT API. The mock checks a saved
-  // session and its demo account; it never decodes and trusts an arbitrary token.
-  verifyJWT: (
-    token: string,
-  ): { valid: boolean; payload?: JWTPayload; reason?: string } => {
-    const apiSession = getApiSession();
-    if (apiSession) {
-      const expiresAt = Date.parse(apiSession.expiresAt);
-      if (
-        apiSession.token !== token ||
-        !Number.isFinite(expiresAt) ||
-        expiresAt <= Date.now() ||
-        apiSession.user.isActive === false
-      ) {
-        clearApiSession();
-        return {
-          valid: false,
-          reason: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
-        };
-      }
-      return {
-        valid: true,
-        payload: {
-          userId: apiSession.user.id,
-          username: apiSession.user.username,
-          email: apiSession.user.email,
-          role: apiSession.user.role,
-          fullName: apiSession.user.fullName,
-          iat: Date.now(),
-          exp: expiresAt,
-        },
-      };
-    }
+  getStoredToken,
+  clearSession,
 
-    const session = mockDb.getSession();
-    if (!session || session.token !== token) {
-      return {
-        valid: false,
-        reason: "Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.",
-      };
+  requestEmailVerification: async (input: {
+    email: string;
+    purpose: EmailVerificationPurpose;
+    password?: string;
+  }): Promise<EmailVerificationResponse> => {
+    const email: string = input.email.trim().toLowerCase();
+    if (!authService.isValidEmail(email)) {
+      return { success: false, message: "Vui lòng nhập email hợp lệ." };
     }
-    const payload = session.payload;
-    if (
-      !Number.isFinite(payload.exp) ||
-      !Number.isFinite(payload.iat) ||
-      payload.exp <= Date.now() ||
-      payload.iat > Date.now() ||
-      payload.exp - payload.iat !== SESSION_DURATION_MS
-    ) {
-      return {
-        valid: false,
-        reason: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
-      };
+    if (input.purpose === "LOGIN" && !input.password) {
+      return { success: false, message: "Vui lòng nhập mật khẩu." };
     }
-    const user = mockDb.findByEmail(payload.email);
-    if (
-      !user ||
-      user.id !== payload.userId ||
-      user.role !== payload.role ||
-      !accountEnabled(user)
-    ) {
+    try {
+      const endpoint: string = input.purpose === "LOGIN"
+        ? "/Auth/request-login-email-verification"
+        : "/Account/request-register-email-verification";
+      const response: EmailVerificationOtpDto = await apiRequest<EmailVerificationOtpDto>(endpoint, {
+        method: "POST",
+        body: JSON.stringify(input.purpose === "LOGIN" ? { email, password: input.password } : { email }),
+      });
       return {
-        valid: false,
-        reason:
-          "Tài khoản hoặc quyền truy cập đã thay đổi. Vui lòng đăng nhập lại.",
+        success: true,
+        message: `Mã xác nhận đã được gửi đến ${email}.`,
+        demoCode: response.demoCode ?? undefined,
+        expiresInSeconds: response.expiresInSeconds,
       };
+    } catch (error) {
+      return apiFailure(error, "Không thể gửi mã xác nhận email.");
+    }
+  },
+
+  verifyJWT: (token: string): { valid: boolean; payload?: JWTPayload; reason?: string } => {
+    const payload: JWTPayload | null = readJson<JWTPayload>(SESSION_KEY);
+    if (!payload || getStoredToken() !== token || !readJson<Omit<User, "passwordHash">>(USER_KEY)) {
+      return { valid: false, reason: "Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại." };
+    }
+    if (!Number.isFinite(payload.exp) || !Number.isFinite(payload.iat) || payload.exp <= Date.now() || payload.iat > Date.now()) {
+      return { valid: false, reason: "Phiên đăng nhập đã hết hạn hoặc không hợp lệ." };
     }
     return { valid: true, payload };
   },
 
   register: async (data: RegisterData): Promise<AuthResponse> => {
-    if (!data.username || data.username.trim().length < 3) {
-      return {
-        success: false,
-        message: "Tên đăng nhập phải có ít nhất 3 ký tự.",
-      };
-    }
-    if (!data.email || !authService.isValidEmail(data.email)) {
+    if (!authService.isValidEmail(data.email)) {
       return { success: false, message: "Vui lòng nhập email hợp lệ." };
     }
-    if (
-      !data.password ||
-      data.password.length < 8 ||
-      new TextEncoder().encode(data.password).length > 72
-    ) {
-      return {
-        success: false,
-        message: "Mật khẩu cần ít nhất 8 ký tự và tối đa 72 byte.",
-      };
+    if (!data.password || data.password.length < 8 || new TextEncoder().encode(data.password).length > 72) {
+      return { success: false, message: "Mật khẩu cần ít nhất 8 ký tự và tối đa 72 byte." };
     }
     if (data.password !== data.confirmPassword) {
       return { success: false, message: "Mật khẩu xác nhận không khớp." };
     }
-    if (apiConfigured()) {
-      try {
-        await apiRequest("/api/Account/Register_member", {
-          method: "POST",
-          body: JSON.stringify({
-            email: data.email.trim(),
-            password: data.password,
-            confirmPassword: data.confirmPassword,
-          }),
-          token: null,
-        });
-        return apiLogin({
-          email: data.email,
+    try {
+      await apiRequest("/Account/Register_member", {
+        method: "POST",
+        body: JSON.stringify({
+          email: data.email.trim(),
           password: data.password,
-          rememberMe: false,
-        });
-      } catch (error) {
-        return {
-          success: false,
-          message:
-            error instanceof Error
-              ? error.message
-              : "Không thể tạo tài khoản.",
-        };
+          confirmPassword: data.confirmPassword,
+          emailVerificationCode: data.emailVerificationCode,
+        }),
+      });
+      const result: AuthResponse = await loginWithApi({
+        email: data.email,
+        password: data.password,
+        rememberMe: false,
+        emailVerificationCode: data.emailVerificationCode,
+      });
+      if (result.success && result.user && data.fullName?.trim()) {
+        try {
+          const profile: AccountProfileDto = await apiRequest<AccountProfileDto>("/Account/profile", {
+            method: "PATCH",
+            body: JSON.stringify({ fullName: data.fullName.trim() }),
+          });
+          result.user = mergeProfile(result.user, profile);
+          saveUser(result.user);
+        } catch {
+          // Cập nhật tên là bước bổ sung, không hủy phiên vừa tạo.
+        }
       }
+      return result.success ? { ...result, message: "Đăng ký và đăng nhập thành công." } : result;
+    } catch (error) {
+      return apiFailure(error, "Không thể kết nối đến máy chủ đăng ký.");
     }
-    const passwordHash = await bcrypt.hash(data.password, 10);
-    // Re-read after hashing so overlapping submissions cannot use stale checks.
-    if (mockDb.findByEmail(data.email)) {
-      return {
-        success: false,
-        message:
-          "Email này đã được sử dụng. Vui lòng đăng nhập hoặc dùng email khác.",
-      };
-    }
-    if (mockDb.findByUsername(data.username)) {
-      return { success: false, message: "Tên đăng nhập này đã tồn tại." };
-    }
-    const user: User = {
-      id: `usr_${crypto.randomUUID()}`,
-      username: data.username.trim(),
-      email: data.email.trim().toLowerCase(),
-      passwordHash,
-      role: "MEMBER",
-      fullName: data.fullName?.trim() || data.username.trim(),
-      createdAt: new Date().toISOString(),
-      failedAttempts: 0,
-      isLocked: false,
-    };
-    mockDb.addUser(user);
-    return {
-      ...startSession(user, false),
-      message: "Đăng ký thành công. Chào mừng bạn đến với Titan Arena!",
-    };
   },
 
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    if (!credentials.email || !authService.isValidEmail(credentials.email)) {
+    if (!authService.isValidEmail(credentials.email)) {
       return { success: false, message: "Vui lòng nhập email hợp lệ." };
     }
-    if (!credentials.password)
+    if (!credentials.password) {
       return { success: false, message: "Vui lòng nhập mật khẩu." };
-    if (apiConfigured()) return apiLogin(credentials);
-    const user = mockDb.findByEmail(credentials.email);
-    if (!user)
-      return {
-        success: false,
-        message: "Email hoặc mật khẩu không chính xác.",
-      };
-    const lockedResult: AuthResponse = {
-      success: false,
-      isLocked: true,
-      failedAttemptsRemaining: 0,
-      message:
-        "Tài khoản đã bị khóa sau 5 lần nhập sai liên tiếp. Vui lòng liên hệ quản lý trung tâm.",
-    };
-    if (user.isActive === false || user.deletedAt) return { success: false, message: "Tài khoản đã ngừng hoạt động. Vui lòng liên hệ quản lý trung tâm." };
-    if (user.isLocked) return lockedResult;
-    const matches = await bcrypt.compare(
-      credentials.password,
-      user.passwordHash,
-    );
-    const latestUser = mockDb.findByEmail(credentials.email);
-    if (!latestUser || !accountEnabled(latestUser)) return lockedResult;
-    if (!matches) {
-      const result = mockDb.recordFailedLogin(user.email);
-      if (result.isLocked) return lockedResult;
-      return {
-        success: false,
-        failedAttemptsRemaining: 5 - result.attempts,
-        message: `Mật khẩu không chính xác. Bạn còn ${5 - result.attempts} lần thử trước khi tài khoản bị khóa.`,
-      };
     }
-    mockDb.resetFailedAttempts(user.email);
-    return startSession(
-      { ...latestUser, failedAttempts: 0 },
-      credentials.rememberMe ?? true,
-    );
+    return loginWithApi(credentials);
   },
 
   logout: async (): Promise<void> => {
-    const apiToken = getApiSession()?.token ?? null;
-    clearApiSession();
-    mockDb.removeToken();
-    if (!apiConfigured() || !apiToken) return;
     try {
-      await apiRequest<void>("/api/Auth/Logout", {
-        method: "POST",
-        token: apiToken,
-      });
+      await apiRequest<void>("/Auth/Logout", { method: "POST" });
     } catch {
-      // Local logout is authoritative even when the API is unreachable.
+      // Đăng xuất cục bộ vẫn phải hoàn tất nếu BE/token không còn phản hồi.
+    } finally {
+      clearSession();
     }
   },
-  updateProfile: (
+
+  updateProfile: async (
     actor: Omit<User, "passwordHash">,
     input: Pick<User, "fullName" | "phone" | "dateOfBirth" | "avatar"> & {
       specialization?: string;
       workSchedule?: string;
     },
   ) => {
-    const user = mockDb.getUsers().find((item) => item.id === actor.id);
-    if (!user || !accountEnabled(user)) throw new Error("Không tìm thấy tài khoản đang hoạt động.");
-    const fullName = input.fullName.trim();
-    const phone = (input.phone ?? "").trim();
-    const dateOfBirth = (input.dateOfBirth ?? "").trim();
-    const avatar = (input.avatar ?? "").trim();
-    const specialization = (input.specialization ?? "").trim();
-    const workSchedule = (input.workSchedule ?? "").trim();
-    if (fullName.length < 2 || fullName.length > 80) throw new Error("Họ tên cần từ 2 đến 80 ký tự.");
-    if (phone && !/^0\d{9}$/.test(phone)) throw new Error("Số điện thoại phải có 10 chữ số, bắt đầu bằng 0.");
-    const birth = dateOfBirth ? new Date(`${dateOfBirth}T00:00:00`) : null;
-    if (dateOfBirth && (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) || !birth || Number.isNaN(birth.getTime()) || birth.toISOString().slice(0, 10) !== dateOfBirth || birth > new Date() || birth.getFullYear() < 1900)) throw new Error("Ngày sinh không hợp lệ.");
-    if (avatar && (!/^https:\/\//.test(avatar) || avatar.length > 500)) throw new Error("Ảnh đại diện phải là đường dẫn HTTPS hợp lệ.");
-    if (specialization.length > 200) throw new Error("Chuyên môn không được vượt quá 200 ký tự.");
-    if (workSchedule.length > 300) throw new Error("Lịch làm việc không được vượt quá 300 ký tự.");
-
-    Object.assign(user, {
-      fullName,
-      phone: phone || undefined,
-      dateOfBirth: dateOfBirth || undefined,
-      avatar: avatar || undefined,
-      specialization: specialization || undefined,
-      workSchedule: workSchedule || undefined,
+    const fullName: string = input.fullName.trim();
+    const phone: string = (input.phone ?? "").trim();
+    const dateOfBirth: string = (input.dateOfBirth ?? "").trim();
+    const avatar: string = (input.avatar ?? "").trim();
+    const specialization: string = (input.specialization ?? "").trim();
+    const workSchedule: string = (input.workSchedule ?? "").trim();
+    if (fullName.length < 2 || fullName.length > 80) {
+      throw new Error("Họ tên cần từ 2 đến 80 ký tự.");
+    }
+    if (phone && !/^0\d{9}$/.test(phone)) {
+      throw new Error("Số điện thoại phải có 10 chữ số, bắt đầu bằng 0.");
+    }
+    // Uploaded avatars come back as a server-relative path ("/uploads/..."),
+    // presets and pasted links are absolute HTTPS URLs. Both are valid.
+    const isUploadedPath: boolean = avatar.startsWith("/uploads/");
+    if (avatar && !isUploadedPath && !/^https:\/\//.test(avatar)) {
+      throw new Error("Ảnh đại diện phải là đường dẫn HTTPS hợp lệ.");
+    }
+    if (avatar.length > 500) {
+      throw new Error("Đường dẫn ảnh đại diện quá dài (tối đa 500 ký tự).");
+    }
+    const profile: AccountProfileDto = await apiRequest<AccountProfileDto>("/Account/profile", {
+      method: "PATCH",
+      body: JSON.stringify({
+        fullName,
+        phone: phone || null,
+        dateOfBirth: dateOfBirth || null,
+        avatarUrl: avatar || null,
+        specialization: specialization || null,
+        workSchedule: workSchedule || null,
+      }),
     });
-    mockDb.updateUser(user);
-    const safeUser = publicUser(user);
-    auditService.record(safeUser, { action: "UPDATE_PROFILE", entity: "USER", entityId: user.id, description: `Cập nhật hồ sơ cá nhân của ${user.fullName}.` });
-    return safeUser;
+    const updated: Omit<User, "passwordHash"> = mergeProfile(actor, profile);
+    saveUser(updated);
+    return updated;
   },
 
-  requestPasswordChangeOtp: (actor: Omit<User, "passwordHash">) => {
-    const user = mockDb.getUsers().find((item) => item.id === actor.id);
-    if (!user || !accountEnabled(user)) throw new Error("Không tìm thấy tài khoản hợp lệ.");
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpData = {
-      userId: user.id,
-      email: user.email,
-      code,
-      expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
-    };
-    sessionStorage.setItem("scms_pwd_change_otp", JSON.stringify(otpData));
+  requestPasswordChangeOtp: async (actor: Omit<User, "passwordHash">) => {
+    const response: { message: string; expiresInSeconds: number; cooldownSeconds?: number } =
+      await apiRequest<{ message: string; expiresInSeconds: number; cooldownSeconds?: number }>(
+        "/Auth/request-change-password-otp",
+        { method: "POST" },
+      );
     return {
-      email: user.email,
-      code,
-      expiresInSeconds: 300,
+      email: actor.email,
+      code: undefined,
+      // How long the code stays usable (300s).
+      expiresInSeconds: response.expiresInSeconds,
+      // How long until another code may be requested (60s). Gating the resend
+      // button on expiresInSeconds locked it for the full 5 minutes.
+      cooldownSeconds: response.cooldownSeconds ?? 60,
     };
   },
 
   changePasswordWithOtp: async (
-    actor: Omit<User, "passwordHash">,
-    input: {
-      currentPassword: string;
-      newPassword: string;
-      confirmPassword: string;
-      otpCode: string;
-    },
+    _actor: Omit<User, "passwordHash">,
+    input: { currentPassword: string; newPassword: string; confirmPassword: string; otpCode: string },
   ) => {
-    const user = mockDb.getUsers().find((item) => item.id === actor.id);
-    if (!user || !accountEnabled(user)) throw new Error("Tài khoản không tìm thấy hoặc đã bị khóa.");
-
-    if (!input.currentPassword) throw new Error("Vui lòng nhập mật khẩu hiện tại.");
-    const isCurrentValid = await bcrypt.compare(input.currentPassword, user.passwordHash);
-    if (!isCurrentValid) throw new Error("Mật khẩu hiện tại không chính xác.");
-
-    if (!input.newPassword || input.newPassword.length < 8) {
-      throw new Error("Mật khẩu mới phải có ít nhất 8 ký tự.");
-    }
-    if (new TextEncoder().encode(input.newPassword).length > 72) {
-      throw new Error("Mật khẩu tối đa 72 byte.");
-    }
-    if (input.newPassword !== input.confirmPassword) {
-      throw new Error("Mật khẩu xác nhận không khớp.");
-    }
-    if (input.newPassword === input.currentPassword) {
-      throw new Error("Mật khẩu mới không được trùng với mật khẩu hiện tại.");
-    }
-
-    // Verify OTP
-    const rawOtp = sessionStorage.getItem("scms_pwd_change_otp");
-    if (!rawOtp) {
-      throw new Error("Mã OTP chưa được yêu cầu hoặc đã hết hiệu lực. Vui lòng bấm 'Gửi mã OTP'.");
-    }
-    let otpData: { userId: string; email: string; code: string; expiresAt: number };
-    try {
-      otpData = JSON.parse(rawOtp);
-    } catch {
-      throw new Error("Dữ liệu OTP không hợp lệ. Vui lòng yêu cầu mã mới.");
-    }
-
-    if (otpData.userId !== user.id) {
-      throw new Error("Mã OTP không khớp với tài khoản hiện tại.");
-    }
-    if (Date.now() > otpData.expiresAt) {
-      sessionStorage.removeItem("scms_pwd_change_otp");
-      throw new Error("Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.");
-    }
-    if (otpData.code !== input.otpCode.trim()) {
-      throw new Error("Mã OTP không chính xác. Vui lòng kiểm tra lại.");
-    }
-
-    // Update password
-    const newHash = await bcrypt.hash(input.newPassword, 10);
-    user.passwordHash = newHash;
-    mockDb.updateUser(user);
-    sessionStorage.removeItem("scms_pwd_change_otp");
-
-    const safeUser = publicUser(user);
-    auditService.record(safeUser, {
-      action: "CHANGE_PASSWORD",
-      entity: "USER",
-      entityId: user.id,
-      description: `Đổi mật khẩu thành công qua xác thực OTP cho tài khoản ${user.email}.`,
+    await apiRequest<string>("/Auth/change-password", {
+      method: "PUT",
+      body: JSON.stringify({
+        currentPassword: input.currentPassword,
+        newPassword: input.newPassword,
+        confirmPassword: input.confirmPassword,
+        otp: input.otpCode.trim(),
+      }),
     });
+    clearSession();
+    return { success: true, message: "Đổi mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới." };
+  },
 
-    return {
-      success: true,
-      message: "Đổi mật khẩu thành công. Hãy sử dụng mật khẩu mới trong các lần đăng nhập tiếp theo.",
-    };
+  /**
+   * Uploads an avatar file and returns the refreshed profile. The server stores
+   * the file, validates its real format from the file signature, and persists the
+   * resulting path on the account.
+   */
+  uploadAvatar: async (
+    actor: Omit<User, "passwordHash">,
+    file: File,
+  ): Promise<Omit<User, "passwordHash">> => {
+    const body = new FormData();
+    body.append("file", file);
+    const profile: AccountProfileDto = await apiRequest<AccountProfileDto>(
+      "/Account/profile/avatar",
+      { method: "POST", body },
+    );
+    const updated: Omit<User, "passwordHash"> = mergeProfile(actor, profile);
+    saveUser(updated);
+    return updated;
   },
-  getCurrentUser: (): Omit<User, "passwordHash"> | null => {
-    const apiSession = getApiSession();
-    if (apiSession) {
-      const result = authService.verifyJWT(apiSession.token);
-      return result.valid ? apiSession.user : null;
-    }
-    const token = mockDb.getStoredToken();
-    if (!token) return null;
-    const result = authService.verifyJWT(token);
-    if (!result.valid || !result.payload) return null;
-    const user = mockDb.findByEmail(result.payload.email);
-    return user ? publicUser(user) : null;
+
+  removeAvatar: async (
+    actor: Omit<User, "passwordHash">,
+  ): Promise<Omit<User, "passwordHash">> => {
+    const profile: AccountProfileDto = await apiRequest<AccountProfileDto>(
+      "/Account/profile/avatar",
+      { method: "DELETE" },
+    );
+    const updated: Omit<User, "passwordHash"> = mergeProfile(actor, profile);
+    saveUser(updated);
+    return updated;
   },
+
+  getCurrentUser: (): Omit<User, "passwordHash"> | null =>
+    getStoredToken() ? readJson<Omit<User, "passwordHash">>(USER_KEY) : null,
 };

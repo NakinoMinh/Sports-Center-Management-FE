@@ -39,29 +39,36 @@ export interface AuthResponse {
   isLocked?: boolean;
 }
 
+export type EmailVerificationPurpose = "LOGIN" | "REGISTER";
+
+export interface EmailVerificationResponse {
+  success: boolean;
+  message: string;
+  demoCode?: string;
+  expiresInSeconds?: number;
+  failedAttemptsRemaining?: number;
+  isLocked?: boolean;
+}
+
 export interface LoginCredentials {
   email: string;
   password: string;
   rememberMe?: boolean;
+  emailVerificationCode?: string;
 }
 
 export interface RegisterData {
-  username: string;
   email: string;
   password: string;
   confirmPassword: string;
+  username?: string;
   fullName?: string;
+  emailVerificationCode?: string;
 }
 
 export interface DemoSession {
   token: string;
   payload: JWTPayload;
-}
-
-export interface ApiSession {
-  token: string;
-  expiresAt: string;
-  user: Omit<User, "passwordHash">;
 }
 
 export interface AuthContextType {

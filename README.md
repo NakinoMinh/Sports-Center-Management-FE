@@ -110,7 +110,7 @@ Bạn cũng có thể tạo tài khoản Member mới tại màn hình đăng k�
 - **Receptionist / Center Manager → Xác nhận tiền mặt** (`/payments/cash`): tìm hóa đơn, kiểm tra thông tin, nhập đúng số tiền và tích xác nhận đã thu. Hóa đơn chuyển từ `PENDING_PAYMENT` sang `PAID`; gói hoạt động ngay hoặc chờ đúng ngày bắt đầu.
 - **Member → Gói tập của tôi:** cùng gói/cùng giá tự chuyển sang gia hạn. Gói giá cao hơn được khấu trừ giá trị ngày chưa sử dụng; kỳ mới bắt đầu đủ 1/3/12 tháng từ ngày thanh toán. Gói giá thấp hơn bắt đầu sau toàn bộ kỳ đã trả tiền. Nếu đã có kỳ tương lai trả trước, gói giá cao hơn cũng nối tiếp và thu đủ giá.
 - Gói chỉ có tên, giá, quyền lợi và kỳ hạn tháng/quý/năm; không phân hạng. Khấu trừ = giá gói cũ lúc mua × số ngày còn lại / tổng ngày kỳ cũ, làm tròn đến đồng. Ví dụ gói 450.000đ còn 15/30 ngày: chuyển sang gói năm 4.200.000đ cần trả 3.975.000đ. Báo giá nâng gói chỉ có hiệu lực trong ngày; yêu cầu cũ phải hủy và lập lại trước khi thu tiền. Dữ liệu lịch sử được giữ nguyên.
-- Chuyển khoản/thẻ chưa có đối soát. Mọi thanh toán và phân quyền hiện chỉ mô phỏng FE, không thay thế kiểm tra tại BE. Hướng dẫn chi tiết và trường hợp biên: [Sprint 1 — phần FE của Minh](docs/SPRINT1_MINH.md).
+- Chuyển khoản/thẻ chưa có đối soát. Mọi thanh toán và phân quyền hiện chỉ mô phỏng FE, không thay thế kiểm tra tại BE. Hướng dẫn chi tiết và trường hợp biên: [Sprint 1](docs/Sprint1.md).
 
 ### 6. Kiểm tra code trước khi commit
 
