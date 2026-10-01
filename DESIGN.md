@@ -98,9 +98,9 @@ Chưa có API package/subscription/payment/invoice/class/report/training/AI tron
 
 ## 0.4. Contract tích hợp cần thống nhất
 
-[BE_API_HANDOFF.md](docs/BE_API_HANDOFF.md) ghi contract chi tiết cho phạm vi Sprint 1; tài liệu đó đề xuất prefix `/api`, response `{ data }` và pagination `total`. Bản DESIGN gốc đề xuất `/api/v1`, `{ success, message, data }` và `totalItems`. Backend thật đang trả chuỗi/DTO riêng. Chưa có contract thống nhất đã triển khai.
+Tài liệu handoff BE riêng đã được gỡ khỏi repo. Bản DESIGN gốc đề xuất `/api/v1`, `{ success, message, data }` và `totalItems`. Backend thật đang trả chuỗi/DTO riêng. Chưa có contract thống nhất đã triển khai.
 
-Khi nối API, dùng đề xuất handoff làm cơ sở cho các màn hình hiện có và công bố OpenAPI trước; versioning/envelope cuối cùng phải được thống nhất giữa FE/BE, cập nhật cả hai tài liệu trong cùng thay đổi. Không triển khai song song hai biến thể vì đọc các ví dụ khác nhau. Việc chuẩn hóa không được âm thầm phá endpoint đang sử dụng.
+Khi nối API, cần công bố OpenAPI trước; versioning/envelope cuối cùng phải được thống nhất giữa FE/BE và cập nhật tài liệu trong cùng thay đổi. Không triển khai song song hai biến thể vì đọc các ví dụ khác nhau. Việc chuẩn hóa không được âm thầm phá endpoint đang sử dụng.
 
 | Điểm không khớp | Cần xử lý |
 | --- | --- |

@@ -114,14 +114,14 @@ export function ProfilePage() {
         .toUpperCase()
     : "SC";
 
-  const handleProfileSubmit = (event: React.FormEvent) => {
+  const handleProfileSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setProfileError("");
     setProfileMessage("");
     setIsSavingProfile(true);
 
     try {
-      authService.updateProfile(currentUser, form);
+      await authService.updateProfile(currentUser, form);
       refreshCurrentUser();
       setProfileMessage("Cập nhật thông tin hồ sơ thành công!");
     } catch (err) {
@@ -131,7 +131,7 @@ export function ProfilePage() {
     }
   };
 
-  const handleRequestOtp = () => {
+  const handleRequestOtp = async () => {
     setPwdError("");
     setPwdMessage("");
     if (!pwdCurrent) {
@@ -152,9 +152,9 @@ export function ProfilePage() {
     }
 
     try {
-      const res = authService.requestPasswordChangeOtp(currentUser);
+      const res = await authService.requestPasswordChangeOtp(currentUser);
       setOtpSent(true);
-      setSimulatedOtp(res.code);
+      setSimulatedOtp(res.code ?? null);
       setOtpCountdown(res.expiresInSeconds);
       setPwdMessage("Mã xác thực OTP đã được gửi đến email của bạn.");
     } catch (err) {
@@ -184,6 +184,7 @@ export function ProfilePage() {
         confirmPassword: pwdConfirm,
         otpCode: otpCode.trim(),
       });
+      refreshCurrentUser();
       setPwdMessage(result.message);
       // Reset password form
       setPwdCurrent("");

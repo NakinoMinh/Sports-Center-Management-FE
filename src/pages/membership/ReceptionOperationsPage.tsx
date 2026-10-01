@@ -15,6 +15,8 @@ import {
   type ReceptionState,
   type SupportStatus,
 } from "../../services/receptionService";
+import { isApiConfigured } from "../../services/apiClient";
+import { NoDatabaseNotice } from "../../components/common/NoDatabaseNotice";
 import type { MembershipActor } from "../../types/membership";
 import { formatDate } from "../../utils/format";
 
@@ -204,10 +206,17 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
           </button>
         </div>
       )}
-      <section className="panel reception-member-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Thành viên cần hỗ trợ</h2>
+      {isApiConfigured() ? (
+        <NoDatabaseNotice
+          featureName={titles[mode]}
+          description={`Nghiệp vụ "${titles[mode]}" chưa được xây dựng bảng lưu trữ và API xử lý trong cơ sở dữ liệu Backend.`}
+        />
+      ) : (
+        <>
+          <section className="panel reception-member-panel">
+            <div className="panel-heading">
+              <div>
+                <h2>Thành viên cần hỗ trợ</h2>
             <p>
               Tìm theo tên không dấu, email, số điện thoại hoặc mã thành viên.
             </p>
@@ -819,6 +828,8 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
             </div>
           </form>
         </Dialog>
+      )}
+      </>
       )}
     </>
   );

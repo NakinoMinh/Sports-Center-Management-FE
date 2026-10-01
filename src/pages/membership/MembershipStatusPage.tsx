@@ -4,6 +4,9 @@ import { AlertTriangle, ArrowRight, RefreshCw, Search, ShieldCheck, Users } from
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
 import { getMembershipStatusSummary, membershipService } from "../../services/membershipService";
+import { isApiConfigured } from "../../services/apiClient";
+import { memberApi } from "../../services/memberApi";
+import { membershipApi, subscriptionFromInvoice } from "../../services/membershipApi";
 import type { MemberSubscription, MembershipActor } from "../../types/membership";
 import { formatDate } from "../../utils/format";
 
@@ -22,9 +25,19 @@ export function MembershipStatusPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("ALL");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
+      if (isApiConfigured()) {
+        const [members, invoicesRes] = await Promise.all([
+          memberApi.listAllMembers(),
+          membershipApi.listInvoices(),
+        ]);
+        const subscriptions = invoicesRes.map(subscriptionFromInvoice);
+        setData({ members, subscriptions });
+        setError("");
+        return;
+      }
       setData({ members: membershipService.listMembers(currentUser), subscriptions: membershipService.getMemberSubscriptions(currentUser) });
       setError("");
     } catch (err) {
@@ -58,36 +71,36 @@ export function MembershipStatusPage() {
     </div>
     {error && <div className="error-notice" role="alert">{error}<button className="button secondary" onClick={refresh}>Thử lại</button></div>}
     {!error && !loading && <div className="membership-status-stats">
-      {([{ key: "ALL", label: "Tổng thành viên", count: rows.length },
-        { key: "ACTIVE", label: "Đang hoạt động", count: rows.filter((r) => r.status === "ACTIVE").length },
-        { key: "EXPIRING", label: "Sắp hết hạn · dưới 7 ngày", count: rows.filter((r) => r.expiringSoon).length },
-        { key: "EXPIRED", label: "Đã hết hạn", count: rows.filter((r) => r.status === "EXPIRED").length },
-        { key: "SUSPENDED", label: "Tạm ngưng", count: rows.filter((r) => r.status === "SUSPENDED").length },
-      ]).map((item) => <button key={item.key} className={`panel membership-status-stat ${filter === item.key ? "selected" : ""}`} aria-pressed={filter === item.key} onClick={() => setFilter(item.key)}><span>{item.label}</span><strong>{item.count}</strong></button>)}
-    </div>}
-    <section className="panel">
-      <div className="panel-heading"><div><span className="eyebrow">THÔNG TIN GÓI THÀNH VIÊN</span><h2>Danh sách tra cứu</h2></div><button className="button secondary" onClick={refresh}><RefreshCw size={16} /> Làm mới</button></div>
-      <div className="toolbar">
-        <label className="search-field"><Search size={18} /><input aria-label="Tìm thành viên" placeholder="Tìm tên, email, số điện thoại hoặc mã thành viên..." value={query} onChange={(e) => setQuery(e.target.value)} /></label>
-        <select aria-label="Lọc trạng thái gói" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="ALL">Tất cả trạng thái</option><option value="EXPIRING">Sắp hết hạn (&lt; 7 ngày)</option>{Object.entries(labels).filter(([key]) => key !== "SCHEDULED_DOWNGRADE").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
-      </div>
-      {loading ? <div className="empty-state" role="status">Đang tải thông tin thành viên...</div> : !error && <>
-        <p className="membership-status-help">{visible.length} thành viên · Số ngày còn lại tính cả hôm nay và ngày cuối sử dụng. Tạm ngưng không tự động kéo dài kỳ hạn.</p>
-        {visible.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Thành viên</th><th>Gói tập</th><th>Trạng thái</th><th>Ngày hết hạn</th><th>Còn lại</th><th>Thao tác</th></tr></thead><tbody>
-          {visible.map((row) => <tr key={row.member.id}>
-            <td><strong>{row.member.fullName || row.member.username}</strong><small>{row.member.email}</small><small>{row.member.phone || "Chưa có số điện thoại"}</small></td>
-            <td>{row.subscription?.packageName ?? "—"}{row.upcoming && row.upcoming !== row.subscription && <small>Đã có kỳ tiếp theo từ {formatDate(row.upcoming.startDate)}</small>}</td>
-            <td><span className={`status-chip ${row.status.toLowerCase()}`}>{labels[row.status]}</span></td>
-            <td>{row.subscription ? formatDate(row.subscription.endDate) : "—"}{row.status === "PENDING_PAYMENT" && <small>Dự kiến, chưa kích hoạt</small>}</td>
-            <td><strong>{row.status === "NONE" || row.status === "PENDING_PAYMENT" || row.status === "UPCOMING" || row.status === "SCHEDULED_DOWNGRADE" ? "—" : `${row.remainingDays} ngày`}</strong>{row.expiringSoon && <small className="membership-expiry-warning"><AlertTriangle size={14} /> Sắp hết hạn</small>}</td>
-            <td><button className="text-button" onClick={() => setSelectedId(row.member.id)}>Xem chi tiết <ArrowRight size={15} /></button></td>
-          </tr>)}
-        </tbody></table></div> : <div className="empty-state"><Users size={30} /><h3>Không tìm thấy thành viên</h3><p>Thử tìm kiếm khác hoặc chọn tất cả trạng thái.</p><button className="button secondary" onClick={() => { setQuery(""); setFilter("ALL"); }}>Xóa bộ lọc</button></div>}
-      </>}
-    </section>
+          {([{ key: "ALL", label: "Tổng thành viên", count: rows.length },
+            { key: "ACTIVE", label: "Đang hoạt động", count: rows.filter((r) => r.status === "ACTIVE").length },
+            { key: "EXPIRING", label: "Sắp hết hạn · dưới 7 ngày", count: rows.filter((r) => r.expiringSoon).length },
+            { key: "EXPIRED", label: "Đã hết hạn", count: rows.filter((r) => r.status === "EXPIRED").length },
+            { key: "SUSPENDED", label: "Tạm ngưng", count: rows.filter((r) => r.status === "SUSPENDED").length },
+          ]).map((item) => <button key={item.key} className={`panel membership-status-stat ${filter === item.key ? "selected" : ""}`} aria-pressed={filter === item.key} onClick={() => setFilter(item.key)}><span>{item.label}</span><strong>{item.count}</strong></button>)}
+        </div>}
+        <section className="panel">
+          <div className="panel-heading"><div><span className="eyebrow">THÔNG TIN GÓI THÀNH VIÊN</span><h2>Danh sách tra cứu</h2></div><button className="button secondary" onClick={refresh}><RefreshCw size={16} /> Làm mới</button></div>
+          <div className="toolbar">
+            <label className="search-field"><Search size={18} /><input aria-label="Tìm thành viên" placeholder="Tìm tên, email, số điện thoại hoặc mã thành viên..." value={query} onChange={(e) => setQuery(e.target.value)} /></label>
+            <select aria-label="Lọc trạng thái gói" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="ALL">Tất cả trạng thái</option><option value="EXPIRING">Sắp hết hạn (&lt; 7 ngày)</option>{Object.entries(labels).filter(([key]) => key !== "SCHEDULED_DOWNGRADE").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+          </div>
+          {loading ? <div className="empty-state" role="status">Đang tải thông tin thành viên...</div> : !error && <>
+            <p className="membership-status-help">{visible.length} thành viên · Số ngày còn lại tính cả hôm nay và ngày cuối sử dụng. Tạm ngưng không tự động kéo dài kỳ hạn.</p>
+            {visible.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Thành viên</th><th>Gói tập</th><th>Trạng thái</th><th>Ngày hết hạn</th><th>Còn lại</th><th>Thao tác</th></tr></thead><tbody>
+              {visible.map((row) => <tr key={row.member.id}>
+                <td><strong>{row.member.fullName || row.member.username}</strong><small>{row.member.email}</small><small>{row.member.phone || "Chưa có số điện thoại"}</small></td>
+                <td>{row.subscription?.packageName ?? "—"}{row.upcoming && row.upcoming !== row.subscription && <small>Đã có kỳ tiếp theo từ {formatDate(row.upcoming.startDate)}</small>}</td>
+                <td><span className={`status-chip ${row.status.toLowerCase()}`}>{labels[row.status]}</span></td>
+                <td>{row.subscription ? formatDate(row.subscription.endDate) : "—"}{row.status === "PENDING_PAYMENT" && <small>Dự kiến, chưa kích hoạt</small>}</td>
+                <td><strong>{row.status === "NONE" || row.status === "PENDING_PAYMENT" || row.status === "UPCOMING" || row.status === "SCHEDULED_DOWNGRADE" ? "—" : `${row.remainingDays} ngày`}</strong>{row.expiringSoon && <small className="membership-expiry-warning"><AlertTriangle size={14} /> Sắp hết hạn</small>}</td>
+                <td><button className="text-button" onClick={() => setSelectedId(row.member.id)}>Xem chi tiết <ArrowRight size={15} /></button></td>
+              </tr>)}
+            </tbody></table></div> : <div className="empty-state"><Users size={30} /><h3>Không tìm thấy thành viên</h3><p>Thử tìm kiếm khác hoặc chọn tất cả trạng thái.</p><button className="button secondary" onClick={() => { setQuery(""); setFilter("ALL"); }}>Xóa bộ lọc</button></div>}
+          </>}
+        </section>
     {selected && <Dialog title="Thông tin thành viên & gói tập" onClose={() => setSelectedId(null)} footer={<><button className="button secondary" onClick={() => setSelectedId(null)}>Đóng</button><Link className="button primary" to={`/receptionist/memberships?member=${encodeURIComponent(selected.member.id)}`}>Đăng ký / Gia hạn <ArrowRight size={16} /></Link></>}>
       <div className="order-summary"><h3>{selected.member.fullName || selected.member.username}</h3><dl>
-        <div><dt>Mã thành viên</dt><dd>{selected.member.id}</dd></div><div><dt>Email</dt><dd>{selected.member.email}</dd></div><div><dt>Số điện thoại</dt><dd>{selected.member.phone || "Chưa cập nhật"}</dd></div>
+        <div><dt>Mã thành viên</dt><dd>{selected.member.username || selected.member.id}</dd></div><div><dt>Email</dt><dd>{selected.member.email}</dd></div><div><dt>Số điện thoại</dt><dd>{selected.member.phone || "Chưa cập nhật"}</dd></div>
         <div><dt>Gói tập</dt><dd>{selected.subscription?.packageName ?? "Chưa có gói"}</dd></div><div><dt>Trạng thái</dt><dd><span className={`status-chip ${selected.status.toLowerCase()}`}>{labels[selected.status]}</span></dd></div>
         {selected.subscription && <><div><dt>Ngày bắt đầu</dt><dd>{formatDate(selected.subscription.startDate)}</dd></div><div><dt>Sử dụng đến hết</dt><dd>{formatDate(selected.subscription.endDate)}</dd></div></>}
         {["ACTIVE", "SUSPENDED", "EXPIRED"].includes(selected.status) && <div><dt>Số ngày còn lại</dt><dd>{selected.remainingDays} ngày</dd></div>}

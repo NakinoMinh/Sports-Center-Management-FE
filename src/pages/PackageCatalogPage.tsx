@@ -5,6 +5,8 @@ import {
   membershipService,
   type PublicMembershipPackage,
 } from "../services/membershipService";
+import { membershipApi } from "../services/membershipApi";
+import { isApiConfigured } from "../services/apiClient";
 import { useAuth } from "../hooks/useAuth";
 import { homeForRole } from "../utils/navigation";
 import { durationLabel, formatMoney } from "../utils/format";
@@ -17,9 +19,18 @@ export function PackageCatalogPage() {
   const [duration, setDuration] = useState("ALL");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     try {
-      setPackages(membershipService.listPublicPackages());
+      if (isApiConfigured()) {
+        const items = await membershipApi.listPublicPackages();
+        setPackages(items.sort((a, b) => a.price - b.price));
+      } else {
+        setPackages(
+          membershipService
+            .listPublicPackages()
+            .sort((a, b) => a.price - b.price),
+        );
+      }
       setError("");
     } catch (err) {
       setPackages([]);
@@ -106,6 +117,8 @@ export function PackageCatalogPage() {
         ) : (
           <div className="package-card-grid">
             {packages
+              .slice()
+              .sort((a, b) => a.price - b.price)
               .filter(
                 (pkg) =>
                   duration === "ALL" || String(pkg.durationMonths) === duration,
@@ -126,7 +139,7 @@ export function PackageCatalogPage() {
                     /tháng
                   </p>
                   <ul>
-                    {pkg.benefits.map((benefit, index) => (
+                    {(pkg.benefits ?? []).map((benefit, index) => (
                       <li key={index}>
                         <Check size={16} />
                         <span>{benefit}</span>
@@ -224,7 +237,7 @@ export function PackageCatalogPage() {
                     {compared.map((pkg) => (
                       <td key={pkg.id}>
                         <ul className="catalog-benefits">
-                          {pkg.benefits.map((benefit, index) => (
+                          {(pkg.benefits ?? []).map((benefit, index) => (
                             <li key={index}>{benefit}</li>
                           ))}
                         </ul>

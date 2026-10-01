@@ -18,6 +18,8 @@ import {
   type PersonnelInput,
   type PersonnelRole,
 } from "../../services/personnelService";
+import { isApiConfigured } from "../../services/apiClient";
+import { NoDatabaseNotice } from "../../components/common/NoDatabaseNotice";
 import type { User } from "../../types/auth";
 
 const blankInput: PersonnelInput = {
@@ -164,11 +166,13 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
               : "Quản lý hồ sơ nhân viên lễ tân trực quầy, ca làm việc và phân công nhiệm vụ."}
           </p>
         </div>
-        <div className="page-actions">
-          <button className="button primary" onClick={() => handleOpenEdit("new")}>
-            <Plus size={18} aria-hidden="true" /> Thêm {title.toLowerCase()}
-          </button>
-        </div>
+        {!isApiConfigured() && (
+          <div className="page-actions">
+            <button className="button primary" onClick={() => handleOpenEdit("new")}>
+              <Plus size={18} aria-hidden="true" /> Thêm {title.toLowerCase()}
+            </button>
+          </div>
+        )}
       </div>
 
       {notice && (
@@ -182,7 +186,13 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
         </div>
       )}
 
-      <section className="panel" aria-labelledby="personnel-list-title">
+      {isApiConfigured() ? (
+        <NoDatabaseNotice
+          featureName={`Quản lý ${title.toLowerCase()}`}
+          description={`Cơ sở dữ liệu Backend hiện tại chưa có API tra cứu và quản lý danh sách ${title} (${isCoach ? "Huấn luyện viên" : "Lễ tân"}).`}
+        />
+      ) : (
+        <section className="panel" aria-labelledby="personnel-list-title">
         <div className="panel-heading">
           <div>
             <h2 id="personnel-list-title">Danh sách {title.toLowerCase()}</h2>
@@ -370,6 +380,7 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
           </div>
         )}
       </section>
+      )}
 
       {/* Edit / Create Dialog */}
       {editing && (

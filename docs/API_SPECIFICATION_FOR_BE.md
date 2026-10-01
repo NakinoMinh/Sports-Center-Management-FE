@@ -1027,3 +1027,394 @@ Dựa trên việc kiểm tra mã nguồn Backend tại `D:\SWP\SportsCenterMana
 
 ---
 *Tài liệu này được xuất bản làm căn cứ kỹ thuật chính thức giữa Frontend và Backend.*
+
+---
+
+# 4. BỔ SUNG ĐỐI CHIẾU FRONTEND NGÀY 30/09/2026
+
+Phần này bổ sung cho API 1–32 ở trên, giữ nguyên nội dung và ví dụ của bản 2.0. Khi có điểm khác nhau, áp dụng chi tiết đối chiếu trong phần 4 khi tích hợp. Các đường dẫn là contract đề xuất cho BE; FE hiện dùng service mock/localStorage, chưa gửi HTTP request đến các đường dẫn này.
+
+## 4.1. Phạm vi màn hình và dữ liệu cần cung cấp
+
+| Màn hình FE | Nguồn FE | API/dữ liệu cần có |
+| :--- | :--- | :--- |
+| `/`, `/packages` | `HomePage`, `PackageCatalogPage` | API 16, danh mục công khai chỉ chứa gói đang mở |
+| `/login`, `/register`, `/profile` | `authService`, `AuthContext`, `ProfilePage` | API 1–7, khôi phục phiên và toàn bộ hồ sơ hiện tại |
+| `/manager/members` | `memberService`, `MembersPage` | API 8–11 và subscription từng thành viên |
+| `/manager/coaches`, `/manager/staff` | `personnelService` | API 12–15, mật khẩu khởi tạo trả một lần |
+| `/manager/packages` | `MembershipPackagesPage` | API 17–20 và danh sách subscription để đếm thành viên theo gói |
+| `/member/membership`, `/receptionist/memberships` | `membershipService`, `MembershipPage` | Catalog, thành viên, subscription, invoice, quote, order và hủy order |
+| `/payments/cash` | `CashPaymentsPage`, `InvoiceDocument` | Hóa đơn CASH ở cả ba trạng thái và dữ liệu đầy đủ để in |
+| `/receptionist/membership-status` | `getMembershipStatusSummary` | Thành viên, kỳ hiện tại/kỳ tiếp theo, số ngày và trạng thái |
+| `/manager/audit-log` | `auditService` | API 29, bộ lọc và toàn bộ kết quả tương ứng |
+| `/receptionist/attendance`, `/receptionist/classes`, `/receptionist/support` | `receptionService` | API 30–32 và danh sách booking bổ sung |
+
+`/manager/access` chỉ hiển thị ma trận quyền cố định; chưa có thao tác chỉnh quyền. `/coach` hiện là màn hình chào. FE có đọc `isLocked`, `isSuspended`, `suspensionReason` nhưng chưa có màn hình mở khóa tài khoản hoặc thao tác tạm ngưng gói; không coi các mutation này là yêu cầu đã có trong UI.
+
+## 4.2. Quy ước chuyển từ mock sang HTTP
+
+- Envelope `{ success, message, data }` ở mục 1 là contract mạng đề xuất. Adapter FE phải lấy `data`, chuyển lỗi HTTP thành thông báo và chuyển các service đồng bộ sang bất đồng bộ; chỉ triển khai BE chưa đủ để FE tự kết nối.
+- ID trong model FE là `string`. Nếu BE trả ID số, adapter phải chuyển nhất quán cả ID và khóa ngoại; không thay dữ liệu thật bằng ID seed `pkg_monthly`.
+- JWT chuẩn dùng giây; `JWTPayload` demo của FE dùng mili giây. Adapter cần chuyển `iat/exp` trước khi dùng timer hiện tại hoặc sửa timer sang đơn vị chuẩn.
+- `rememberMe` hiện quyết định localStorage/sessionStorage, không làm token sống lâu hơn 24 giờ.
+- Optional field trong TypeScript có thể vắng mặt. Nếu BE trả `null`, adapter chuẩn hóa sang `undefined` nơi cần thiết; các mảng luôn trả `[]` khi không có dữ liệu.
+- `memberService.list` trả `{ items, total, page, pages }`, page size 20. Khi dùng envelope phân trang, map `totalPages` sang `pages`.
+- Các màn hình khác đang tính tổng/lọc từ toàn bộ mảng. Nếu BE phân trang, FE phải tải đủ trang hoặc được sửa để dùng pagination và tổng số do BE trả; không lấy trang đầu rồi coi là toàn bộ dữ liệu.
+- Actor và các trường `createdBy`, `paidBy`, `canceledBy`, thời gian phải lấy từ phiên/server; không tin giá trị do client gửi. Ownership được kiểm tra trên server ở mọi endpoint theo ID.
+- FE hiện lấy ngày theo máy người dùng. Khi tích hợp cần thống nhất ngày nghiệp vụ của trung tâm theo `Asia/Ho_Chi_Minh`, đặc biệt quote, thanh toán và đặt lớp.
+
+## 4.3. Bổ sung validation và hồ sơ cho API 1–15
+
+- **API 1:** `fullName` là tùy chọn trên form; mock dùng username khi họ tên trống. `confirmPassword` có trong input FE và phải khớp password. Code đăng ký công khai hiện chỉ kiểm tra username tối thiểu 3 ký tự; giới hạn 3–30 và regex ở bản cũ là quy tắc mục tiêu chặt hơn, cần đồng bộ validation FE khi áp dụng.
+- **API 2–3:** Trả đủ `id`, `username`, `email`, `fullName`, `role`, `createdAt`, `isLocked`, `isActive`; thêm `avatar`, `phone`, `dateOfBirth`, `specialization`, `workSchedule` khi có. Không trả hash. `failedAttempts` đang nằm trong type demo; nên loại khỏi public type khi tích hợp hoặc map rõ ràng, không nhầm với `failedAttemptsRemaining` của lỗi login.
+- **API 5:** Profile cho phép để trống phone/dateOfBirth/avatar. Nếu có phone phải gồm 10 số bắt đầu 0; ngày sinh hợp lệ từ năm 1900 đến hôm nay; avatar HTTPS tối đa 500 ký tự. Email bất biến chỉ áp dụng tự sửa profile; Manager vẫn sửa email thành viên qua API 10.
+- **API 6:** Không cần body theo service hiện tại. Trả `email`, `expiresInSeconds=300`. Mock trả thêm mã OTP và UI hiển thị mã mô phỏng; phải bỏ cơ chế này khi nối email thật. Giới hạn gửi lại/số lần thử OTP là yêu cầu bảo mật bổ sung cho BE.
+- **API 7:** Password mới tối thiểu 8 ký tự, tối đa 72 byte UTF-8, khác password hiện tại; xác nhận trùng; OTP đúng user, chưa hết hạn và dùng một lần.
+- **API 8:** Mock tìm không dấu theo tên/email/phone, chưa tìm ID như mô tả cũ; ID search là mở rộng phía BE. Không trả thành viên đã xóa mềm; thứ tự tạo mới nhất trước.
+- **API 9–10:** Họ tên 2–80, email hợp lệ tối đa 254, phone bắt buộc 10 số bắt đầu 0, ngày sinh bắt buộc hợp lệ từ 1900 đến hôm nay, `isActive` boolean. Email duy nhất kể cả tài khoản đã xóa mềm. API 9 trả `{ member, initialPassword }`; username được sinh tự động.
+- **API 12–15:** Email/username duy nhất không phân biệt hoa thường; username tạo nhân sự theo regex `^[a-zA-Z0-9_]{3,30}$`. Phone bắt buộc 10 số bắt đầu 0, họ tên 2–80, specialization tối đa 200, workSchedule tối đa 300. API 13 trả `{ user, initialPassword }`. API 14 sửa thông tin và trạng thái, không đổi role/email/username. Danh sách sắp xếp tên tiếng Việt; FE lọc tên/email/phone/chuyên môn.
+
+## 4.4. DTO đầy đủ cho API 21–28 và dữ liệu in hóa đơn
+
+Các response rút gọn ở phần 2 cần được mở rộng theo schema dưới đây. Ký hiệu `?` là tùy chọn; `DateString` là `YYYY-MM-DD`, `Timestamp` là ISO-8601 UTC. Schema mô tả **data bên trong envelope**, không phải DB entity.
+
+```typescript
+type DateString = string;
+type Timestamp = string;
+type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CARD";
+type OrderKind = "REGISTER" | "RENEW" | "UPGRADE" | "DOWNGRADE";
+
+interface MembershipQuote {
+  memberId: string;
+  memberName: string;
+  memberEmail: string;
+  packageId: string;
+  packageName: string;
+  durationMonths: 1 | 3 | 12;
+  benefits: string[];
+  paymentMethod: PaymentMethod;
+  kind: OrderKind;
+  packagePrice: number;
+  amount: number;
+  startDate: DateString;
+  endDate: DateString;
+  previousSubscriptionId?: string;
+  previousPackagePrice?: number;
+  creditAmount?: number;
+  remainingDays?: number;
+  previousPeriodDays?: number;
+}
+
+interface MemberSubscription {
+  id: string;
+  memberId: string;
+  packageId: string;
+  packageName: string;
+  durationMonths: 1 | 3 | 12;
+  benefits: string[];
+  amount: number;
+  packagePrice: number;
+  startDate: DateString;
+  endDate: DateString;
+  kind: OrderKind;
+  previousSubscriptionId?: string;
+  replacedOn?: DateString;
+  status: "CONFIRMED" | "PENDING_PAYMENT" | "CANCELED";
+  isSuspended?: boolean;
+  suspensionReason?: string;
+  invoiceId: string;
+  createdAt: Timestamp;
+}
+
+interface MembershipInvoice extends MembershipQuote {
+  id: string;
+  number: string;
+  subscriptionId: string;
+  status: "PAID" | "PENDING_PAYMENT" | "CANCELED";
+  createdAt: Timestamp;
+  createdBy: string;
+  paidAt?: Timestamp;
+  paidBy?: string;
+  paidByName?: string;
+  canceledAt?: Timestamp;
+  canceledBy?: string;
+}
+
+interface MembershipOrder {
+  subscription: MemberSubscription;
+  invoice: MembershipInvoice;
+}
+```
+
+Tên gói, quyền lợi, giá niêm yết, tên/email thành viên trên invoice là snapshot lúc tạo. Sửa catalog hoặc profile không được viết lại hóa đơn cũ. `packagePrice` khác `amount`: khi nâng gói, `amount` là tiền thực thu sau khấu trừ. Component `InvoiceDocument` in từ dữ liệu này; chưa cần endpoint xuất PDF riêng.
+
+Ví dụ response API 22 đầy đủ cho một order mới:
+
+```json
+{
+  "success": true,
+  "data": {
+    "subscription": {
+      "id": "sub_01", "memberId": "usr_01", "packageId": "pkg_01",
+      "packageName": "Gói Tháng", "durationMonths": 1,
+      "benefits": ["Tập gym"], "amount": 450000, "packagePrice": 450000,
+      "startDate": "2026-09-30", "endDate": "2026-10-29",
+      "kind": "REGISTER", "status": "PENDING_PAYMENT",
+      "invoiceId": "inv_01", "createdAt": "2026-09-30T03:00:00.000Z"
+    },
+    "invoice": {
+      "id": "inv_01", "number": "HD-20260930-ABC12345", "subscriptionId": "sub_01",
+      "memberId": "usr_01", "memberName": "Nguyễn Văn A", "memberEmail": "a@example.com",
+      "packageId": "pkg_01", "packageName": "Gói Tháng", "durationMonths": 1,
+      "benefits": ["Tập gym"], "packagePrice": 450000, "amount": 450000,
+      "paymentMethod": "CASH", "kind": "REGISTER",
+      "startDate": "2026-09-30", "endDate": "2026-10-29", "status": "PENDING_PAYMENT",
+      "createdAt": "2026-09-30T03:00:00.000Z", "createdBy": "usr_receptionist"
+    }
+  }
+}
+```
+
+## 4.5. API danh sách bổ sung cho FE
+
+### API 33: Thành viên phục vụ tra cứu và chọn tại quầy
+
+- **Endpoint đề xuất:** `GET /api/reception/members?query=`.
+- **Quyền:** `RECEPTIONIST`, `CENTER_MANAGER`.
+- **Nguồn:** `membershipService.listMembers`, các trang Membership/Status/ReceptionOperations.
+- **Response:** `{ success: true, data: User[] }`, không có passwordHash; gồm id, username, fullName, email, phone, role, createdAt, isActive, isLocked và ngày sinh khi có.
+- Không trả account xóa mềm. Vẫn trả account ngừng hoạt động/khóa để tra cứu, nhưng BE chặn nghiệp vụ cần account hoạt động.
+- `query` tùy chọn tìm tên/email/phone/ID. Bỏ query lấy toàn bộ tập kết quả cần cho UI; nếu phân trang phải dùng adapter như mục 4.2.
+
+### API 34: Lịch sử subscription cho nhân viên
+
+- **Endpoint đề xuất:** `GET /api/reception/subscriptions?memberId=`.
+- **Quyền:** `RECEPTIONIST`, `CENTER_MANAGER`.
+- **Response:** `{ success: true, data: MemberSubscription[] }` đầy đủ mục 4.4, mới nhất trước.
+- Có memberId: lấy lịch sử thành viên đó. Không có: lấy tập subscription phục vụ tra cứu trạng thái và Manager thống kê gói.
+- API 23 `my-subscriptions` vẫn dành riêng Member và lấy owner từ token.
+- Manager hiện đếm **thành viên duy nhất** theo package từ toàn bộ subscription trả về, kể cả pending/canceled; không đếm số invoice làm số thành viên. Nếu đổi sang chỉ đếm người đang tập phải thống nhất lại cách tính và nhãn thống kê trên FE.
+
+### API 35: Danh sách hóa đơn đầy đủ cho nhân viên
+
+- **Endpoint đề xuất:** `GET /api/reception/invoices?memberId=&paymentMethod=&status=&query=`.
+- **Quyền:** `RECEPTIONIST`, `CENTER_MANAGER`.
+- `status`: bỏ trống/`ALL`, `PENDING_PAYMENT`, `PAID`, `CANCELED`.
+- `paymentMethod`: bỏ trống hoặc `CASH`, `BANK_TRANSFER`, `CARD`.
+- `query`: số hóa đơn, tên và email thành viên; không phân biệt hoa thường. Mới nhất trước.
+- **Response:** `{ success: true, data: MembershipInvoice[] }` đầy đủ mục 4.4.
+- API 27 `/payments/cash/pending` tiếp tục phục vụ pending; màn hình CashPayments còn có lịch sử đã trả/đã hủy nên cần API 35 với `paymentMethod=CASH`.
+- API 23 `my-invoices` trả cùng DTO nhưng chỉ dữ liệu của owner. Mỗi endpoint nhận ID hóa đơn đều phải kiểm tra quyền truy cập tương ứng.
+
+### Bổ sung API 16–20: Catalog và response mutation
+
+API 16 trả danh mục công khai như cũ. API 17 trả mảng đầy đủ `{ id, name, price, durationMonths, benefits, isActive, createdAt, updatedAt }` cho Manager. Member/Receptionist dùng catalog public; adapter có thể gắn `isActive=true` cho lựa chọn gói đang mở. Không suy ra metadata riêng tư từ catalog.
+
+API 18 tạo trả `201`, sửa trả `200`, `data` là gói đầy đủ. API 19 trả `200` và gói đã cập nhật. API 20 thành công trả `200` với `data:null`; giữ lỗi gói đã có lịch sử theo contract cũ. Kiểm tra lịch sử **cả subscription và invoice**, kể cả đã hủy. Benefit trim, bỏ dòng trống, kiểm tra 1–12 mục, mỗi mục tối đa 200, loại trùng. Tên gói so sánh không phân biệt hoa thường; không có trường tier/hạng gói trong FE hiện tại.
+
+## 4.6. Bổ sung thuật toán quote, order và thanh toán
+
+Nguồn: `resolveOrderKind`, `buildQuote`, `confirmCashPayment` và `membershipService.test.ts`.
+
+### API 21–22: Xác định REGISTER/RENEW/UPGRADE/DOWNGRADE
+
+Input FE có `memberId`, `packageId`, `paymentMethod`, `kind`. API 21 có thể nhận thêm `kind` để tương thích input hiện tại; giá trị này chỉ là gợi ý và BE luôn tính lại, không dùng để bỏ qua quy tắc. BE không nhận giá, khấu trừ hoặc ngày từ FE làm nguồn quyết định.
+
+1. Xét các kỳ `CONFIRMED` chưa có `replacedOn`. Lấy kỳ `ACTIVE` làm tham chiếu; nếu không có thì lấy kỳ có endDate lớn nhất còn trong hiện tại/tương lai.
+2. Không có kỳ tham chiếu: có lịch sử confirmed thì `RENEW`, chưa có thì `REGISTER`.
+3. Cùng package hoặc giá gói mới bằng giá đã mua của kỳ tham chiếu: `RENEW`.
+4. Giá mới thấp hơn: `DOWNGRADE`, dùng sau kỳ đã trả cuối cùng.
+5. Giá mới cao hơn: chỉ `UPGRADE` khi có kỳ active và không có kỳ confirmed bắt đầu trong tương lai. Nếu đã trả trước kỳ tương lai thì `RENEW`, xếp sau các kỳ đó.
+6. Với nâng gói: bắt đầu hôm nay. Với các loại khác: bắt đầu ngày sau endDate lớn nhất nếu còn kỳ đã trả, nếu không thì hôm nay.
+7. Ngày kết thúc = cộng số tháng (chặn về ngày cuối tháng nếu cần) rồi trừ 1 ngày. Không thay tháng bằng 30 ngày cố định.
+
+Khấu trừ nâng gói dùng số ngày lịch thực tế, tính cả hai đầu; làm tròn một lần đến VND nguyên, dùng giá snapshot `packagePrice` của kỳ cũ. Ví dụ kỳ 31/01/2024–29/04/2024 có 90 ngày; nâng ngày 29/02 còn 61 ngày, giá cũ 1.200.000 thì credit = 813.333. Gói mới 4.200.000 thì amount = 3.386.667.
+
+Quote và tạo order đều kiểm tra account còn hoạt động, package đang mở, paymentMethod hợp lệ, chưa có bất kỳ invoice hoặc subscription pending nào của member. Tạo order tính lại theo dữ liệu hiện tại và transaction. FE hiện gọi lại quote trước khi tạo; BE vẫn phải chống race giữa các request. Idempotency cho tạo/thu tiền là đề xuất bổ sung cho BE, cần thiết kế retry phía FE tương ứng.
+
+### API 28: Điều kiện thu tiền và ngày hiệu lực
+
+Quy tắc “có hiệu lực ngay lập tức” ở API 28 cần hiểu chính xác: trả tiền chuyển sang `CONFIRMED`; quyền sử dụng còn phụ thuộc ngày bắt đầu, ngày kết thúc, replacedOn và isSuspended.
+
+- Chỉ thu invoice `CASH`, invoice và subscription đều pending, member còn hoạt động và không khóa/xóa. Số tiền nhận là số nguyên bằng amount, không đổi theo giá catalog mới.
+- Với order không phải upgrade: nếu ngày bắt đầu dự kiến đã qua, dời startDate sang hôm nay và tính lại endDate cho cả subscription/invoice. Nếu startDate còn ở tương lai, giữ nguyên, chưa cấp quyền tập ngay.
+- Upgrade: kỳ gốc phải vẫn ACTIVE, invoice phải có creditAmount và startDate đúng hôm nay. Nếu không, từ chối thu tiền và yêu cầu hủy/lập lại. Không tự âm thầm thay amount.
+- Upgrade thành công đặt replacedOn=hôm nay cho kỳ gốc. Kỳ mới không được chồng khoảng ngày với bất kỳ kỳ CONFIRMED chưa bị thay thế nào khác.
+- Toàn bộ cập nhật phải rollback nếu kiểm tra chồng kỳ hoặc ghi dữ liệu thất bại; hai lần bấm thu tiền không được tạo hai giao dịch.
+- Response API 28 trả đủ `MembershipOrder` mục 4.4, bao gồm paidAt/paidBy/paidByName trên invoice.
+
+API 24 chỉ hủy khi **cả invoice và subscription** pending, cập nhật cả hai sang CANCELED trong cùng transaction, lưu canceledAt/canceledBy và audit. Không xóa lịch sử và không hủy hóa đơn đã PAID qua endpoint này.
+
+## 4.7. Bổ sung API 25: Trạng thái và response tra cứu
+
+Thứ tự suy ra trạng thái một subscription đúng theo FE:
+
+1. CANCELED hoặc PENDING_PAYMENT theo trạng thái lưu.
+2. replacedOn <= hôm nay: REPLACED.
+3. startDate > hôm nay: SCHEDULED_DOWNGRADE nếu kind=DOWNGRADE, còn lại UPCOMING.
+4. endDate < hôm nay: EXPIRED.
+5. isSuspended=true: SUSPENDED; còn lại ACTIVE.
+
+Summary bỏ các kỳ canceled/replaced khỏi nhóm đã trả; ưu tiên kỳ hiện tại, rồi kỳ tương lai gần nhất, rồi kỳ hết hạn gần nhất. Nếu không có các kỳ đó mới lấy pending; không có gì thì NONE. `remainingDays` tính cả hôm nay và ngày cuối nếu có kỳ hiện tại, các trường hợp khác bằng 0. `expiringSoon` đúng khi còn 1–6 ngày (kể cả kỳ hiện tại đang suspended theo helper FE). Filter UPCOMING bao gồm SCHEDULED_DOWNGRADE.
+
+Mở rộng filter API 25 thêm `UPCOMING`, `PENDING_PAYMENT`, `NONE`. Giữ các field phẳng của response cũ; thêm `subscription` và `upcoming` là DTO đầy đủ mục 4.4 (hoặc null). Trạng thái gói không thay thế trạng thái account: gói ACTIVE nhưng account bị khóa vẫn không được check-in.
+
+## 4.8. Bổ sung API 26: Tạo tài khoản kèm order tại quầy
+
+- Form thực tế gọi `registerMemberWithGeneratedCredentials`; ngày sinh bắt buộc, hợp lệ từ 1900 đến hôm nay. Ho tên 2–80; email tối đa 254; phone cho phép 10 số bắt đầu 0 hoặc dạng +84, bỏ khoảng trắng/dấu chấm/gạch ngang trước kiểm tra.
+- BE sinh username duy nhất và password ngẫu nhiên. Hàm mock cấp thấp có username/password trong input nhưng UI hiện không nhập hai trường này; không cần thêm endpoint công khai cho hàm cấp thấp.
+- Kiểm tra email/username không trùng, package active, giá bằng expectedPrice; giá thay đổi thì báo lỗi yêu cầu tải lại và không tạo account dở dang.
+- `data.order` phải là `{ subscription, invoice }` đầy đủ mục 4.4, không chỉ là invoiceId/number/amount như ví dụ rút gọn cũ. `data.member` chứa hồ sơ an toàn; `initialPassword` chỉ trả một lần cho nhân viên.
+- Mock hiện trả `emailDelivery: "NOT_CONNECTED"`, UI đang có câu thông báo email chưa gửi. BE có thể hỗ trợ `SENT`, `FAILED`, `NOT_CONNECTED` nhưng cần sửa UI theo kết quả thật; không báo SENT nếu chưa gửi. Gửi email sau khi transaction thành công, tránh gửi thông tin của account đã rollback.
+- Tạo thành viên không thay token/phiên đăng nhập nhân viên. Member mới và order pending không đồng nghĩa đã thanh toán.
+
+## 4.9. Bổ sung chi tiết API 30: Điểm danh
+
+Giữ nguyên ba endpoint API 30. Tất cả yêu cầu `RECEPTIONIST` hoặc `CENTER_MANAGER`.
+
+```typescript
+interface CenterVisit {
+  id: string;
+  memberId: string;
+  date: string; // YYYY-MM-DD
+  checkedInAt: string; // Timestamp UTC
+  checkedOutAt?: string;
+  createdBy: string;
+}
+```
+
+- `GET /api/reception/attendance/visits?date=YYYY-MM-DD&memberId=`: trả `{ success:true, data:CenterVisit[] }`; memberId là bộ lọc tùy chọn; thứ tự mới nhất trước, trả cả visit đã checkout.
+- `POST /api/reception/attendance/check-in`: nhận `{ "memberId":"usr_01" }`, trả `201` và CenterVisit mới trong data. Server lấy ngày/giờ/createdBy. Account phải hoạt động, có subscription ACTIVE không suspended hôm nay. Chỉ một check-in/member/ngày, kể cả lượt trước đã checkout.
+- `POST /api/reception/attendance/check-out`: nhận `{ "visitId":"visit_01" }`, trả `200` và visit có checkedOutAt. Visit phải tồn tại và chưa checkout; không yêu cầu đổi ngày của lượt cũ.
+- Lỗi: `404` member/visit không tồn tại; `403` account không được phép sử dụng; `409` chưa có gói hợp lệ, đã check-in trong ngày hoặc đã checkout. Check-in trùng phải được bảo vệ bằng transaction/unique constraint, không chỉ kiểm tra trước insert.
+
+Ví dụ response check-in:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "visit_01", "memberId": "usr_01", "date": "2026-09-30",
+    "checkedInAt": "2026-09-30T03:00:00.000Z", "createdBy": "usr_receptionist"
+  }
+}
+```
+
+## 4.10. Bổ sung chi tiết API 31 và API 36: Lớp học
+
+Giữ route `/classes/book` và `/classes/bookings/{id}/cancel` ở bản cũ. Tất cả yêu cầu `RECEPTIONIST` hoặc `CENTER_MANAGER`.
+
+```typescript
+interface ClassSession {
+  id: string;
+  name: string;
+  discipline: string;
+  coach: string; // Tên hiển thị
+  room: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm, giờ tại trung tâm
+  endTime: string;
+  capacity: number;
+}
+interface ClassBooking {
+  id: string;
+  memberId: string;
+  sessionId: string;
+  status: "BOOKED" | "CANCELED";
+  createdAt: string;
+  createdBy: string;
+  canceledAt?: string;
+  canceledBy?: string;
+  cancelReason?: string;
+}
+```
+
+- API 31 GET sessions trả `{ success:true, data:ClassSession[] }`, lọc ngày; dữ liệu phải đủ name/discipline/coach/room/capacity, không chỉ ID. Nếu giới hạn theo ngày, vẫn cần thông tin session tương ứng để hiển thị lịch sử booking ngoài ngày đang chọn.
+- **API 36 đề xuất:** `GET /api/reception/classes/bookings?memberId=&date=` trả `{ success:true, data:ClassBooking[] }`, mới nhất trước, gồm cả BOOKED và CANCELED. Bỏ filter lấy lịch sử cần thiết. Đây là danh sách còn thiếu ở API 31 cũ.
+- UI tính số chỗ đã đặt từ **tất cả** booking BOOKED của session. Không dùng riêng booking của member đang chọn để tính sức chứa. Nếu server phân trang/lọc member, bổ sung bookedCount tổng theo session và sửa adapter/UI sử dụng trường đó.
+- POST book nhận `{ "memberId":"usr_01", "sessionId":"session_01" }`; trả `201` và ClassBooking. Account hoạt động; gói phải ACTIVE không suspended **vào ngày buổi học**, session chưa bắt đầu, còn chỗ, chưa có booking BOOKED cùng session.
+- Kiểm tra trùng lịch cùng ngày: `other.startTime < session.endTime && other.endTime > session.startTime`; hai buổi nối tiếp đúng giờ không bị coi là trùng. Kiểm tra capacity/duplicate/overlap phải an toàn trước request đồng thời.
+- POST cancel nhận `{ "reason":"Thành viên đổi lịch" }`; reason trim 3–500 ký tự. Chỉ hủy BOOKED trước giờ bắt đầu; trả `200` và booking cập nhật CANCELED, canceledAt/canceledBy/cancelReason. Giữ lịch sử, trả lại chỗ; cho phép đăng ký mới sau hủy nếu còn hợp lệ.
+- Lỗi `404` session/booking/member không tồn tại; `409` buổi đã bắt đầu, hết chỗ, trùng lịch, đã đặt/đã hủy hoặc gói không đủ điều kiện; `400` reason không hợp lệ.
+
+## 4.11. Bổ sung chi tiết API 32: Hỗ trợ
+
+Giữ tên route `/support/tickets` của bản cũ; adapter map sang `SupportRequest` trong FE. Quyền `RECEPTIONIST`, `CENTER_MANAGER`.
+
+```typescript
+interface SupportRequest {
+  id: string;
+  memberId: string;
+  category: "Gói tập" | "Lớp học" | "Thanh toán" | "Cơ sở vật chất" | "Khác";
+  subject: string;
+  description: string;
+  status: "OPEN" | "IN_PROGRESS" | "RESOLVED";
+  createdAt: string;
+  createdBy: string;
+  updates: { status: "OPEN" | "IN_PROGRESS" | "RESOLVED"; note: string; at: string; by: string }[];
+}
+```
+
+GET `/api/reception/support/tickets?memberId=&status=ALL&query=` trả mảng SupportRequest đầy đủ trong data, mới nhất trước. Bộ lọc tìm member theo tên/email/phone như UI; status ALL hoặc một giá trị enum. Nếu BE dùng mã category nội bộ cần adapter chuyển đúng nhãn tiếng Việt có dấu ở trên.
+
+POST nhận:
+
+```json
+{
+  "memberId": "usr_01", "category": "Gói tập",
+  "subject": "Kiểm tra thời hạn", "description": "Nhờ kiểm tra ngày hết hạn gói tập."
+}
+```
+
+Member phải tồn tại; không yêu cầu gói còn hạn để gửi hỗ trợ. Subject trim 3–120, description trim 10–2000, category đúng enum. Trả `201`, status OPEN và updates rỗng.
+
+PATCH `/api/reception/support/tickets/{id}/status` nhận:
+
+```json
+{ "status": "RESOLVED", "note": "Đã thông báo thời hạn cho thành viên." }
+```
+
+Note trim 3–2000; trạng thái đúng enum; append `{status,note,at,by}` vào updates theo thứ tự thời gian và cập nhật status hiện tại, trả `200` với SupportRequest đầy đủ. FE cho phép mở lại OPEN hoặc ghi chú với cùng trạng thái, không áp đặt luồng một chiều. `404` ticket/member không tồn tại; `400` dữ liệu không hợp lệ. Không xóa lịch sử xử lý.
+
+## 4.12. Bổ sung API 29 và lỗi nghiệp vụ
+
+Audit query hiện tìm actorName, action, entity, entityId, description; from/to so sánh ngày UTC từ createdAt trong mock. Khi BE đổi sang ngày tại trung tâm cần đồng bộ bộ lọc FE. UI chưa có pagination audit nên adapter phải xử lý đầy đủ kết quả hoặc cập nhật UI như mục 4.2. Không áp dụng giới hạn lưu 1.000 dòng của mock làm chính sách lưu trữ BE.
+
+Đề xuất mã lỗi để FE xử lý nhất quán (đây là bổ sung contract, mock hiện chỉ throw Error với message):
+
+| HTTP | code | Tình huống và xử lý |
+| :--- | :--- | :--- |
+| 400 | VALIDATION_ERROR | Trả fieldErrors cho form |
+| 401 | INVALID_CREDENTIALS / SESSION_EXPIRED | Sai đăng nhập hoặc phiên hết hạn |
+| 403 | FORBIDDEN / ACCOUNT_INACTIVE | Sai role/ownership hoặc account ngừng hoạt động |
+| 423 | ACCOUNT_LOCKED | Có isLocked và failedAttemptsRemaining khi login |
+| 404 | NOT_FOUND | Đối tượng không tồn tại |
+| 409 | PENDING_ORDER_EXISTS | Xử lý order cũ trước khi tạo mới |
+| 409 | PACKAGE_PRICE_CHANGED | Tải lại gói khi expectedPrice không khớp |
+| 409 | STALE_UPGRADE_QUOTE | Hủy và tạo lại báo giá nâng gói |
+| 409 | INVALID_ORDER_STATE / PERIOD_OVERLAP | Tải lại invoice, không thu tiền lần nữa |
+| 409 | DUPLICATE_CHECK_IN / CLASS_FULL / BOOKING_CONFLICT | Tải lại dữ liệu nghiệp vụ quầy |
+
+Không yêu cầu đồng nhất tất cả lỗi cũ sang 409 ngay: các status đã ghi tại API 1–32 cần được BE/adapter chốt nhất quán. Không hiển thị lỗi SQL/stack trace trực tiếp cho người dùng.
+
+## 4.13. Cập nhật kết quả đối chiếu BE cho bảng mục 3
+
+Đối chiếu ngày 30/09/2026 tại commit `7cb1462` trên `master` (remote không có nhánh main). Bảng mục 3 là thông tin cũ; các cập nhật sau là trạng thái đã kiểm tra:
+
+- `AuthService` đã reset FailedLoginCount khi login đúng; AccountController đã có Authorize cho các endpoint tạo account quản trị và endpoint Register_member công khai.
+- `MembershipPackageController` đã có CRUD, status, active catalog và kiểm tra xóa gói có subscription. Cần map route/DTO và kiểm tra đầy đủ quy tắc FE.
+- Đã có `MemberSubscriptionController` (register-or-renew, counter-register-or-renew) và `MembershipInvoiceController` (pay, receipt). Không kết luận thiếu nghiệp vụ chỉ vì không có controller tên MembershipOrder/Payment.
+- `CounterRegistrationController` và `AuditLogController` không có trên master đã kiểm tra; thông tin “đã có stub/controller” ở bảng cũ không áp dụng cho commit này.
+- Auth vẫn tách bốn endpoint và trả token string; role dùng CenterManager/Member/Coach/Receptionist, response phần lớn DTO trực tiếp hoặc text. Chưa tương thích trực tiếp envelope/role/User của FE.
+- Chưa cấu hình CORS; chưa có auth/me đầy đủ, quote riêng, invoice list, cancel order, các API quầy bổ sung, OTP/profile toàn bộ role và personnel CRUD đủ contract.
+- Build BE thành công. Lần kiểm tra trước: 12/16 test pass, bốn integration test auth trả 500; không còn kết luận thiếu reference JwtBlacklistService. Đây là kết quả lần chạy, chưa khẳng định nguyên nhân 500.
+
+## 4.14. Các ca nghiệm thu cần đối chiếu khi triển khai
+
+1. Khôi phục phiên với me; Member không đọc invoice/subscription của người khác; account bị khóa/ngừng hoạt động mất quyền thao tác.
+2. Tạo Member/nhân sự trả mật khẩu một lần; xóa mềm giữ lịch sử; tạo tại quầy không đổi phiên staff và rollback đủ khi tạo order lỗi.
+3. Không có hai pending order/member khi gửi đồng thời; paid/canceled không thể thu lần nữa.
+4. Nâng gói ngày cuối vẫn được khấu trừ một ngày; dùng lịch năm nhuận và giá snapshot; quote sang ngày khác phải lập lại.
+5. Hạ gói và gia hạn giữ các kỳ đã trả trước; CONFIRMED tương lai chưa cấp quyền tập; thanh toán muộn không mất ngày sử dụng; từ chối mọi khoảng kỳ chồng nhau.
+6. Check-in chỉ một lần/ngày; booking kiểm tra gói vào ngày học, capacity, trùng giờ, hạn hủy và lịch sử CANCELED.
+7. Ticket giữ toàn bộ updates và đúng nhãn category; danh sách đủ dữ liệu cho các bộ đếm/lọc/in hóa đơn đang có trên FE.

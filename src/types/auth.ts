@@ -39,18 +39,31 @@ export interface AuthResponse {
   isLocked?: boolean;
 }
 
+export type EmailVerificationPurpose = "LOGIN" | "REGISTER";
+
+export interface EmailVerificationResponse {
+  success: boolean;
+  message: string;
+  demoCode?: string;
+  expiresInSeconds?: number;
+  failedAttemptsRemaining?: number;
+  isLocked?: boolean;
+}
+
 export interface LoginCredentials {
   email: string;
   password: string;
   rememberMe?: boolean;
+  emailVerificationCode?: string;
 }
 
 export interface RegisterData {
-  username: string;
   email: string;
   password: string;
   confirmPassword: string;
+  username?: string;
   fullName?: string;
+  emailVerificationCode?: string;
 }
 
 export interface DemoSession {
@@ -67,6 +80,6 @@ export interface AuthContextType {
   sessionMessage: string;
   login: (credentials: LoginCredentials) => Promise<AuthResponse>;
   register: (data: RegisterData) => Promise<AuthResponse>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshCurrentUser: () => void;
 }

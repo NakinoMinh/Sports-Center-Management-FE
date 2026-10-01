@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { auditService, type AuditEntry } from "../../services/auditService";
+import { isApiConfigured } from "../../services/apiClient";
+import { NoDatabaseNotice } from "../../components/common/NoDatabaseNotice";
 import { formatDate } from "../../utils/format";
 
 const ACTION_LABELS: Record<string, { label: string; chipClass: string }> = {
@@ -89,7 +91,13 @@ export function AuditLogPage() {
         </div>
       )}
 
-      <section className="panel" aria-labelledby="audit-log-title">
+      {isApiConfigured() ? (
+        <NoDatabaseNotice
+          featureName="Lịch sử thao tác (Audit Log)"
+          description="Backend hiện tại chưa cung cấp cơ sở dữ liệu và API truy xuất lịch sử thay đổi/kiểm toán hệ thống."
+        />
+      ) : (
+        <section className="panel" aria-labelledby="audit-log-title">
         <div className="panel-heading">
           <div>
             <h2 id="audit-log-title">Nhật ký kiểm toán (Audit Log)</h2>
@@ -261,6 +269,7 @@ export function AuditLogPage() {
           </div>
         )}
       </section>
+      )}
     </>
   );
 }

@@ -3,6 +3,9 @@ import { Search, Users, Plus, RefreshCw, ArrowUpRight } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
 import { memberService, type MemberInput } from "../../services/memberService";
+import { memberApi } from "../../services/memberApi";
+import { membershipApi, subscriptionFromInvoice } from "../../services/membershipApi";
+import { isApiConfigured } from "../../services/apiClient";
 import {
   membershipService,
   getMembershipStatusSummary,
@@ -44,10 +47,16 @@ export function MembersPage() {
   const [summary, setSummary] = useState<ReturnType<
     typeof getMembershipStatusSummary
   > | null>(null);
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (!currentUser) return;
+    setLoading(true);
     try {
-      setData(memberService.list(currentUser, query, status, page));
+      if (isApiConfigured()) {
+        const result = await memberApi.listMembers(page, 20, query, status);
+        setData(result);
+      } else {
+        setData(memberService.list(currentUser, query, status, page));
+      }
       setError("");
     } catch (err) {
       setData({ items: [], total: 0, page: 1, pages: 1 });
@@ -59,14 +68,14 @@ export function MembersPage() {
     }
   }, [currentUser, query, status, page]);
   useEffect(() => {
-    // Synchronize the local adapter with list controls and changes in other tabs.
-    // oxlint-disable-next-line react/set-state-in-effect
-    refresh();
-    window.addEventListener("storage", refresh);
-    window.addEventListener("focus", refresh);
+    // Synchronize with list controls and changes in other tabs.
+    void refresh();
+    const handleSync = () => { void refresh(); };
+    window.addEventListener("storage", handleSync);
+    window.addEventListener("focus", handleSync);
     return () => {
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", handleSync);
+      window.removeEventListener("focus", handleSync);
     };
   }, [refresh]);
   function edit(member: MembershipActor | "new") {
@@ -197,16 +206,18 @@ export function MembersPage() {
                         <button
                           className="text-button"
                           aria-label={`Xem hồ sơ ${member.fullName}`}
-                          onClick={() => {
+                          onClick={async () => {
                             if (!currentUser) return;
                             try {
-                              setSummary(
-                                getMembershipStatusSummary(
-                                  membershipService.getMemberSubscriptions(
+                              const subscriptions = isApiConfigured()
+                                ? (await membershipApi.listInvoices({ memberId: member.id }))
+                                    .map(subscriptionFromInvoice)
+                                : membershipService.getMemberSubscriptions(
                                     currentUser,
                                     member.id,
-                                  ),
-                                ),
+                                  );
+                              setSummary(
+                                getMembershipStatusSummary(subscriptions),
                               );
                               setDetail(member);
                             } catch (err) {
@@ -291,16 +302,32 @@ export function MembersPage() {
               setBusy(true);
               setFormError("");
               try {
-                if (editing === "new") {
-                  const created = await memberService.create(currentUser, form);
-                  setPassword({
-                    email: created.member.email,
-                    value: created.initialPassword,
-                  });
-                } else memberService.update(currentUser, editing.id, form);
+                if (isApiConfigured()) {
+                  if (editing === "new") {
+                    const initialPassword = "Test@12345";
+                    await memberApi.createMember(form, initialPassword);
+                    setPassword({
+                      email: form.email,
+                      value: initialPassword,
+                    });
+                  } else {
+                    await memberApi.updateMember(editing.id, form);
+                    if (editing.isActive !== form.isActive) {
+                      await memberApi.setMemberStatus(editing.id, form.isActive);
+                    }
+                  }
+                } else {
+                  if (editing === "new") {
+                    const created = await memberService.create(currentUser, form);
+                    setPassword({
+                      email: created.member.email,
+                      value: created.initialPassword,
+                    });
+                  } else memberService.update(currentUser, editing.id, form);
+                }
                 setEditing(null);
                 setNotice("Đã lưu hồ sơ thành viên.");
-                refresh();
+                void refresh();
               } catch (err) {
                 setFormError((err as Error).message);
               } finally {
@@ -399,15 +426,19 @@ export function MembersPage() {
               </button>
               <button
                 className="button danger"
-                onClick={() => {
+                onClick={async () => {
                   if (!currentUser) return;
                   try {
-                    memberService.remove(currentUser, removing.id);
+                    if (isApiConfigured()) {
+                      await memberApi.setMemberStatus(removing.id, false);
+                    } else {
+                      memberService.remove(currentUser, removing.id);
+                    }
                     setRemoving(null);
                     setNotice(
-                      "Đã xóa thành viên khỏi danh sách và ngừng quyền truy cập.",
+                      "Đã cập nhật trạng thái ngừng hoạt động cho thành viên.",
                     );
-                    refresh();
+                    void refresh();
                   } catch (err) {
                     setFormError((err as Error).message);
                   }

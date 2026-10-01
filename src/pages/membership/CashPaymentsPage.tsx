@@ -18,6 +18,8 @@ import {
   orderKindLabels,
   todayDate,
 } from "../../services/membershipService";
+import { isApiConfigured } from "../../services/apiClient";
+import { membershipApi } from "../../services/membershipApi";
 import type { MembershipInvoice } from "../../types/membership";
 import { formatDate, formatMoney } from "../../utils/format";
 
@@ -35,9 +37,15 @@ export function CashPaymentsPage() {
   const [busy, setBusy] = useState(false);
   const [dialogError, setDialogError] = useState("");
   const [canceling, setCanceling] = useState(false);
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
+      if (isApiConfigured()) {
+        const items = await membershipApi.listInvoices({ paymentMethod: "CASH" });
+        setInvoices(items);
+        setError("");
+        return;
+      }
       setInvoices(
         membershipService
           .listInvoices(currentUser)
@@ -53,13 +61,14 @@ export function CashPaymentsPage() {
   }, [currentUser]);
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect
-    refresh();
-    window.addEventListener("storage", refresh);
-    window.addEventListener("focus", refresh);
-    const timer = window.setInterval(refresh, 60000);
+    void refresh();
+    const sync = () => void refresh();
+    window.addEventListener("storage", sync);
+    window.addEventListener("focus", sync);
+    const timer = window.setInterval(sync, 60000);
     return () => {
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("focus", sync);
       window.clearInterval(timer);
     };
   }, [refresh]);
@@ -91,25 +100,37 @@ export function CashPaymentsPage() {
     setCanceling(false);
     setParams({ invoice: id });
   }
-  function confirm(event: FormEvent) {
+  async function confirm(event: FormEvent) {
     event.preventDefault();
     if (!invoice || !currentUser || busy || !checked || staleUpgrade) return;
     setBusy(true);
     setDialogError("");
     try {
+      if (isApiConfigured()) {
+        const order = await membershipApi.payInvoice(invoice.id, "CASH");
+        await refresh();
+        setNotice(
+          `Đã xác nhận ${order.invoice.number}: ${formatMoney(order.invoice.amount)}. Gói đã được kích hoạt.`,
+        );
+        setChecked(false);
+        setReceived("");
+        close();
+        return;
+      }
       const result = membershipService.confirmCashPayment(
         currentUser,
         invoice.id,
         Number(received),
       );
-      refresh();
+      await refresh();
       setNotice(
         `Đã xác nhận ${result.invoice.number}: ${formatMoney(result.invoice.amount)}. ${result.subscription.startDate > todayDate() ? "Gói chờ đến ngày bắt đầu." : "Gói đã được kích hoạt."}`,
       );
       setChecked(false);
       setReceived("");
+      close();
     } catch (err) {
-      refresh();
+      await refresh();
       setDialogError(
         err instanceof Error ? err.message : "Không thể xác nhận.",
       );
@@ -148,11 +169,6 @@ export function CashPaymentsPage() {
         <div className="success-notice" role="status">
           <CheckCircle2 size={20} />
           {notice}
-        </div>
-      )}
-      {error && (
-        <div className="error-notice" role="alert">
-          {error}
         </div>
       )}
       <div className="cash-summary">
@@ -385,19 +401,23 @@ export function CashPaymentsPage() {
               </button>
               <button
                 className="button danger"
-                onClick={() => {
+                onClick={async () => {
                   if (!currentUser) return;
                   try {
-                    membershipService.cancelPendingOrder(
-                      currentUser,
-                      invoice.id,
-                    );
-                    refresh();
+                    if (isApiConfigured()) {
+                      await membershipApi.cancelPendingOrder(invoice.id);
+                    } else {
+                      membershipService.cancelPendingOrder(
+                        currentUser,
+                        invoice.id,
+                      );
+                    }
+                    await refresh();
                     setNotice(
                       `Đã hủy ${invoice.number}. Không thay đổi gói đang hoạt động.`,
                     );
                   } catch (err) {
-                    refresh();
+                    await refresh();
                     setDialogError(
                       err instanceof Error ? err.message : "Không thể hủy.",
                     );
