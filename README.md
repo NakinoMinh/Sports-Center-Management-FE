@@ -1,24 +1,26 @@
-# Hệ thống Quản lý Trung tâm Thể thao (Sports Center Management System)
+# Sports Center Management FE
 
-**Công nghệ:** Sử dụng React JS (Vite + TypeScript) cho hiệu năng tốt và hỗ trợ type chặt chẽ.
+Frontend cho hệ thống quản lý trung tâm thể thao, xây dựng bằng React 19, TypeScript và Vite. Ứng dụng cung cấp các luồng xác thực, hồ sơ, thành viên, nhân sự, gói tập, thanh toán tại quầy và nhật ký hoạt động theo từng vai trò.
+
+Repository: [NakinoMinh/Sports-Center-Management-FE](https://github.com/NakinoMinh/Sports-Center-Management-FE)
 
 ## Tài liệu định hướng phát triển
 
 - [PRODUCT.md](PRODUCT.md): yêu cầu toàn dự án, bốn actor, sáu flow, ma trận đối chiếu code FE/BE và phần còn thiếu.
 - [DESIGN.md](DESIGN.md): kiến trúc hiện tại, thiết kế mục tiêu, khác biệt schema/API và lộ trình triển khai.
 
-Đọc mục 0 của hai tài liệu trước khi phát triển. Đối chiếu ngày 27/09/2026 phân biệt rõ FE mock, code backend và chức năng chưa triển khai; không coi giao diện demo là flow đã tích hợp hoàn chỉnh. Flow 1–3 (user/membership, class/schedule, payment/report) bắt buộc; Flow 4–6 (training/attendance, AI recommendation, AI assistant) tùy chọn. Tài liệu Sprint 1 và bàn giao API bên dưới có phạm vi hẹp hơn toàn dự án.
+Đọc mục 0 của hai tài liệu trước khi phát triển. Flow 1–3 (user/membership, class/schedule, payment/report) bắt buộc; Flow 4–6 (training/attendance, AI recommendation, AI assistant) tùy chọn. Tài liệu Sprint 1 và bàn giao API bên dưới có phạm vi hẹp hơn toàn dự án.
 
 ## Kiến trúc FE (Không dùng MVVM)
 
-Dự án tổ chức theo hướng **Component-based** và **React Hooks**, không dùng mô hình MVVM (Model-View-ViewModel). Giao diện nằm trong component/page, trạng thái dùng chung đặt trong Context, còn nghiệp vụ và dữ liệu được tách vào Service. Cách tổ chức này giúp UI dễ tái sử dụng và sau này có thể thay LocalStorage bằng API backend mà ít ảnh hưởng đến màn hình.
+Dự án tổ chức theo hướng **Component-based** và **React Hooks**, không dùng mô hình MVVM (Model-View-ViewModel). Giao diện nằm trong component/page, trạng thái dùng chung đặt trong Context, còn nghiệp vụ và dữ liệu được tách vào Service.
 
 - `src/assets/`: Ảnh, SVG, logo và các tài nguyên được import vào giao diện.
 - `src/components/`: Các UI tái sử dụng như Input, Alert, Dialog, sidebar/header, form gói tập và mẫu hóa đơn.
 - `src/context/`: State dùng chung cho toàn ứng dụng. Hiện có `AuthContext` quản lý phiên đăng nhập, user hiện tại và logout.
 - `src/hooks/`: Custom hooks. `useAuth` giúp component lấy dữ liệu từ `AuthContext`.
 - `src/pages/`: Các trang hoàn chỉnh: Login, Register, quản lý gói tập của Manager, đăng ký/gia hạn của Member và hỗ trợ tại quầy cho Receptionist.
-- `src/services/`: Xử lý nghiệp vụ và dữ liệu. Hiện dùng mock data/LocalStorage cho xác thực, gói tập, gia hạn và hóa đơn; khi backend sẵn sàng sẽ thay phần này bằng API calls.
+- `src/services/`: API client, xác thực, thành viên, nhân sự, gói tập và audit log. Một số luồng lễ tân/thanh toán demo vẫn dùng LocalStorage.
 - `src/styles/`: CSS cho vùng làm việc sau khi đăng nhập: sidebar, bảng, card, responsive mobile và in hóa đơn.
 - `src/types/`: Các kiểu TypeScript như `User`, `UserRole`, `MembershipPackage`, `MemberSubscription` và `MembershipInvoice`.
 - `src/utils/`: Hàm dùng chung để format tiền VND, ngày tháng và điều hướng theo vai trò.
@@ -30,9 +32,10 @@ Dự án tổ chức theo hướng **Component-based** và **React Hooks**, khô
 Luồng chính của FE:
 
 ```text
-main.tsx → App.tsx → AuthProvider/AuthContext
+main.tsx → App.tsx → AuthProvider → ToastProvider
          → Login/Register hoặc WorkspaceLayout
-         → Page theo role → Service → LocalStorage (hiện tại) / API BE (sau này)
+         → Page theo role → Service → API backend
+                               └── LocalStorage cho luồng demo còn lại
 ```
 
 ## 👥 Các Actor (Vai trò)
@@ -66,12 +69,11 @@ Nếu cả hai lệnh đều trả về số phiên bản, môi trường đã s
 Nếu chưa có source code trên máy:
 
 ```bash
-git clone https://github.com/NakinoMinh/Sports-Center-Management-System-FE.git
-cd Sports-Center-Management-System-FE
-git switch Minh
+git clone https://github.com/NakinoMinh/Sports-Center-Management-FE.git
+cd Sports-Center-Management-FE
 ```
 
-Nếu đã tải source code, chỉ cần mở terminal tại thư mục `Sports-Center-Management-System-FE`.
+Nếu đã tải source code, chỉ cần mở terminal tại thư mục `Sports-Center-Management-FE`.
 
 ### 3. Cài đặt thư viện
 
@@ -81,7 +83,23 @@ npm install
 
 Lệnh này đọc `package.json` và cài React, Vite, TypeScript, React Router, Lucide icons, bcryptjs cùng các thư viện phát triển vào thư mục `node_modules`.
 
-### 4. Chạy môi trường phát triển
+### 4. Cấu hình môi trường
+
+Tạo file `.env.local` từ file mẫu:
+
+```bash
+cp .env.example .env.local
+```
+
+Giá trị mặc định kết nối tới backend tại `http://localhost:5198/api`:
+
+```env
+VITE_API_BASE_URL=http://localhost:5198/api
+```
+
+File `.env.local` chỉ dùng trên máy cá nhân và không được commit.
+
+### 5. Chạy môi trường phát triển
 
 ```bash
 npm run dev
@@ -89,20 +107,13 @@ npm run dev
 
 Terminal sẽ hiển thị một địa chỉ tương tự `http://localhost:5173/`. Mở địa chỉ đó trên trình duyệt để sử dụng giao diện. Khi sửa code, Vite tự cập nhật trang.
 
-Giao diện đăng nhập dành cho web desktop/laptop (từ 1024px), giữ bố cục hai cột và cuộn toàn trang khi cần. Bấm **Khám phá bằng tài khoản mẫu** để mở danh sách tài khoản dùng thử.
+Backend cần chạy tại địa chỉ đã cấu hình trong `VITE_API_BASE_URL`. Giao diện tài khoản kiểm thử chỉ xuất hiện trong môi trường development và sử dụng dữ liệu từ database backend hiện tại.
 
-### 5. Tài khoản demo
+### 6. Tài khoản kiểm thử
 
-Mật khẩu mặc định của các tài khoản dưới đây là `Pass@1234`:
+Tại màn hình đăng nhập, mở **Tài khoản kiểm thử theo vai trò** để điền nhanh tài khoản Center Manager, Receptionist, Coach hoặc Member. Các tài khoản này phụ thuộc dữ liệu seed của backend; nếu database thay đổi, cần cập nhật danh sách kiểm thử tương ứng.
 
-| Vai trò | Email |
-| --- | --- |
-| Center Manager | `manager@sportscenter.com` |
-| Coach | `coach@sportscenter.com` |
-| Member | `member@sportscenter.com` |
-| Receptionist | `receptionist@sportscenter.com` |
-
-Bạn cũng có thể tạo tài khoản Member mới tại màn hình đăng ký. Dữ liệu của bản demo hiện lưu ở LocalStorage của trình duyệt, nên mỗi trình duyệt hoặc profile có dữ liệu riêng.
+Bạn cũng có thể tạo tài khoản Member mới tại màn hình đăng ký. Xác thực, hồ sơ và dữ liệu thành viên đi qua API backend; một số luồng thanh toán tại quầy vẫn lưu trạng thái demo trong LocalStorage của trình duyệt.
 
 ### Luồng gói tập và xác nhận tiền mặt
 
@@ -112,7 +123,7 @@ Bạn cũng có thể tạo tài khoản Member mới tại màn hình đăng k�
 - Gói chỉ có tên, giá, quyền lợi và kỳ hạn tháng/quý/năm; không phân hạng. Khấu trừ = giá gói cũ lúc mua × số ngày còn lại / tổng ngày kỳ cũ, làm tròn đến đồng. Ví dụ gói 450.000đ còn 15/30 ngày: chuyển sang gói năm 4.200.000đ cần trả 3.975.000đ. Báo giá nâng gói chỉ có hiệu lực trong ngày; yêu cầu cũ phải hủy và lập lại trước khi thu tiền. Dữ liệu lịch sử được giữ nguyên.
 - Chuyển khoản/thẻ chưa có đối soát. Mọi thanh toán và phân quyền hiện chỉ mô phỏng FE, không thay thế kiểm tra tại BE. Hướng dẫn chi tiết và trường hợp biên: [Sprint 1](docs/Sprint1.md).
 
-### 6. Kiểm tra code trước khi commit
+### 7. Kiểm tra code trước khi commit
 
 ```bash
 npm run lint
@@ -131,4 +142,5 @@ npm run build
 | `node` hoặc `npm` không được nhận diện | Cài Node.js LTS, đóng/mở lại terminal rồi chạy lại `node --version`. |
 | Thiếu package hoặc lỗi `Cannot find module` | Xóa `node_modules` và chạy lại `npm install`. |
 | Cổng `5173` đang được sử dụng | Vite sẽ đề xuất cổng khác; mở đúng URL mà terminal hiển thị. |
-| Dữ liệu demo không như mong muốn | Mở DevTools → Application → Local Storage, xóa `scms_users_database`, `scms_memberships_v1`, `scms_auth_token` và `scms_demo_session_v1`, sau đó tải lại trang. |
+| Không gọi được API | Kiểm tra backend đang chạy và `VITE_API_BASE_URL` trong `.env.local` trỏ đúng tới `/api`. |
+| Phiên đăng nhập không hợp lệ | Đăng xuất rồi đăng nhập lại; nếu cần, xóa `scms_auth_token` và `scms_demo_session_v1` trong Local Storage. |
