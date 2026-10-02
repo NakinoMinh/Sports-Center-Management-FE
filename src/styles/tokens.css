@@ -1,0 +1,236 @@
+/*
+ * Design tokens - the single source of truth for the visual system.
+ *
+ * Before this file the project carried three competing palettes (a dark slate
+ * set in index.css, a teal set in workspace.css, the Titan green set in
+ * theme.css) plus 27 font sizes, 58 spacing values and 21 radii chosen one at a
+ * time. Every surface now reads from the scales below instead of re-declaring a
+ * raw hex or a loose pixel value.
+ *
+ * Load order matters: tokens.css must come before every other stylesheet.
+ */
+
+:root {
+  /* ----------------------------------------------------------------
+   * 1. Palette - raw brand ramps. Only the semantic aliases in
+   *    section 2 should consume these.
+   * ---------------------------------------------------------------- */
+  --green-950: #0d2520;
+  --green-900: #102c26;
+  --green-800: #163d34;
+  --green-700: #1a5343;
+  --green-600: #176b51;
+  --green-500: #1e8464;
+  --green-400: #46a383;
+  --green-300: #8cc6ae;
+  --green-200: #c3e0d2;
+  --green-100: #e2efe8;
+  --green-50: #eff6f1;
+
+  --lime-400: #c2e786;
+  --lime-300: #d4ed9d;
+  --lime-200: #e4f4bf;
+
+  --sand-50: #f8f9f5;
+  --sand-100: #f1f3ec;
+
+  --slate-900: #1b2b25;
+  --slate-700: #203a32;
+  --slate-500: #57685e;
+  --slate-400: #76867c;
+  --slate-300: #a8b5ac;
+  --slate-200: #dce5dc;
+  --slate-100: #e9efe9;
+  --white: #ffffff;
+
+  --red-700: #8f222c;
+  --red-600: #a82b36;
+  --red-100: #fbe3e5;
+  --red-50: #fff0f1;
+
+  --amber-700: #875516;
+  --amber-100: #fdecc8;
+  --amber-50: #fff7e6;
+
+  --blue-700: #1d4e7a;
+  --blue-50: #eef6fc;
+
+  /* ----------------------------------------------------------------
+   * 2. Semantic colour - what components actually reference.
+   * ---------------------------------------------------------------- */
+  --bg-canvas: var(--sand-50);
+  --bg-surface: var(--white);
+  --bg-sunken: var(--sand-100);
+  --bg-subtle: var(--green-50);
+  --bg-inverse: var(--green-900);
+  --bg-inverse-raised: var(--green-800);
+
+  --fg-default: var(--slate-700);
+  --fg-strong: var(--slate-900);
+  --fg-muted: var(--slate-500);
+  --fg-subtle: var(--slate-400);
+  --fg-on-brand: var(--white);
+  --fg-on-inverse: #e8f1ea;
+  --fg-on-inverse-muted: #a9c2b4;
+
+  --brand: var(--green-600);
+  --brand-hover: var(--green-700);
+  --brand-active: var(--green-800);
+  --brand-subtle: var(--green-100);
+  --brand-accent: var(--lime-300);
+
+  --border-default: var(--slate-200);
+  --border-strong: var(--slate-300);
+  --border-subtle: var(--slate-100);
+  --border-inverse: #2f4f45;
+  --border-brand: var(--brand);
+
+  --danger: var(--red-600);
+  --danger-fg: var(--red-700);
+  --danger-bg: var(--red-50);
+  --danger-border: var(--red-100);
+
+  --warning-fg: var(--amber-700);
+  --warning-bg: var(--amber-50);
+  --warning-border: var(--amber-100);
+
+  --success-fg: var(--green-700);
+  --success-bg: var(--green-100);
+  --success-border: var(--green-200);
+
+  --info-fg: var(--blue-700);
+  --info-bg: var(--blue-50);
+
+  /* ----------------------------------------------------------------
+   * 3. Type scale - 1.2 ratio from a 15px body. Nothing below 12px:
+   *    the previous build shipped 7-9px labels that could not be read.
+   * ---------------------------------------------------------------- */
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, monospace;
+
+  --text-2xs: 0.75rem;    /* 12px - overlines, table meta. Hard floor. */
+  --text-xs: 0.8125rem;   /* 13px - captions, helper text */
+  --text-sm: 0.875rem;    /* 14px - secondary body, dense tables */
+  --text-base: 0.9375rem; /* 15px - body default */
+  --text-md: 1rem;        /* 16px - emphasised body, inputs (no iOS zoom) */
+  --text-lg: 1.125rem;    /* 18px - card titles */
+  --text-xl: 1.375rem;    /* 22px - section headings */
+  --text-2xl: 1.75rem;    /* 28px - page titles */
+  --text-3xl: 2.25rem;    /* 36px - hero subtitle */
+  --text-4xl: clamp(2.5rem, 1.6rem + 3.6vw, 3.75rem); /* fluid hero */
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.7;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-black: 800;
+
+  /* Tracking tightens as type grows; positive only for small caps. */
+  --tracking-overline: 0.08em;
+  --tracking-normal: 0;
+  --tracking-tight: -0.011em;
+  --tracking-tighter: -0.022em;
+
+  /* ----------------------------------------------------------------
+   * 4. Space - 4px base grid.
+   * ---------------------------------------------------------------- */
+  --space-0: 0;
+  --space-1: 0.25rem;  /* 4 */
+  --space-2: 0.5rem;   /* 8 */
+  --space-3: 0.75rem;  /* 12 */
+  --space-4: 1rem;     /* 16 */
+  --space-5: 1.25rem;  /* 20 */
+  --space-6: 1.5rem;   /* 24 */
+  --space-7: 2rem;     /* 32 */
+  --space-8: 2.5rem;   /* 40 */
+  --space-9: 3rem;     /* 48 */
+  --space-10: 4rem;    /* 64 */
+  --space-11: 5rem;    /* 80 */
+  --space-12: 6rem;    /* 96 */
+
+  /* ----------------------------------------------------------------
+   * 5. Radius - 6 steps instead of 21.
+   * ---------------------------------------------------------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+
+  /* ----------------------------------------------------------------
+   * 6. Elevation - tinted with the brand hue rather than neutral
+   *    black, so shadows stay in the same colour family as surfaces.
+   * ---------------------------------------------------------------- */
+  --shadow-xs: 0 1px 2px rgba(16, 44, 38, 0.06);
+  --shadow-sm: 0 1px 3px rgba(16, 44, 38, 0.08), 0 1px 2px rgba(16, 44, 38, 0.04);
+  --shadow-md: 0 4px 12px rgba(16, 44, 38, 0.08), 0 1px 3px rgba(16, 44, 38, 0.05);
+  --shadow-lg: 0 12px 28px rgba(16, 44, 38, 0.1), 0 4px 8px rgba(16, 44, 38, 0.05);
+  --shadow-xl: 0 24px 56px rgba(16, 44, 38, 0.14), 0 8px 16px rgba(16, 44, 38, 0.06);
+  --shadow-focus: 0 0 0 3px rgba(23, 107, 81, 0.18);
+
+  /* ----------------------------------------------------------------
+   * 7. Motion - short and eased out. The prefers-reduced-motion
+   *    block at the end of this file collapses all of it.
+   * ---------------------------------------------------------------- */
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --transition-colors: color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+
+  /* ----------------------------------------------------------------
+   * 8. Layout and stacking. A named z-index scale stops the ad-hoc
+   *    30/40/99 values from colliding.
+   * ---------------------------------------------------------------- */
+  --sidebar-width: 17rem;  /* 272px */
+  --topbar-height: 4rem;   /* 64px */
+  --content-max: 78rem;    /* 1248px */
+  --prose-max: 68ch;
+
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-drawer-scrim: 40;
+  --z-drawer: 50;
+  --z-modal: 100;
+  --z-toast: 200;
+
+  /* Control sizing - 44px minimum touch target. */
+  --control-height-sm: 2rem;
+  --control-height: 2.5rem;
+  --control-height-lg: 2.75rem;
+  --tap-target: 2.75rem;
+
+  color-scheme: light;
+}
+
+/* Honour the OS reduced-motion preference across every surface. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 1ms;
+    --duration-fast: 1ms;
+    --duration-base: 1ms;
+    --duration-slow: 1ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

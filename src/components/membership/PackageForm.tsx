@@ -1,4 +1,5 @@
 import { useId, useState, type FormEvent } from "react";
+import * as v from "../../utils/validation";
 import { Save } from "lucide-react";
 import type {
   MembershipDuration,
@@ -35,21 +36,21 @@ export function PackageForm({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextErrors: Record<string, string> = {};
     const amount = Number(price);
     const benefitList = benefits
       .split("\n")
       .map((benefit) => benefit.trim())
       .filter(Boolean);
-    if (name.trim().length < 2)
-      nextErrors.name = "Tên gói cần có ít nhất 2 ký tự.";
-    if (!price.trim() || !Number.isSafeInteger(amount) || amount <= 0) {
-      nextErrors.price = "Nhập giá gói là số nguyên lớn hơn 0.";
-    }
-    if (!benefitList.length)
-      nextErrors.benefits = "Nhập ít nhất một quyền lợi của gói tập.";
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length) return;
+    const nextErrors = v.validateForm(
+      { name, price, benefits },
+      {
+        name: v.packageName,
+        price: v.money("Giá gói", { min: 1 }),
+        benefits: v.benefitLines,
+      },
+    );
+    setErrors(nextErrors as Record<string, string>);
+    if (v.hasErrors(nextErrors)) return;
     onSubmit({
       name: name.trim(),
       price: amount,

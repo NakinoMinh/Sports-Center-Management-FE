@@ -1,52 +1,263 @@
+/*
+ * Global reset and base typography.
+ *
+ * This file previously declared a dark slate palette (--bg-primary: #0a0e17)
+ * that theme.css then overrode with the light Titan palette, so the rendered
+ * colours depended on stylesheet load order. All colour now comes from
+ * tokens.css; this file only resets and sets defaults.
+ */
+@import "./styles/tokens.css";
+
+/* Legacy aliases. A handful of rules in App.css / homepage.css / workspace.css
+   still reference these names; they resolve to the tokens above so there is one
+   palette rather than three. Remove once those files are fully migrated. */
 :root {
-  --font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --bg-primary: #0a0e17;
-  --bg-secondary: #111827;
-  --bg-card: rgba(17, 24, 39, 0.75);
-  --border-color: rgba(255, 255, 255, 0.1);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --accent-cyan: #06b6d4;
-  --accent-emerald: #10b981;
-  --accent-amber: #f59e0b;
-  --accent-danger: #ef4444;
-  --accent-purple: #8b5cf6;
+  --font-family: var(--font-sans);
+  --bg-primary: var(--bg-canvas);
+  --text-primary: var(--fg-default);
+  --text-secondary: var(--fg-muted);
+  --text-muted: var(--fg-subtle);
+  --border-color: var(--border-default);
+  --workspace-ink: var(--fg-default);
+  --workspace-muted: var(--fg-muted);
+  --workspace-green: var(--brand);
+  --workspace-line: var(--border-default);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 * {
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
+html {
+  /* Anchor links and in-page jumps land below the sticky topbar. */
+  scroll-padding-top: calc(var(--topbar-height) + var(--space-4));
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Scoped to the marketing homepage, whose in-page anchors benefit from it.
+   Applied to the whole document it also animates scroll corrections in the
+   admin screens, which reads as the page flying back to the top. */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.titan-home) {
+    scroll-behavior: smooth;
+  }
+}
+
 body {
-  font-family: var(--font-family);
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-tight);
+  background-color: var(--bg-canvas);
+  color: var(--fg-default);
   min-height: 100vh;
-  line-height: 1.5;
+  min-height: 100dvh;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  /* Opt into the typographic niceties the variable font ships with. */
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
-  margin: 0;
-  padding: 0;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 
-button {
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-  outline: none;
+/* --- Headings: tighter leading and tracking as size grows ------------- */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  /* Headings inherit their colour on purpose. Several surfaces (the hero, the
+     recommended plan card, the sidebar) set a light colour on the container and
+     rely on the heading inheriting it; giving headings their own colour here
+     breaks that inheritance and renders them dark on dark. */
+  color: inherit;
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tighter);
+  /* Avoid a single trailing word on its own line in headings. */
+  text-wrap: balance;
 }
 
-input {
-  font-family: inherit;
+h1 {
+  font-size: var(--text-2xl);
+}
+h2 {
+  font-size: var(--text-xl);
+}
+h3 {
+  font-size: var(--text-lg);
+}
+h4 {
+  font-size: var(--text-md);
+  letter-spacing: var(--tracking-tight);
+}
+h5,
+h6 {
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-normal);
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* --- Controls inherit type instead of falling back to the UA font ----- */
+button,
+input,
+select,
+textarea,
+optgroup {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  /* Keeps labels on one line in the dense table toolbars. */
+  text-wrap: nowrap;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+textarea {
+  resize: vertical;
+}
+
+/* 16px prevents iOS Safari from zooming the viewport on focus. */
+@media (max-width: 48rem) {
+  input,
+  select,
+  textarea {
+    font-size: var(--text-md);
+  }
+}
+
+a {
+  color: var(--brand);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition: var(--transition-colors);
+}
+
+a:hover {
+  color: var(--brand-hover);
+}
+
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+svg {
+  /* Icons should never shrink below their declared size in a flex row. */
+  flex-shrink: 0;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border-default);
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.925em;
+}
+
+/* --- Focus: one visible ring everywhere, keyboard-only ---------------- */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* Inside the dark sidebar the brand green has too little contrast against
+   the forest background, so the ring switches to the lime accent. */
+.workspace-sidebar :focus-visible,
+.catalog-nav :focus-visible {
+  outline-color: var(--brand-accent);
+}
+
+::selection {
+  background: var(--brand-subtle);
+  color: var(--brand-active);
+}
+
+::placeholder {
+  color: var(--fg-subtle);
+  opacity: 1;
+}
+
+/* --- Scrollbars: thin and brand-tinted, not OS grey ------------------- */
+@supports selector(::-webkit-scrollbar) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border: 2px solid transparent;
+    background-clip: content-box;
+    border-radius: var(--radius-full);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--fg-subtle);
+    background-clip: content-box;
+  }
+}
+
+/* --- Print: drop the app chrome so receipts and invoices come out clean */
+@media print {
+  .workspace-sidebar,
+  .workspace-topbar,
+  .workspace-footer,
+  .sidebar-scrim,
+  .skip-link {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
 }

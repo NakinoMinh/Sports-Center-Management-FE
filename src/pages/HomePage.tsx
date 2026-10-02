@@ -19,8 +19,9 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import type { MembershipPackage } from "../types/membership";
 import { membershipApi } from "../services/membershipApi";
+import { resolveAssetUrl } from "../services/apiClient";
 import { durationLabel, formatMoney } from "../utils/format";
-import { homeForRole } from "../utils/navigation";
+import { homeForRole, roleLabels } from "../utils/navigation";
 import "../styles/homepage.css";
 
 const activities = [
@@ -108,6 +109,15 @@ const faqs = [
   },
 ];
 
+const initialsOf = (fullName: string): string =>
+  fullName
+    .split(" ")
+    .filter(Boolean)
+    .slice(-2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+
 export function HomePage() {
   const { currentUser } = useAuth();
   const [activityIndex, setActivityIndex] = useState(0);
@@ -184,18 +194,45 @@ export function HomePage() {
             <a href="#questions">Giải đáp</a>
           </nav>
           <div className="home-header-actions">
-            {!currentUser && (
-              <Link className="home-login" to="/login">
-                Đăng nhập
+            {currentUser ? (
+              /* Signed in: the avatar identifies the account at a glance, which
+                 a generic "Không gian của tôi" label cannot do. */
+              <Link
+                className="home-account-chip"
+                to={accountPath}
+                title={`${currentUser.fullName} — ${roleLabels[currentUser.role]}`}
+              >
+                {currentUser.avatar ? (
+                  <img
+                    className="home-account-avatar"
+                    src={resolveAssetUrl(currentUser.avatar)}
+                    alt=""
+                  />
+                ) : (
+                  <span className="home-account-avatar" aria-hidden="true">
+                    {initialsOf(currentUser.fullName)}
+                  </span>
+                )}
+                <span className="home-account-meta">
+                  <strong>{currentUser.fullName}</strong>
+                  <small>{roleLabels[currentUser.role]}</small>
+                </span>
+                <ArrowUpRight size={16} aria-hidden="true" />
               </Link>
+            ) : (
+              <>
+                <Link className="home-login" to="/login">
+                  Đăng nhập
+                </Link>
+                <Link
+                  className="home-button home-button-lime home-header-cta"
+                  to={accountPath}
+                >
+                  Trở thành thành viên
+                  <ArrowUpRight size={17} aria-hidden="true" />
+                </Link>
+              </>
             )}
-            <Link
-              className="home-button home-button-lime home-header-cta"
-              to={accountPath}
-            >
-              {currentUser ? "Không gian của tôi" : "Trở thành thành viên"}
-              <ArrowUpRight size={17} aria-hidden="true" />
-            </Link>
           </div>
         </div>
       </header>

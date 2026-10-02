@@ -9,6 +9,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { ToastProvider } from "./components/common/ToastProvider";
 import { useAuth } from "./hooks/useAuth";
 import { AuthLayout } from "./components/layout/AuthLayout";
 import { WorkspaceLayout } from "./components/layout/WorkspaceLayout";
@@ -92,6 +93,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ToastProvider>
         <RouteScrollReset />
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -156,6 +158,7 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );
