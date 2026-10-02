@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import * as v from "../utils/validation";
+import { describeError, fieldErrorsOf } from "../services/apiErrors";
 import {
   UserRound,
   Camera,
@@ -65,6 +67,8 @@ export function ProfilePage() {
   const [profileMessage, setProfileMessage] = useState("");
   const [profileError, setProfileError] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<v.FieldErrors>({});
+  const [pwdFieldErrors, setPwdFieldErrors] = useState<v.FieldErrors>({});
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarError, setAvatarError] = useState("");
@@ -174,6 +178,18 @@ export function ProfilePage() {
     event.preventDefault();
     setProfileError("");
     setProfileMessage("");
+
+    const errors = v.validateForm(form, {
+      fullName: v.fullName,
+      phone: v.phone,
+      dateOfBirth: v.dateOfBirth,
+    });
+    if (v.hasErrors(errors)) {
+      setFieldErrors(errors);
+      setProfileError(v.firstError(errors) ?? "");
+      return;
+    }
+    setFieldErrors({});
     setIsSavingProfile(true);
 
     try {
@@ -181,7 +197,8 @@ export function ProfilePage() {
       refreshCurrentUser();
       setProfileMessage("Cập nhật thông tin hồ sơ thành công!");
     } catch (err) {
-      setProfileError(err instanceof Error ? err.message : "Không thể cập nhật hồ sơ.");
+      setFieldErrors(fieldErrorsOf(err));
+      setProfileError(describeError(err));
     } finally {
       setIsSavingProfile(false);
     }
@@ -228,10 +245,21 @@ export function ProfilePage() {
       setPwdError("Vui lòng bấm 'Gửi mã OTP qua Email' trước khi xác nhận đổi mật khẩu.");
       return;
     }
-    if (!otpCode || otpCode.trim().length !== 6) {
-      setPwdError("Vui lòng nhập mã OTP gồm 6 chữ số.");
+    const pwdErrors = v.validateForm(
+      { pwdCurrent, pwdNew, pwdConfirm, otpCode },
+      {
+        pwdCurrent: v.required("Mật khẩu hiện tại"),
+        pwdNew: v.password,
+        pwdConfirm: v.confirmPassword(pwdNew),
+        otpCode: v.otpCode,
+      },
+    );
+    if (v.hasErrors(pwdErrors)) {
+      setPwdFieldErrors(pwdErrors);
+      setPwdError(v.firstError(pwdErrors) ?? "");
       return;
     }
+    setPwdFieldErrors({});
 
     setIsSubmittingPwd(true);
     try {
@@ -425,7 +453,7 @@ export function ProfilePage() {
               </div>
             )}
 
-            <form onSubmit={handleProfileSubmit} className="profile-form">
+            <form onSubmit={handleProfileSubmit} className="profile-form" noValidate>
               <div className="field-grid">
                 <label className="field">
                   <span>Họ và tên *</span>
@@ -433,9 +461,13 @@ export function ProfilePage() {
                     required
                     maxLength={80}
                     value={form.fullName}
+                    aria-invalid={Boolean(fieldErrors.fullName)}
                     onChange={(e) => setForm({ ...form, fullName: e.target.value })}
                     placeholder="Nhập họ và tên đầy đủ"
                   />
+                  {fieldErrors.fullName && (
+                    <small className="field-error">{fieldErrors.fullName}</small>
+                  )}
                 </label>
 
                 <label className="field field-disabled">
@@ -456,10 +488,15 @@ export function ProfilePage() {
                     type="tel"
                     maxLength={10}
                     value={form.phone}
+                    aria-invalid={Boolean(fieldErrors.phone)}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                     placeholder="0xxxxxxxxx"
                   />
-                  <small>Gồm 10 chữ số, bắt đầu bằng 0</small>
+                  {fieldErrors.phone ? (
+                    <small className="field-error">{fieldErrors.phone}</small>
+                  ) : (
+                    <small>Gồm 10 chữ số, bắt đầu bằng 0</small>
+                  )}
                 </label>
 
                 <label className="field">
@@ -470,8 +507,14 @@ export function ProfilePage() {
                   <input
                     type="date"
                     value={form.dateOfBirth}
+                    aria-invalid={Boolean(fieldErrors.dateOfBirth)}
                     onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
                   />
+                  {fieldErrors.dateOfBirth && (
+                    <small className="field-error">
+                      {fieldErrors.dateOfBirth}
+                    </small>
+                  )}
                 </label>
 
                 {/* Role specific: Coach Specialization */}
@@ -491,22 +534,21 @@ export function ProfilePage() {
                   </label>
                 )}
 
-                {/* Role specific: Coach or Receptionist Work Schedule */}
+                {/* The work schedule is assigned by the centre manager, so it is
+                    shown read-only here rather than as an editable field. */}
                 {(isCoach || isReceptionist) && (
-                  <label className="field field-full">
+                  <div className="field field-full field-readonly">
                     <span className="field-label-with-icon">
-                      <Briefcase size={13} />
+                      <Briefcase size={13} aria-hidden="true" />
                       <span>Lịch làm việc / Ca làm việc</span>
                     </span>
-                    <textarea
-                      maxLength={300}
-                      rows={3}
-                      value={form.workSchedule}
-                      onChange={(e) => setForm({ ...form, workSchedule: e.target.value })}
-                      placeholder="Ví dụ: Ca sáng: Thứ 2 - Thứ 7 (06:00 - 14:00)..."
-                    />
-                    <small>Ca làm việc cố định hoặc các khung giờ hỗ trợ tại trung tâm</small>
-                  </label>
+                    <p className="field-readonly-value">
+                      {form.workSchedule?.trim()
+                        ? form.workSchedule
+                        : "Chưa được phân công"}
+                    </p>
+                    <small>Do quản lý trung tâm phân công, bạn không thể tự chỉnh sửa</small>
+                  </div>
                 )}
               </div>
 
@@ -550,7 +592,7 @@ export function ProfilePage() {
 
 
 
-            <form onSubmit={handlePasswordSubmit} className="profile-form">
+            <form onSubmit={handlePasswordSubmit} className="profile-form" noValidate>
               <div className="field-grid">
                 <label className="field field-full">
                   <span>Mật khẩu hiện tại *</span>
@@ -561,7 +603,11 @@ export function ProfilePage() {
                     onChange={(e) => setPwdCurrent(e.target.value)}
                     placeholder="Nhập mật khẩu đang dùng"
                     autoComplete="current-password"
+                    aria-invalid={Boolean(pwdFieldErrors.pwdCurrent)}
                   />
+                  {pwdFieldErrors.pwdCurrent && (
+                    <small className="field-error">{pwdFieldErrors.pwdCurrent}</small>
+                  )}
                 </label>
 
                 <label className="field">
@@ -574,7 +620,11 @@ export function ProfilePage() {
                     onChange={(e) => setPwdNew(e.target.value)}
                     placeholder="Nhập mật khẩu mới"
                     autoComplete="new-password"
+                    aria-invalid={Boolean(pwdFieldErrors.pwdNew)}
                   />
+                  {pwdFieldErrors.pwdNew && (
+                    <small className="field-error">{pwdFieldErrors.pwdNew}</small>
+                  )}
                 </label>
 
                 <label className="field">
@@ -587,7 +637,11 @@ export function ProfilePage() {
                     onChange={(e) => setPwdConfirm(e.target.value)}
                     placeholder="Nhập lại mật khẩu mới"
                     autoComplete="new-password"
+                    aria-invalid={Boolean(pwdFieldErrors.pwdConfirm)}
                   />
+                  {pwdFieldErrors.pwdConfirm && (
+                    <small className="field-error">{pwdFieldErrors.pwdConfirm}</small>
+                  )}
                 </label>
               </div>
 
@@ -622,7 +676,11 @@ export function ProfilePage() {
                         placeholder="123456"
                         value={otpCode}
                         onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                        aria-invalid={Boolean(pwdFieldErrors.otpCode)}
                       />
+                      {pwdFieldErrors.otpCode && (
+                        <small className="field-error">{pwdFieldErrors.otpCode}</small>
+                      )}
                     </label>
 
                     <button

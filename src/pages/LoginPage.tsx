@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import * as v from "../utils/validation";
 import { Mail, Lock, LogIn, ArrowRight, ShieldCheck, Send } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { InputField } from "../components/common/InputField";
@@ -71,11 +72,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (isLoading) return;
-    const invalidEmail = !authService.isValidEmail(email);
-    setEmailError(invalidEmail ? "Vui lòng nhập địa chỉ email hợp lệ." : "");
-    setPasswordError(!password ? "Vui lòng nhập mật khẩu." : "");
-    if (!verificationCode.trim()) setVerificationError("Vui lòng nhập mã xác nhận email.");
-    if (invalidEmail || !password || !verificationCode.trim()) return;
+    // Sign-in only checks that the fields are filled in and well formed. It
+    // must NOT apply the password strength rules: an existing account may have
+    // been created under older rules, and telling an unauthenticated visitor
+    // that a password is "too short" leaks what the stored password looks like.
+    const emailError = v.email(email);
+    const passwordEmpty = password === "" ? "Vui lòng nhập mật khẩu." : null;
+    const codeError = v.otpCode(verificationCode);
+    setEmailError(emailError ?? "");
+    setPasswordError(passwordEmpty ?? "");
+    setVerificationError(codeError ?? "");
+    if (emailError || passwordEmpty || codeError) return;
     setIsLoading(true);
     clearError();
     try {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import * as v from "../utils/validation";
 import {
   User as UserIcon,
   Mail,
@@ -57,8 +58,9 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
     if (field === "email") resetVerification();
   };
   const sendVerificationCode = async () => {
-    if (!authService.isValidEmail(form.email)) {
-      setErrors((previous) => ({ ...previous, email: "Vui lòng nhập email hợp lệ." }));
+    const emailError = v.email(form.email);
+    if (emailError) {
+      setErrors((previous) => ({ ...previous, email: emailError }));
       return;
     }
     setIsLoading(true);
@@ -77,20 +79,17 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (isLoading) return;
-    const next: Partial<Record<Fields, string>> = {};
+    const next = v.validateForm(form, {
+      email: v.email,
+      fullName: v.optional(v.fullName),
+      password: v.password,
+      confirmPassword: v.confirmPassword(form.password),
+    }) as Partial<Record<Fields, string>>;
 
-    if (!authService.isValidEmail(form.email))
-      next.email = "Vui lòng nhập email hợp lệ.";
-    if (form.password.length < 8)
-      next.password = "Mật khẩu phải có ít nhất 8 ký tự.";
-    if (new TextEncoder().encode(form.password).length > 72)
-      next.password = "Mật khẩu quá dài (tối đa 72 byte).";
-    if (!form.confirmPassword || form.password !== form.confirmPassword)
-      next.confirmPassword = "Mật khẩu xác nhận không khớp.";
-    if (!verificationCode.trim())
-      setVerificationError("Vui lòng nhập mã xác nhận email.");
+    const codeError = v.otpCode(verificationCode);
+    setVerificationError(codeError ?? "");
     setErrors(next);
-    if (Object.keys(next).length || !verificationCode.trim()) return;
+    if (Object.keys(next).length > 0 || codeError) return;
     setGeneralError("");
     setIsLoading(true);
     try {
@@ -174,6 +173,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
           value={form.fullName}
           onChange={(event) => update("fullName", event.target.value)}
           icon={<UserIcon size={18} />}
+          error={errors.fullName}
           autoComplete="name"
           disabled={isLoading}
         />

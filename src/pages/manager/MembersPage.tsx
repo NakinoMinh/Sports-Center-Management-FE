@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import * as v from "../../utils/validation";
+import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import { Search, Users, Plus, RefreshCw, ArrowUpRight } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
@@ -44,6 +46,7 @@ export function MembersPage() {
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<v.FieldErrors>({});
   const [summary, setSummary] = useState<ReturnType<
     typeof getMembershipStatusSummary
   > | null>(null);
@@ -288,9 +291,24 @@ export function MembersPage() {
         >
           <form
             className="reception-form"
+            noValidate
             onSubmit={async (e) => {
               e.preventDefault();
               if (!currentUser || busy) return;
+
+              const errors = v.validateForm(form, {
+                fullName: v.fullName,
+                email: v.email,
+                phone: v.phone,
+                dateOfBirth: v.dateOfBirth,
+              });
+              if (v.hasErrors(errors)) {
+                setFieldErrors(errors);
+                setFormError(v.firstError(errors) ?? "");
+                return;
+              }
+              setFieldErrors({});
+
               setBusy(true);
               setFormError("");
               try {
@@ -317,7 +335,8 @@ export function MembersPage() {
                 setNotice("Đã lưu hồ sơ thành viên.");
                 void refresh();
               } catch (err) {
-                setFormError((err as Error).message);
+                setFieldErrors(fieldErrorsOf(err));
+                setFormError(describeError(err));
               } finally {
                 setBusy(false);
               }
@@ -340,7 +359,6 @@ export function MembersPage() {
                         *
                       </span>
                       <input
-                        required
                         maxLength={
                           field === "fullName"
                             ? 80
@@ -348,15 +366,9 @@ export function MembersPage() {
                               ? 10
                               : 254
                         }
-                        type={
-                          field === "dateOfBirth"
-                            ? "date"
-                            : field === "email"
-                              ? "email"
-                              : field === "phone"
-                                ? "tel"
-                                : "text"
-                        }
+                        type={field === "dateOfBirth" ? "date" : "text"}
+                        inputMode={field === "phone" ? "numeric" : undefined}
+                        aria-invalid={Boolean(fieldErrors[field])}
                         value={form[field]}
                         onInput={(e) => {
                           const value = e.currentTarget.value;
@@ -369,6 +381,11 @@ export function MembersPage() {
                           setForm({ ...form, [field]: e.target.value })
                         }
                       />
+                      {fieldErrors[field] && (
+                        <small className="field-error">
+                          {fieldErrors[field]}
+                        </small>
+                      )}
                     </label>
                   ),
                 )}

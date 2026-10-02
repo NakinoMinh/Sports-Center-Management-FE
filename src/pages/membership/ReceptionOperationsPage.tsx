@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import * as v from "../../utils/validation";
 import { Link } from "react-router-dom";
 import {
   CalendarDays,
@@ -74,6 +75,7 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
   } | null>(null);
   const [dialogError, setDialogError] = useState("");
   const [note, setNote] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<v.FieldErrors>({});
   const [subject, setSubject] = useState("");
   const [category, setCategory] = useState("Gói tập");
   const [supportStatus, setSupportStatus] =
@@ -629,9 +631,42 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
         >
           <form
             className="reception-form"
+            noValidate
             onSubmit={(event) => {
               event.preventDefault();
               if (!currentUser) return;
+              const formErrors = v.validateForm(
+                { subject, note },
+                {
+                  ...(dialog.kind === "request"
+                    ? {
+                        subject: v.all(
+                          v.required("Tiêu đề"),
+                          v.minLength("Tiêu đề", 3),
+                          v.maxLength("Tiêu đề", 120),
+                        ),
+                      }
+                    : {}),
+                  note: v.all(
+                    v.required(
+                      dialog.kind === "request"
+                        ? "Nội dung yêu cầu"
+                        : "Ghi chú xử lý",
+                    ),
+                    v.minLength(
+                      dialog.kind === "request"
+                        ? "Nội dung yêu cầu"
+                        : "Ghi chú xử lý",
+                      dialog.kind === "request" ? 10 : 3,
+                    ),
+                  ),
+                },
+              );
+              if (v.hasErrors(formErrors)) {
+                setFieldErrors(formErrors);
+                return;
+              }
+              setFieldErrors({});
               run(
                 () => {
                   if (dialog.kind === "book")
@@ -720,12 +755,14 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
                 <label className="field">
                   <span>Tiêu đề</span>
                   <input
-                    required
-                    minLength={3}
                     maxLength={120}
                     value={subject}
+                    aria-invalid={Boolean(fieldErrors.subject)}
                     onChange={(e) => setSubject(e.target.value)}
                   />
+                  {fieldErrors.subject && (
+                    <small className="field-error">{fieldErrors.subject}</small>
+                  )}
                 </label>
               </>
             )}
@@ -784,13 +821,15 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
                       : "Ghi chú xử lý"}
                 </span>
                 <textarea
-                  required
-                  minLength={dialog.kind === "request" ? 10 : 3}
                   maxLength={dialog.kind === "cancel" ? 500 : 2000}
                   rows={4}
                   value={note}
+                  aria-invalid={Boolean(fieldErrors.note)}
                   onChange={(e) => setNote(e.target.value)}
                 />
+                {fieldErrors.note && (
+                  <small className="field-error">{fieldErrors.note}</small>
+                )}
               </label>
             )}
             {dialogError && (

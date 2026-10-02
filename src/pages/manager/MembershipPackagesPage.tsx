@@ -17,6 +17,8 @@ import {
   type PackageFormValues,
 } from "../../components/membership/PackageForm";
 import { useAuth } from "../../hooks/useAuth";
+import { useToast } from "../../hooks/useToast";
+import { describeError } from "../../services/apiErrors";
 import { membershipApi } from "../../services/membershipApi";
 import type { MembershipPackage } from "../../types/membership";
 
@@ -26,13 +28,12 @@ const currency = new Intl.NumberFormat("vi-VN", {
 });
 const durationLabel = (months: number) =>
   months === 1 ? "Gói tháng" : months === 3 ? "Gói quý" : "Gói năm";
-const errorMessage = (error: unknown) =>
-  error instanceof Error
-    ? error.message
-    : "Không thể thực hiện thao tác. Vui lòng thử lại.";
+/** Single translator for every failure on this page; see services/apiErrors. */
+const errorMessage = (error: unknown) => describeError(error);
 
 export function MembershipPackagesPage() {
   const { currentUser } = useAuth();
+  const toast = useToast();
   const [packages, setPackages] = useState<MembershipPackage[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "hidden">("all");
@@ -42,8 +43,9 @@ export function MembershipPackagesPage() {
   const [deleting, setDeleting] = useState<MembershipPackage | null>(null);
   const [formError, setFormError] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
+  // Distinguishes the first load from a background refresh after an action.
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!currentUser) return;
@@ -55,6 +57,7 @@ export function MembershipPackagesPage() {
       setError(errorMessage(caught));
     } finally {
       setLoading(false);
+      setHasLoaded(true);
     }
   }, [currentUser]);
 
@@ -88,7 +91,7 @@ export function MembershipPackagesPage() {
     try {
       const packageId = editing && editing !== "new" ? editing.id : undefined;
       await membershipApi.savePackage(values, packageId);
-      setNotice(
+      toast.success(
         editing === "new"
           ? "Đã tạo gói tập mới. Thành viên có thể đăng ký ngay."
           : "Đã cập nhật gói tập. Các lượt đăng ký trước đó được giữ nguyên.",
@@ -105,7 +108,7 @@ export function MembershipPackagesPage() {
     if (!currentUser) return;
     try {
       await membershipApi.setPackageStatus(item.id, !item.isActive);
-      setNotice(
+      toast.success(
         item.isActive
           ? `Đã ẩn “${item.name}”. Gói tập đã đăng ký vẫn còn hiệu lực.`
           : `Đã mở bán lại “${item.name}”.`,
@@ -123,7 +126,7 @@ export function MembershipPackagesPage() {
     if (!currentUser || !deleting) return;
     try {
       await membershipApi.deletePackage(deleting.id);
-      setNotice(`Đã xóa “${deleting.name}”.`);
+      toast.success(`Đã xóa “${deleting.name}”.`);
       setDeleting(null);
       setFormError("");
       await refresh();
@@ -141,8 +144,17 @@ export function MembershipPackagesPage() {
     );
   }
 
-  if (loading) {
-    return <div className="empty-state" role="status">Đang tải danh mục gói tập…</div>;
+  // Only the first load replaces the page. A refresh triggered by hiding or
+  // saving a package used to swap the whole screen for this one-line message:
+  // the document collapsed from ~1500px to ~400px, the browser clamped the
+  // scroll offset to the new maximum, and the list came back scrolled to the
+  // top with the row the user had just clicked far off screen.
+  if (loading && !hasLoaded) {
+    return (
+      <div className="empty-state" role="status">
+        Đang tải danh mục gói tập…
+      </div>
+    );
   }
 
   return (
@@ -203,12 +215,6 @@ export function MembershipPackagesPage() {
         </div>
       </div>
 
-      {notice && (
-        <div className="feedback success" role="status">
-          <BadgeCheck size={18} aria-hidden="true" />
-          {notice}
-        </div>
-      )}
       {error && (
         <div className="feedback error" role="alert">
           {error}

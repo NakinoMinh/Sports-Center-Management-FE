@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import * as v from "../../utils/validation";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -34,6 +35,7 @@ export function CashPaymentsPage() {
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dialogError, setDialogError] = useState("");
+  const [receivedError, setReceivedError] = useState("");
   const [canceling, setCanceling] = useState(false);
   const refresh = useCallback(async () => {
     if (!currentUser) return;
@@ -92,6 +94,20 @@ export function CashPaymentsPage() {
   async function confirm(event: FormEvent) {
     event.preventDefault();
     if (!invoice || !currentUser || busy || !checked || staleUpgrade) return;
+
+    // The cashier must key in what was actually handed over; a mismatch means
+    // the drawer and the invoice would disagree, so it is blocked here.
+    const amountError =
+      v.money("Số tiền đã thu", { min: 1 })(received) ??
+      (Number(received) !== invoice.amount
+        ? `Số tiền đã thu phải đúng bằng ${formatMoney(invoice.amount)}.`
+        : null);
+    if (amountError) {
+      setReceivedError(amountError);
+      return;
+    }
+    setReceivedError("");
+
     setBusy(true);
     setDialogError("");
     try {
@@ -279,7 +295,7 @@ export function CashPaymentsPage() {
             </p>
           )}
           {invoice.status === "PENDING_PAYMENT" ? (
-            <form onSubmit={confirm}>
+            <form onSubmit={confirm} noValidate>
               <div className="info-note">
                 <p>
                   {staleUpgrade ? (
@@ -298,15 +314,15 @@ export function CashPaymentsPage() {
               <label className="field">
                 <span>Số tiền đã thu (VNĐ) *</span>
                 <input
-                  required
-                  type="number"
                   inputMode="numeric"
-                  min={1}
-                  step={1}
                   value={received}
+                  aria-invalid={Boolean(receivedError)}
                   onChange={(e) => setReceived(e.target.value)}
                   placeholder={String(invoice.amount)}
                 />
+                {receivedError && (
+                  <small className="field-error">{receivedError}</small>
+                )}
               </label>
               <label className="cash-check">
                 <input

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import * as v from "../../utils/validation";
 import { Dialog } from "../common/Dialog";
 
 import { memberApi } from "../../services/memberApi";
@@ -44,12 +45,26 @@ export function CounterRegistrationForm({
     initialPassword: string;
   } | null>(null);
   const pkg = packages.find((p) => p.id === form.packageId);
+  const [fieldErrors, setFieldErrors] = useState<v.FieldErrors>({});
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
     setError("");
+    setFieldErrors({});
     if (!pkg) {
       setError("Bắt buộc chọn gói tập trước khi đăng ký thành viên.");
+      return;
+    }
+    const errors = v.validateForm(form, {
+      fullName: v.fullName,
+      email: v.email,
+      phone: v.phone,
+      dateOfBirth: v.dateOfBirth,
+    });
+    if (v.hasErrors(errors)) {
+      setFieldErrors(errors);
+      setError(v.firstError(errors) ?? "");
       return;
     }
     setBusy(true);
@@ -121,47 +136,60 @@ export function CounterRegistrationForm({
         if (!busy) onClose();
       }}
     >
-      <form onSubmit={submit}>
+      <form onSubmit={submit} noValidate>
         <fieldset disabled={busy} className="counter-fieldset">
           <div className="field-grid">
             <label className="field">
               <span>Họ và tên *</span>
               <input
-                required
-                minLength={2}
                 maxLength={80}
                 autoComplete="name"
                 value={form.fullName}
+                aria-invalid={Boolean(fieldErrors.fullName)}
                 onChange={(e) => setForm({ ...form, fullName: e.target.value })}
               />
+              {fieldErrors.fullName && (
+                <small className="field-error">{fieldErrors.fullName}</small>
+              )}
             </label>
             <label className="field">
               <span>Số điện thoại *</span>
               <input
-                required
                 type="tel"
+                inputMode="numeric"
                 autoComplete="tel"
-                maxLength={20}
+                maxLength={10}
                 value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    phone: e.target.value.replace(/\D/g, "").slice(0, 10),
+                  })
+                }
                 placeholder="0901234567"
+                aria-invalid={Boolean(fieldErrors.phone)}
               />
+              {fieldErrors.phone && (
+                <small className="field-error">{fieldErrors.phone}</small>
+              )}
             </label>
             <label className="field field-full">
               <span>Email *</span>
               <input
-                required
                 type="email"
                 autoComplete="email"
                 maxLength={254}
                 value={form.email}
+                aria-invalid={Boolean(fieldErrors.email)}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
               />
+              {fieldErrors.email && (
+                <small className="field-error">{fieldErrors.email}</small>
+              )}
             </label>
             <label className="field">
               <span>Ngày sinh *</span>
               <input
-                required
                 type="date"
                 min="1900-01-01"
                 autoComplete="bday"
@@ -173,7 +201,11 @@ export function CounterRegistrationForm({
                 onChange={(e) =>
                   setForm({ ...form, dateOfBirth: e.target.value })
                 }
+                aria-invalid={Boolean(fieldErrors.dateOfBirth)}
               />
+              {fieldErrors.dateOfBirth && (
+                <small className="field-error">{fieldErrors.dateOfBirth}</small>
+              )}
             </label>
             <div className="field">
               <span>Thông tin đăng nhập</span>
