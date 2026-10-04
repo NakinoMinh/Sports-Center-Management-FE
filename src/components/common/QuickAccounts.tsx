@@ -3,14 +3,6 @@ import { Crown, User as UserIcon, Headphones, Dumbbell } from "lucide-react";
 import type { UserRole } from "../../types/auth";
 
 
-/**
- * CẢNH BÁO: DB đang chạy KHÔNG khớp SportsCenterManagement_Official.sql.
- * Script seed đặt mọi tài khoản là "Admin@123", nhưng DB thực tế có mật khẩu
- * khác nhau theo từng tài khoản. Các giá trị dưới đây đã được xác minh bằng
- * POST /api/Auth/request-login-email-verification (trả HTTP 200).
- * Khi nào DB được dựng lại từ script seed thì mới gộp về một hằng số chung.
- */
-
 interface QuickAccountItem {
   role: UserRole;
   roleTitle: string;
@@ -54,8 +46,8 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
     {
       role: "COACH",
       roleTitle: "Huấn Luyện Viên",
-      name: "Nguyen Van The",
-      email: "coach.demo@sportscenter.local",
+      name: "Nguyễn Văn Thể",
+      email: "coach@sportscenter.com",
       password: "Admin@123",
       badgeClass: "badge-coach",
       icon: <Dumbbell size={14} />,
@@ -63,9 +55,9 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
     {
       role: "MEMBER",
       roleTitle: "Hội Viên Trung Tâm",
-      name: "Nguyen Van Test Updated",
-      email: "member01@sportscenter.local",
-      password: "Test@12345",
+      name: "Phạm Hoàng Nam",
+      email: "member@sportscenter.com",
+      password: "Admin@123",
       badgeClass: "badge-member",
       icon: <UserIcon size={14} />,
     },
