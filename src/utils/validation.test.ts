@@ -108,7 +108,30 @@ describe("dateOfBirth", () => {
     expect(v.dateOfBirth("1995-10-15")).toBeNull();
   });
 });
+describe("dateRange", () => {
+  it("accepts a valid date range", () => {
+    expect(v.dateRange("2026-10-01")("2026-10-05")).toBeNull();
+  });
 
+  it("accepts the same start and end date", () => {
+    expect(v.dateRange("2026-10-05")("2026-10-05")).toBeNull();
+  });
+
+  it("rejects an end date before the start date", () => {
+    expect(v.dateRange("2026-10-10")("2026-10-05")).toMatch(
+      /bằng hoặc sau Từ ngày/,
+    );
+  });
+
+  it("allows an incomplete range", () => {
+    expect(v.dateRange("")("2026-10-05")).toBeNull();
+    expect(v.dateRange("2026-10-01")("")).toBeNull();
+  });
+
+  it("rejects an invalid date value", () => {
+    expect(v.dateRange("not-a-date")("2026-10-05")).toMatch(/không hợp lệ/);
+  });
+});
 describe("money", () => {
   const price = v.money("Giá gói");
 

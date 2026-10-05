@@ -73,7 +73,11 @@ const emptySnapshot: Snapshot = {
 export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
   const { currentUser } = useAuth();
   const [searchParams] = useSearchParams();
-  const [selectedMember, setSelectedMember] = useState(searchParams.get("member") ?? "");
+  const [selectedMember, setSelectedMember] = useState(
+    searchParams.get("member") ?? "",
+  );
+  const [memberEmailSearch, setMemberEmailSearch] = useState("");
+  const [submittedEmailSearch, setSubmittedEmailSearch] = useState("");
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -90,26 +94,28 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
   const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
-        const publicPackages = (await membershipApi.listPublicPackages()).sort((a, b) => a.price - b.price);
-        const membersList = isCounter
-          ? await memberApi.listAllMembers()
-          : [currentUser];
-        const memberInvoices = memberId
-          ? await membershipApi.listInvoices({ memberId })
-          : [];
-        const memberSubs = memberInvoices.map(subscriptionFromInvoice);
-        setSnapshot({
-          packages: publicPackages,
-          members: membersList,
-          subscriptions: memberSubs,
-          invoices: memberInvoices,
-        });
-        setInvoice((opened) =>
-          opened
-            ? (memberInvoices.find((item) => item.id === opened.id) ?? null)
-            : null,
-        );
-        setError("");
+      const publicPackages = (await membershipApi.listPublicPackages()).sort(
+        (a, b) => a.price - b.price,
+      );
+      const membersList = isCounter
+        ? await memberApi.listAllMembers(submittedEmailSearch)
+        : [currentUser];
+      const memberInvoices = memberId
+        ? await membershipApi.listInvoices({ memberId })
+        : [];
+      const memberSubs = memberInvoices.map(subscriptionFromInvoice);
+      setSnapshot({
+        packages: publicPackages,
+        members: membersList,
+        subscriptions: memberSubs,
+        invoices: memberInvoices,
+      });
+      setInvoice((opened) =>
+        opened
+          ? (memberInvoices.find((item) => item.id === opened.id) ?? null)
+          : null,
+      );
+      setError("");
     } catch (err) {
       setSnapshot(emptySnapshot);
       setError(
@@ -120,7 +126,7 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
     } finally {
       setLoading(false);
     }
-  }, [currentUser, isCounter, memberId]);
+  }, [currentUser, isCounter, memberId, submittedEmailSearch]);
 
   useEffect(() => {
     // Synchronize with the external localStorage adapter when the selected member changes.
@@ -156,36 +162,39 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
     setQuoteError("");
     try {
       const target = member ?? currentUser;
-        const confirmedSubs = snapshot.subscriptions.filter(
-          (sub) => sub.status === "CONFIRMED" && !sub.replacedOn,
-        );
-        const today = todayDate();
-        const latestEnd = confirmedSubs.reduce(
-          (latest, item) => (item.endDate > latest ? item.endDate : latest),
-          "",
-        );
-        const orderKind = resolveOrderKind(snapshot.subscriptions, pkg);
-        const startDate =
-          orderKind !== "UPGRADE" && latestEnd >= today
-            ? addDateDays(latestEnd, 1)
-            : today;
-        const endDate = addDateDays(addMonthsClamped(startDate, pkg.durationMonths), -1);
+      const confirmedSubs = snapshot.subscriptions.filter(
+        (sub) => sub.status === "CONFIRMED" && !sub.replacedOn,
+      );
+      const today = todayDate();
+      const latestEnd = confirmedSubs.reduce(
+        (latest, item) => (item.endDate > latest ? item.endDate : latest),
+        "",
+      );
+      const orderKind = resolveOrderKind(snapshot.subscriptions, pkg);
+      const startDate =
+        orderKind !== "UPGRADE" && latestEnd >= today
+          ? addDateDays(latestEnd, 1)
+          : today;
+      const endDate = addDateDays(
+        addMonthsClamped(startDate, pkg.durationMonths),
+        -1,
+      );
 
-        setQuote({
-          memberId: target.id,
-          memberName: target.fullName,
-          memberEmail: target.email,
-          packageId: pkg.id,
-          packageName: pkg.name,
-          packagePrice: pkg.price,
-          durationMonths: pkg.durationMonths,
-          benefits: pkg.benefits,
-          amount: pkg.price,
-          startDate,
-          endDate,
-          kind: orderKind,
-          paymentMethod: "CASH",
-        });
+      setQuote({
+        memberId: target.id,
+        memberName: target.fullName,
+        memberEmail: target.email,
+        packageId: pkg.id,
+        packageName: pkg.name,
+        packagePrice: pkg.price,
+        durationMonths: pkg.durationMonths,
+        benefits: pkg.benefits,
+        amount: pkg.price,
+        startDate,
+        endDate,
+        kind: orderKind,
+        paymentMethod: "CASH",
+      });
     } catch (err) {
       refresh();
       setError(err instanceof Error ? err.message : "Không thể lập đăng ký.");
@@ -198,28 +207,28 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
     setQuoteError("");
     try {
       const order = isCounter
-          ? await membershipApi.counterRegisterOrRenew(
-              quote.memberId,
-              quote.packageId,
-              quote.paymentMethod,
-            )
-          : await membershipApi.registerOrRenew(
-              currentUser,
-              quote.packageId,
-              quote.paymentMethod,
-            );
-        setQuote(null);
-        setInvoice(order.invoice);
-        setSnapshot((previous) => ({
-          ...previous,
-          subscriptions: [order.subscription, ...previous.subscriptions],
-          invoices: [order.invoice, ...previous.invoices],
-        }));
-        setNotice(
-          isCounter
-            ? "Đã đăng ký/gia hạn và ghi nhận thanh toán tại quầy."
-            : "Đã tạo yêu cầu và hóa đơn chờ thanh toán. Gói mới chưa được kích hoạt.",
-        );
+        ? await membershipApi.counterRegisterOrRenew(
+            quote.memberId,
+            quote.packageId,
+            quote.paymentMethod,
+          )
+        : await membershipApi.registerOrRenew(
+            currentUser,
+            quote.packageId,
+            quote.paymentMethod,
+          );
+      setQuote(null);
+      setInvoice(order.invoice);
+      setSnapshot((previous) => ({
+        ...previous,
+        subscriptions: [order.subscription, ...previous.subscriptions],
+        invoices: [order.invoice, ...previous.invoices],
+      }));
+      setNotice(
+        isCounter
+          ? "Đã đăng ký/gia hạn và ghi nhận thanh toán tại quầy."
+          : "Đã tạo yêu cầu và hóa đơn chờ thanh toán. Gói mới chưa được kích hoạt.",
+      );
     } catch (err) {
       setQuoteError(
         err instanceof Error
@@ -269,7 +278,10 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
       {isCounter && (
         <section className="panel member-picker">
           <div className="counter-actions">
-            <Link className="button secondary" to="/receptionist/membership-status">
+            <Link
+              className="button secondary"
+              to="/receptionist/membership-status"
+            >
               <ShieldCheck size={17} /> Kiểm tra trạng thái gói
             </Link>
             <button
@@ -290,6 +302,31 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
               <p>Thông tin và hóa đơn sẽ được lưu cho người được chọn.</p>
             </div>
           </div>
+          <label className="field">
+            <span>Tìm thành viên bằng email</span>
+            <div className="member-search-row">
+              <input
+                type="email"
+                value={memberEmailSearch}
+                placeholder="Nhập email thành viên"
+                onChange={(event) => setMemberEmailSearch(event.target.value)}
+              />
+
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => {
+                  setSubmittedEmailSearch(memberEmailSearch.trim());
+                  setSelectedMember("");
+                  setNotice("");
+                  setQuote(null);
+                  setInvoice(null);
+                }}
+              >
+                Tìm kiếm
+              </button>
+            </div>
+          </label>
           <label className="field">
             <span>Chọn thành viên</span>
             <select
@@ -400,11 +437,11 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
             <>
               <div className="info-note">
                 <p>
-                  Cùng gói hoặc cùng giá: gia hạn nối tiếp. Chọn gói giá cao hơn:
-                  trừ giá trị ngày còn lại và bắt đầu đủ kỳ hạn mới khi thanh toán.
-                  Gói giá thấp hơn bắt đầu sau kỳ đã trả tiền. Nếu đã trả trước
-                  các kỳ tương lai, gói mới sẽ nối tiếp sau toàn bộ các kỳ đó,
-                  thanh toán đủ giá để bảo toàn thời gian đã mua.
+                  Cùng gói hoặc cùng giá: gia hạn nối tiếp. Chọn gói giá cao
+                  hơn: trừ giá trị ngày còn lại và bắt đầu đủ kỳ hạn mới khi
+                  thanh toán. Gói giá thấp hơn bắt đầu sau kỳ đã trả tiền. Nếu
+                  đã trả trước các kỳ tương lai, gói mới sẽ nối tiếp sau toàn bộ
+                  các kỳ đó, thanh toán đủ giá để bảo toàn thời gian đã mua.
                 </p>
               </div>
               <div className="section-heading">
@@ -422,53 +459,58 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                 </p>
               </div>
               <div className="package-card-grid">
-                {snapshot.packages.slice().sort((a, b) => a.price - b.price).map((pkg) => (
-                  <article
-                    className={`membership-package ${pkg.durationMonths === 3 ? "featured" : ""}`}
-                    key={pkg.id}
-                  >
-                    {pkg.durationMonths === 3 && (
-                      <div className="package-ribbon">
-                        <Sparkles size={13} />
-                        Gợi ý sử dụng
-                      </div>
-                    )}
-                    <span className="package-duration">
-                      <CalendarDays size={16} />
-                      {durationLabel(pkg.durationMonths)}
-                    </span>
-                    <h3>{pkg.name}</h3>
-                    <div className="package-price">
-                      {formatMoney(pkg.price)}
-                      <small>/ {durationLabel(pkg.durationMonths)}</small>
-                    </div>
-                    <p className="package-price-note">
-                      Tương đương{" "}
-                      {formatMoney(Math.round(pkg.price / pkg.durationMonths))}
-                      /tháng
-                    </p>
-                    <ul>
-                      {pkg.benefits.map((benefit, i) => (
-                        <li key={`${i}-${benefit}`}>
-                          <Check size={16} />
-                          <span>{benefit}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <button
-                      className={`button ${pkg.durationMonths === 3 ? "primary" : "secondary"}`}
-                      disabled={!!pending || !memberId || !!error}
-                      onClick={() => selectPackage(pkg)}
+                {snapshot.packages
+                  .slice()
+                  .sort((a, b) => a.price - b.price)
+                  .map((pkg) => (
+                    <article
+                      className={`membership-package ${pkg.durationMonths === 3 ? "featured" : ""}`}
+                      key={pkg.id}
                     >
-                      {
-                        orderKindLabels[
-                          resolveOrderKind(snapshot.subscriptions, pkg)
-                        ]
-                      }
-                      <ArrowRight size={16} />
-                    </button>
-                  </article>
-                ))}
+                      {pkg.durationMonths === 3 && (
+                        <div className="package-ribbon">
+                          <Sparkles size={13} />
+                          Gợi ý sử dụng
+                        </div>
+                      )}
+                      <span className="package-duration">
+                        <CalendarDays size={16} />
+                        {durationLabel(pkg.durationMonths)}
+                      </span>
+                      <h3>{pkg.name}</h3>
+                      <div className="package-price">
+                        {formatMoney(pkg.price)}
+                        <small>/ {durationLabel(pkg.durationMonths)}</small>
+                      </div>
+                      <p className="package-price-note">
+                        Tương đương{" "}
+                        {formatMoney(
+                          Math.round(pkg.price / pkg.durationMonths),
+                        )}
+                        /tháng
+                      </p>
+                      <ul>
+                        {pkg.benefits.map((benefit, i) => (
+                          <li key={`${i}-${benefit}`}>
+                            <Check size={16} />
+                            <span>{benefit}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        className={`button ${pkg.durationMonths === 3 ? "primary" : "secondary"}`}
+                        disabled={!!pending || !memberId || !!error}
+                        onClick={() => selectPackage(pkg)}
+                      >
+                        {
+                          orderKindLabels[
+                            resolveOrderKind(snapshot.subscriptions, pkg)
+                          ]
+                        }
+                        <ArrowRight size={16} />
+                      </button>
+                    </article>
+                  ))}
               </div>
               {!snapshot.packages.length && (
                 <div className="panel empty-state">
@@ -668,9 +710,10 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
           {quote.kind === "UPGRADE" && (
             <div className="info-note">
               <p>
-                Giá trị còn lại = {formatMoney(quote.previousPackagePrice ?? 0)} ×{" "}
-                {quote.remainingDays}/{quote.previousPeriodDays} ngày ={" "}
-                {formatMoney(quote.creditAmount ?? 0)} (làm tròn đến đồng).<br />
+                Giá trị còn lại = {formatMoney(quote.previousPackagePrice ?? 0)}{" "}
+                × {quote.remainingDays}/{quote.previousPeriodDays} ngày ={" "}
+                {formatMoney(quote.creditAmount ?? 0)} (làm tròn đến đồng).
+                <br />
                 Cần trả = {formatMoney(quote.packagePrice)} −{" "}
                 {formatMoney(quote.creditAmount ?? 0)} ={" "}
                 <strong>{formatMoney(quote.amount)}</strong>. Gói mới có đủ{" "}
@@ -682,10 +725,10 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
           {quote.kind === "DOWNGRADE" && (
             <div className="info-note">
               <p>
-                Giữ quyền lợi gói đã thanh toán đến hết kỳ.
-                Gói giá thấp hơn chỉ bắt đầu từ {formatDate(quote.startDate)}, sau khi
-                đã xác nhận thanh toán. Nếu có các kỳ trả trước, lịch hạ nằm sau
-                toàn bộ các kỳ đó.
+                Giữ quyền lợi gói đã thanh toán đến hết kỳ. Gói giá thấp hơn chỉ
+                bắt đầu từ {formatDate(quote.startDate)}, sau khi đã xác nhận
+                thanh toán. Nếu có các kỳ trả trước, lịch hạ nằm sau toàn bộ các
+                kỳ đó.
               </p>
             </div>
           )}

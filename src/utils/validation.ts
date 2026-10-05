@@ -26,16 +26,12 @@ export const required =
 export const maxLength =
   (label: string, max: number): Validator =>
   (value) =>
-    value.trim().length > max
-      ? `${label} tối đa ${max} ký tự.`
-      : null;
+    value.trim().length > max ? `${label} tối đa ${max} ký tự.` : null;
 
 export const minLength =
   (label: string, min: number): Validator =>
   (value) =>
-    value.trim().length < min
-      ? `${label} cần ít nhất ${min} ký tự.`
-      : null;
+    value.trim().length < min ? `${label} cần ít nhất ${min} ký tự.` : null;
 
 // --- Domain rules -------------------------------------------------------
 
@@ -59,12 +55,10 @@ export const email: Validator = (value) => {
 export const phone: Validator = (value) => {
   const trimmed = value.trim();
   if (trimmed === "") return "Số điện thoại không được để trống.";
-  if (!/^\d+$/.test(trimmed))
-    return "Số điện thoại chỉ được chứa chữ số.";
+  if (!/^\d+$/.test(trimmed)) return "Số điện thoại chỉ được chứa chữ số.";
   if (trimmed.length !== 10)
     return `Số điện thoại phải gồm đúng 10 chữ số (đang có ${trimmed.length}).`;
-  if (!trimmed.startsWith("0"))
-    return "Số điện thoại phải bắt đầu bằng số 0.";
+  if (!trimmed.startsWith("0")) return "Số điện thoại phải bắt đầu bằng số 0.";
   return null;
 };
 
@@ -93,8 +87,7 @@ export const confirmPassword =
 export const otpCode: Validator = (value) => {
   const trimmed = value.trim();
   if (trimmed === "") return "Mã xác nhận không được để trống.";
-  if (!/^\d{6}$/.test(trimmed))
-    return "Mã xác nhận gồm đúng 6 chữ số.";
+  if (!/^\d{6}$/.test(trimmed)) return "Mã xác nhận gồm đúng 6 chữ số.";
   return null;
 };
 
@@ -131,23 +124,50 @@ export const dateOfBirth: Validator = (value) => {
   const today = new Date();
   if (parsed > today) return "Ngày sinh không thể ở tương lai.";
 
-  const age = (today.getTime() - parsed.getTime()) / (365.25 * 24 * 3600 * 1000);
+  const age =
+    (today.getTime() - parsed.getTime()) / (365.25 * 24 * 3600 * 1000);
   if (age < MIN_AGE_YEARS)
     return `Thành viên phải từ ${MIN_AGE_YEARS} tuổi trở lên.`;
   if (age > MAX_AGE_YEARS) return "Ngày sinh không hợp lệ.";
   return null;
 };
 
+export const dateRange =
+  (from: string): Validator =>
+  (to) => {
+    const fromValue = from.trim();
+    const toValue = to.trim();
+
+    if (fromValue === "" || toValue === "") return null;
+
+    const fromDate = new Date(fromValue);
+    const toDate = new Date(toValue);
+
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      return "Khoảng thời gian không hợp lệ.";
+    }
+
+    if (fromDate > toDate) {
+      return "Đến ngày phải bằng hoặc sau Từ ngày.";
+    }
+
+    return null;
+  };
 /** Package price and any other money amount, in VND. */
 export const money =
-  (label: string, { min = 0, max = 1_000_000_000 } = {}): Validator<number | string> =>
+  (
+    label: string,
+    { min = 0, max = 1_000_000_000 } = {},
+  ): Validator<number | string> =>
   (raw) => {
     const value = typeof raw === "number" ? raw : Number(String(raw).trim());
     if (String(raw).trim() === "") return `${label} không được để trống.`;
     if (!Number.isFinite(value)) return `${label} phải là một số.`;
     if (!Number.isInteger(value)) return `${label} phải là số nguyên (đồng).`;
-    if (value < min) return `${label} không được nhỏ hơn ${min.toLocaleString("vi-VN")} đ.`;
-    if (value > max) return `${label} không được lớn hơn ${max.toLocaleString("vi-VN")} đ.`;
+    if (value < min)
+      return `${label} không được nhỏ hơn ${min.toLocaleString("vi-VN")} đ.`;
+    if (value > max)
+      return `${label} không được lớn hơn ${max.toLocaleString("vi-VN")} đ.`;
     return null;
   };
 
@@ -243,5 +263,6 @@ export const hasErrors = (errors: FieldErrors): boolean =>
 
 /** First message in field order, for a form-level summary. */
 export const firstError = (errors: FieldErrors): string | null =>
-  Object.values(errors).find((message): message is string => Boolean(message)) ??
-  null;
+  Object.values(errors).find((message): message is string =>
+    Boolean(message),
+  ) ?? null;
