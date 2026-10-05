@@ -53,6 +53,13 @@ describe("describeError", () => {
 });
 
 describe("fieldErrorsOf", () => {
+  it("maps a duplicate phone response to the phone input", () => {
+    const error = new ApiError("Phone number already exists.", 409, "PHONE_ALREADY_EXISTS");
+    expect(fieldErrorsOf(error)).toEqual({
+      phone: "Số điện thoại đã tồn tại. Vui lòng dùng số khác.",
+    });
+    expect(describeError(error)).toBe("Số điện thoại đã tồn tại. Vui lòng dùng số khác.");
+  });
   it("lowercases the server's PascalCase keys so they match form field names", () => {
     const error = new ApiError("Request validation failed.", 400, "VALIDATION_ERROR", {
       FullName: ["Họ tên không được để trống."],

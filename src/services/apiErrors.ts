@@ -28,6 +28,8 @@ const MESSAGES: Record<string, string> = {
   // --- Registration ---
   EMAIL_ALREADY_EXISTS:
     "Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.",
+  PHONE_ALREADY_EXISTS:
+    "Số điện thoại đã tồn tại. Vui lòng dùng số khác.",
 
   // --- Email verification ---
   EMAIL_VERIFICATION_REQUIRED:
@@ -121,7 +123,11 @@ export const isRetryable = (error: unknown): boolean =>
  * The server sends `details` as `{ fieldName: ["message", ...] }`.
  */
 export function fieldErrorsOf(error: unknown): Record<string, string> {
-  if (!(error instanceof ApiError) || !error.details) return {};
+  if (!(error instanceof ApiError)) return {};
+  if (error.code === "PHONE_ALREADY_EXISTS") {
+    return { phone: MESSAGES.PHONE_ALREADY_EXISTS };
+  }
+  if (!error.details) return {};
   const details = error.details as Record<string, unknown>;
   const result: Record<string, string> = {};
   for (const [field, messages] of Object.entries(details)) {

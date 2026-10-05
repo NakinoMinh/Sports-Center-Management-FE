@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import * as v from "../../utils/validation";
+import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import { Dialog } from "../common/Dialog";
 
 import { memberApi } from "../../services/memberApi";
@@ -92,9 +93,8 @@ export function CounterRegistrationForm({
         initialPassword,
       });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Không thể đăng ký thành viên.",
-      );
+      setFieldErrors(fieldErrorsOf(err));
+      setError(describeError(err));
     } finally {
       setBusy(false);
     }
