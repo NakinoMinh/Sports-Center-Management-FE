@@ -159,13 +159,20 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
     // Client-side first so the user is not charged a round-trip for a typo;
     // the server stays the authority and its field errors are merged below.
     const errors = v.validateForm(
-      { fullName: form.fullName, email, username, phone: form.phone },
+      {
+        fullName: form.fullName,
+        email,
+        username,
+        phone: form.phone,
+        specialization: form.specialization,
+        workSchedule: form.workSchedule,
+      },
       {
         fullName: v.fullName,
         phone: v.phone,
-        ...(editing === "new"
-          ? { email: v.email, username: v.username }
-          : {}),
+        specialization: v.text("Chuyên môn", 200),
+        workSchedule: v.text("Lịch làm việc / Ca làm việc", 300),
+        ...(editing === "new" ? { email: v.email, username: v.username } : {}),
       },
     );
     if (v.hasErrors(errors)) {
@@ -383,7 +390,11 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
         {error && (
           <div className="feedback error" role="alert">
             {error}
-            <button type="button" className="button secondary" onClick={refresh}>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={refresh}
+            >
               Thử lại
             </button>
           </div>
@@ -458,7 +469,10 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
                               className="member-avatar-img"
                             />
                           ) : (
-                            <span className="member-initials" aria-hidden="true">
+                            <span
+                              className="member-initials"
+                              aria-hidden="true"
+                            >
                               {initials}
                             </span>
                           )}
@@ -699,12 +713,20 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
                   <input
                     maxLength={200}
                     value={form.specialization}
+                    aria-invalid={Boolean(fieldErrors.specialization)}
                     onChange={(event) =>
                       setForm({ ...form, specialization: event.target.value })
                     }
                     placeholder="Ví dụ: Gym, Fitness, Yoga, Bơi lội, Pilates..."
                   />
-                  <small>Các bộ môn chính HLV phụ trách giảng dạy</small>
+
+                  {fieldErrors.specialization ? (
+                    <small className="field-error">
+                      {fieldErrors.specialization}
+                    </small>
+                  ) : (
+                    <small>Các bộ môn chính HLV phụ trách giảng dạy</small>
+                  )}
                 </label>
               )}
 
@@ -714,11 +736,18 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
                   maxLength={300}
                   rows={3}
                   value={form.workSchedule}
+                  aria-invalid={Boolean(fieldErrors.workSchedule)}
                   onChange={(event) =>
                     setForm({ ...form, workSchedule: event.target.value })
                   }
                   placeholder="Ví dụ: Ca sáng: Thứ 2 - Thứ 7 (06:00 - 14:00)..."
                 />
+
+                {fieldErrors.workSchedule && (
+                  <small className="field-error">
+                    {fieldErrors.workSchedule}
+                  </small>
+                )}
               </label>
             </div>
 
@@ -748,7 +777,11 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
           onClose={() => setCredential(null)}
         >
           <div className="credential-notice-box">
-            <ShieldCheck size={22} className="text-success" aria-hidden="true" />
+            <ShieldCheck
+              size={22}
+              className="text-success"
+              aria-hidden="true"
+            />
             <div>
               <strong>Tài khoản đã được tạo thành công</strong>
               <p>

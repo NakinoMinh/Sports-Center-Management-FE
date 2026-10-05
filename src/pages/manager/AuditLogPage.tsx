@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  History,
-  RefreshCw,
-  Search,
-  User,
-} from "lucide-react";
+import { History, RefreshCw, Search, User } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { auditApi, type AuditEntry } from "../../services/auditApi";
 import { formatDate } from "../../utils/format";
-
+import * as v from "../../utils/validation";
 const ACTION_LABELS: Record<string, { label: string; chipClass: string }> = {
   CREATE: { label: "Tạo mới", chipClass: "action-create" },
   UPDATE: { label: "Cập nhật", chipClass: "action-update" },
@@ -51,15 +46,20 @@ export function AuditLogPage() {
 
   const refresh = useCallback(async () => {
     if (!currentUser) return;
+
+    const dateError = v.dateRange(from)(to);
+    if (dateError) {
+      setItems([]);
+      return;
+    }
+
     try {
       const data = await auditApi.list({ query, action, from, to });
       setItems(data);
       setError("");
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Không tải được lịch sử thao tác.",
+        err instanceof Error ? err.message : "Không tải được lịch sử thao tác.",
       );
     }
   }, [currentUser, query, action, from, to]);
@@ -76,7 +76,7 @@ export function AuditLogPage() {
   };
 
   const hasActiveFilters = Boolean(query || action || from || to);
-
+  const dateError = v.dateRange(from)(to);
   return (
     <>
       <div className="page-heading">
@@ -84,7 +84,8 @@ export function AuditLogPage() {
           <span className="eyebrow">QUẢN LÝ TRUNG TÂM</span>
           <h1>Lịch sử thao tác hệ thống</h1>
           <p>
-            Theo dõi, tra cứu toàn bộ các thay đổi quan trọng về thành viên, nhân sự, gói tập và thanh toán.
+            Theo dõi, tra cứu toàn bộ các thay đổi quan trọng về thành viên,
+            nhân sự, gói tập và thanh toán.
           </p>
         </div>
         <span className="page-icon">
@@ -169,8 +170,10 @@ export function AuditLogPage() {
             <input
               type="date"
               value={to}
+              aria-invalid={Boolean(dateError)}
               onChange={(e) => setTo(e.target.value)}
             />
+            {dateError && <small className="field-error">{dateError}</small>}
           </label>
         </div>
 
@@ -221,15 +224,15 @@ export function AuditLogPage() {
                       </td>
 
                       <td>
-                        <span className={`audit-action-chip ${actionMeta.chipClass}`}>
+                        <span
+                          className={`audit-action-chip ${actionMeta.chipClass}`}
+                        >
                           {actionMeta.label}
                         </span>
                       </td>
 
                       <td>
-                        <span className="audit-entity-badge">
-                          {entityName}
-                        </span>
+                        <span className="audit-entity-badge">{entityName}</span>
                         {item.entityId && (
                           <small className="text-muted block-id">
                             ID: {item.entityId.slice(0, 16)}
