@@ -1,7 +1,7 @@
 import type { User } from "./auth";
 
 export type MembershipActor = Omit<User, "passwordHash">;
-export type MembershipDuration = 1 | 3 | 12;
+export type MembershipDuration = 1 | 3 | 6 | 12 | 24;
 export type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CARD";
 export type MembershipOrderKind =
   "REGISTER" | "RENEW" | "UPGRADE" | "DOWNGRADE";

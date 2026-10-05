@@ -21,4 +21,4 @@ export const formatDate = (value: string) => {
   return year && month && day ? `${day}/${month}/${year}` : "—";
 };
 export const durationLabel = (months: number) =>
-  months === 12 ? "1 năm" : months === 3 ? "3 tháng" : "1 tháng";
+  months % 12 === 0 ? `${months / 12} năm` : `${months} tháng`;

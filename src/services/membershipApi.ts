@@ -1,6 +1,7 @@
 import type {
   MembershipActor,
   MembershipInvoice,
+  MembershipDuration,
   MembershipOrder,
   MembershipPackage,
   MembershipPackageInput,
@@ -12,7 +13,7 @@ interface PackageDto {
   id: number;
   name: string;
   price: number;
-  durationMonths: 1 | 3 | 12;
+  durationMonths: MembershipDuration;
   benefits?: string[];
   subscriberCount?: number;
   isActive?: boolean;
@@ -35,7 +36,7 @@ interface SubscriptionDto {
   packageId: number;
   packageName: string;
   packagePrice: number;
-  durationMonths: 1 | 3 | 12;
+  durationMonths: MembershipDuration;
   benefits: string[];
   startDate: string;
   endDate: string;
@@ -64,7 +65,7 @@ interface ReceiptDto {
   packageId: number;
   packageName: string;
   packagePrice: number;
-  durationMonths: 1 | 3 | 12;
+  durationMonths: MembershipDuration;
   benefits: string[];
   memberAccountId: string;
   memberCode: string;

@@ -2786,3 +2786,212 @@ textarea {
 .field textarea[aria-invalid="true"]:focus {
   box-shadow: 0 0 0 3px rgba(168, 43, 54, 0.16);
 }
+
+.catalog-current-plan {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  margin-bottom: var(--space-7);
+  overflow: hidden;
+  border: thin solid var(--success-border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.catalog-current-content {
+  min-width: 0;
+  padding: var(--space-6) var(--space-7);
+}
+
+.catalog-current-heading,
+.catalog-current-title-row,
+.catalog-current-meta,
+.catalog-current-benefits li,
+.catalog-current-card-note,
+.catalog-current-state {
+  display: flex;
+  align-items: center;
+}
+
+.catalog-current-heading {
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.catalog-current-heading .text-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.catalog-current-title-row {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.catalog-current-title-row h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.catalog-current-title-row .status-chip {
+  white-space: nowrap;
+}
+
+.catalog-current-meta {
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin-top: var(--space-4);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.catalog-current-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.catalog-current-meta svg,
+.catalog-current-benefits svg,
+.catalog-current-card-note svg {
+  flex-shrink: 0;
+  color: var(--success-fg);
+}
+
+.catalog-current-benefits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-5) 0 0;
+  padding: var(--space-5) 0 0;
+  border-top: thin solid var(--border-subtle);
+  list-style: none;
+}
+
+.catalog-current-benefits li {
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.catalog-current-benefits svg {
+  margin-top: var(--space-1);
+}
+
+.catalog-current-price {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-7);
+  background: var(--bg-inverse-raised);
+  color: var(--fg-on-inverse);
+}
+
+.catalog-current-price span,
+.catalog-current-price small {
+  color: var(--fg-on-inverse-muted);
+  font-size: var(--text-xs);
+}
+
+.catalog-current-price strong {
+  margin: var(--space-2) 0;
+  font-size: var(--text-2xl);
+  line-height: var(--leading-tight);
+}
+
+.catalog-current-state {
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-7);
+  color: var(--fg-muted);
+}
+
+.catalog-current-state strong {
+  color: var(--fg-strong);
+}
+
+.catalog-current-state p {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.catalog-current-empty {
+  justify-content: flex-start;
+}
+
+.catalog-current-empty > svg {
+  flex-shrink: 0;
+  color: var(--brand);
+}
+
+.membership-package.catalog-current-match {
+  border-color: var(--border-brand);
+  background: var(--bg-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+.catalog-current-card-note {
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  color: var(--success-fg);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.catalog-table-current {
+  display: block;
+  width: max-content;
+  margin-bottom: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--success-bg);
+  color: var(--success-fg);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-overline);
+  text-transform: uppercase;
+}
+
+@media (max-width: 960px) {
+  .catalog-current-plan {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-current-price {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .catalog-current-content,
+  .catalog-current-price,
+  .catalog-current-state {
+    padding: var(--space-5);
+  }
+
+  .catalog-current-heading,
+  .catalog-current-title-row,
+  .catalog-current-state {
+    align-items: flex-start;
+  }
+
+  .catalog-current-heading,
+  .catalog-current-state {
+    flex-direction: column;
+  }
+
+  .catalog-current-benefits {
+    grid-template-columns: 1fr;
+  }
+}
+
+#compare .data-table tbody th {
+  padding: var(--space-4) var(--space-5);
+  vertical-align: middle;
+}
