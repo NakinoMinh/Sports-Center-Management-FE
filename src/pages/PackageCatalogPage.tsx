@@ -256,9 +256,7 @@ export function PackageCatalogPage() {
               <option value="ALL">Tất cả thời hạn</option>
               <option value="1">Tháng</option>
               <option value="3">Quý</option>
-              <option value="6">6 tháng</option>
               <option value="12">Năm</option>
-              <option value="24">2 năm</option>
             </select>
           </label>
           <span className="count-badge">
