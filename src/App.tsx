@@ -29,10 +29,12 @@ import { PackageCatalogPage } from "./pages/PackageCatalogPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PersonnelPage } from "./pages/manager/PersonnelPage";
 import { AuditLogPage } from "./pages/manager/AuditLogPage";
+import { RoomsPage } from "./pages/manager/RoomsPage";
 import { accountEnabled, accessRules } from "./services/accessControl";
 import type { UserRole } from "./types/auth";
 import "./App.css";
 import "./styles/workspace.css";
+import "./styles/rooms.css";
 import "./styles/theme.css";
 
 function RouteScrollReset() {
@@ -94,70 +96,126 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
-        <RouteScrollReset />
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route element={<CatalogLayout />}>
-            <Route path="/packages" element={<PackageCatalogPage />} />
-          </Route>
-          <Route path="/login" element={<AuthPage tab="login" />} />
-          <Route path="/register" element={<AuthPage tab="register" />} />
-          <Route element={<WorkspaceLayout />}>
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/manager/members" element={<OwnedScreen role={accessRules.members}><MembersPage /></OwnedScreen>} />
-            <Route path="/manager/coaches" element={<OwnedScreen role={accessRules.members}><PersonnelPage role="COACH" /></OwnedScreen>} />
-            <Route path="/manager/staff" element={<OwnedScreen role={accessRules.members}><PersonnelPage role="RECEPTIONIST" /></OwnedScreen>} />
-            <Route path="/manager/audit-log" element={<OwnedScreen role={accessRules.members}><AuditLogPage /></OwnedScreen>} />
-            <Route path="/manager/access" element={<OwnedScreen role={accessRules.permissions}><AccessControlPage /></OwnedScreen>} />
-            {(["attendance", "classes", "support"] as const).map((mode) => (
-              <Route key={mode} path={`/receptionist/${mode}`} element={<OwnedScreen role={accessRules.counter}><ReceptionOperationsPage key={mode} mode={mode} /></OwnedScreen>} />
-            ))}
-            <Route path="/receptionist/membership-status" element={
-              <OwnedScreen role={accessRules.counter}><MembershipStatusPage /></OwnedScreen>
-            } />
-            <Route
-              path="/payments/cash"
-              element={
-                <OwnedScreen role={accessRules.payments}>
-                  <CashPaymentsPage />
-                </OwnedScreen>
-              }
-            />
-            <Route
-              path="/manager/packages"
-              element={
-                <OwnedScreen role={accessRules.packages}>
-                  <MembershipPackagesPage />
-                </OwnedScreen>
-              }
-            />
-            <Route
-              path="/member/membership"
-              element={
-                <OwnedScreen role={accessRules.membership}>
-                  <MembershipPage mode="member" />
-                </OwnedScreen>
-              }
-            />
-            <Route
-              path="/receptionist/memberships"
-              element={
-                <OwnedScreen role={accessRules.counter}>
-                  <MembershipPage mode="receptionist" />
-                </OwnedScreen>
-              }
-            />
-            <Route
-              path="/coach"
-              element={
-                <OwnedScreen role={accessRules.coach}>
-                  <DashboardPreview />
-                </OwnedScreen>
-              }
-            />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+          <RouteScrollReset />
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route element={<CatalogLayout />}>
+              <Route path="/packages" element={<PackageCatalogPage />} />
+            </Route>
+            <Route path="/login" element={<AuthPage tab="login" />} />
+            <Route path="/register" element={<AuthPage tab="register" />} />
+            <Route element={<WorkspaceLayout />}>
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route
+                path="/manager/members"
+                element={
+                  <OwnedScreen role={accessRules.members}>
+                    <MembersPage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/manager/coaches"
+                element={
+                  <OwnedScreen role={accessRules.members}>
+                    <PersonnelPage role="COACH" />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/manager/staff"
+                element={
+                  <OwnedScreen role={accessRules.members}>
+                    <PersonnelPage role="RECEPTIONIST" />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/manager/rooms"
+                element={
+                  <OwnedScreen role={accessRules.members}>
+                    <RoomsPage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/manager/audit-log"
+                element={
+                  <OwnedScreen role={accessRules.members}>
+                    <AuditLogPage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/manager/access"
+                element={
+                  <OwnedScreen role={accessRules.permissions}>
+                    <AccessControlPage />
+                  </OwnedScreen>
+                }
+              />
+              {(["attendance", "classes", "support"] as const).map((mode) => (
+                <Route
+                  key={mode}
+                  path={`/receptionist/${mode}`}
+                  element={
+                    <OwnedScreen role={accessRules.counter}>
+                      <ReceptionOperationsPage key={mode} mode={mode} />
+                    </OwnedScreen>
+                  }
+                />
+              ))}
+              <Route
+                path="/receptionist/membership-status"
+                element={
+                  <OwnedScreen role={accessRules.counter}>
+                    <MembershipStatusPage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/payments/cash"
+                element={
+                  <OwnedScreen role={accessRules.payments}>
+                    <CashPaymentsPage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/manager/packages"
+                element={
+                  <OwnedScreen role={accessRules.packages}>
+                    <MembershipPackagesPage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/member/membership"
+                element={
+                  <OwnedScreen role={accessRules.membership}>
+                    <MembershipPage mode="member" />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/receptionist/memberships"
+                element={
+                  <OwnedScreen role={accessRules.counter}>
+                    <MembershipPage mode="receptionist" />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/coach"
+                element={
+                  <OwnedScreen role={accessRules.coach}>
+                    <DashboardPreview />
+                  </OwnedScreen>
+                }
+              />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
