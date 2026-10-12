@@ -316,22 +316,6 @@ export function RoomsPage() {
               />
             </div>
 
-            <div className="form-group">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      isActive: event.target.checked,
-                    })
-                  }
-                />
-                Phòng đang hoạt động
-              </label>
-            </div>
-
             <div className="modal-actions">
               <button
                 type="button"
