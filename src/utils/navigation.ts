@@ -98,6 +98,7 @@ export const navSections: readonly NavSection[] = [
       },
     ],
   },
+
   {
     title: "Nhân sự",
     items: [
@@ -109,6 +110,13 @@ export const navSections: readonly NavSection[] = [
         trail: ["Nhân sự", "Huấn luyện viên"],
       },
       {
+        to: "/manager/assign-coach",
+        label: "Phân công HLV",
+        icon: "calendar",
+        roles: MANAGER,
+        trail: ["Nhân sự", "Phân công HLV"],
+      },
+      {
         to: "/manager/staff",
         label: "Nhân viên lễ tân",
         icon: "badge",
@@ -117,6 +125,7 @@ export const navSections: readonly NavSection[] = [
       },
     ],
   },
+
   {
     title: "Quầy lễ tân",
     items: [
