@@ -14,11 +14,18 @@ import { roomApi } from "../../services/roomApi";
 import type { Room, RoomInput } from "../../types/room";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
-
+const ROOM_TYPE_LABELS: Record<string, string> = {
+  STUDIO: "Studio",
+  GYM: "Phòng Gym",
+  POOL: "Hồ bơi",
+  COURT: "Sân thể thao",
+  OTHER: "Khác",
+};
 const emptyForm: RoomInput = {
   name: "",
   location: "",
   capacity: 1,
+  roomType: null,
   isActive: true,
 };
 
@@ -80,6 +87,7 @@ export function RoomsPage() {
         name: room.name,
         location: room.location,
         capacity: room.capacity,
+        roomType: room.roomType ?? null,
         isActive: room.isActive,
       });
     }
@@ -199,6 +207,7 @@ export function RoomsPage() {
               <tr>
                 <th>Tên phòng</th>
                 <th>Vị trí</th>
+                <th>Loại phòng</th>
                 <th>Sức chứa</th>
                 <th>Trạng thái</th>
                 <th>Thao tác</th>
@@ -216,7 +225,11 @@ export function RoomsPage() {
                   </td>
 
                   <td>{room.location || "Chưa cập nhật"}</td>
-
+                  <td>
+                    {room.roomType
+                      ? (ROOM_TYPE_LABELS[room.roomType] ?? room.roomType)
+                      : "Chưa phân loại"}
+                  </td>
                   <td>{room.capacity} người</td>
 
                   <td>
@@ -256,7 +269,7 @@ export function RoomsPage() {
 
               {filteredRooms.length === 0 && (
                 <tr>
-                  <td colSpan={5}>Không tìm thấy phòng phù hợp.</td>
+                  <td colSpan={6}>Không tìm thấy phòng phù hợp.</td>{" "}
                 </tr>
               )}
             </tbody>
@@ -297,7 +310,31 @@ export function RoomsPage() {
                 }
               />
             </div>
+            <div className="form-group">
+              <label htmlFor="room-type">Loại phòng</label>
 
+              <select
+                id="room-type"
+                value={form.roomType ?? ""}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    roomType: event.target.value
+                      ? (event.target.value as NonNullable<
+                          RoomInput["roomType"]
+                        >)
+                      : null,
+                  })
+                }
+              >
+                <option value="">Chưa phân loại</option>
+                <option value="STUDIO">Studio</option>
+                <option value="GYM">Phòng Gym</option>
+                <option value="POOL">Hồ bơi</option>
+                <option value="COURT">Sân thể thao</option>
+                <option value="OTHER">Khác</option>
+              </select>
+            </div>
             <div className="form-group">
               <label htmlFor="room-capacity">Sức chứa *</label>
               <input

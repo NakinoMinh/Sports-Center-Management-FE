@@ -72,7 +72,8 @@ const MESSAGES: Record<string, string> = {
     "Thành viên này đã có lịch sử đăng ký gói nên không thể xóa. Hãy ngừng hoạt động tài khoản thay vì xóa.",
 
   // --- Lớp học, lịch học và đăng ký buổi học (Flow 2) ---
-  CLASS_NOT_FOUND: "Không tìm thấy lớp học. Có thể lớp vừa bị xóa hoặc lưu trữ.",
+  CLASS_NOT_FOUND:
+    "Không tìm thấy lớp học. Có thể lớp vừa bị xóa hoặc lưu trữ.",
   CLASS_NAME_DUPLICATE:
     "Tên lớp này đã tồn tại. Hãy dùng một tên khác để nhân viên không nhầm lớp.",
   CLASS_HAS_NO_VALID_SESSION:
@@ -82,11 +83,18 @@ const MESSAGES: Record<string, string> = {
   CLASS_ARCHIVED: "Lớp đã được lưu trữ nên không thể thêm hoặc sửa buổi học.",
   CLASS_HAS_REGISTRATIONS:
     "Lớp đã có lịch sử đăng ký nên không thể xóa. Hãy chuyển sang trạng thái lưu trữ.",
+
   SPORT_NOT_FOUND: "Không tìm thấy bộ môn đã chọn. Hãy tải lại danh sách.",
+  SPORT_NAME_DUPLICATE: "Tên bộ môn đã tồn tại. Vui lòng chọn tên khác.",
   SPORT_INACTIVE:
     "Bộ môn này đã ngừng hoạt động nên không dùng để tạo lớp mới.",
+
   ROOM_NOT_FOUND: "Không tìm thấy phòng đã chọn. Hãy tải lại danh sách.",
+  ROOM_NAME_DUPLICATE: "Tên phòng đã tồn tại. Vui lòng chọn tên phòng khác.",
   ROOM_INACTIVE: "Phòng này đã ngừng hoạt động nên không dùng cho lịch mới.",
+  ROOM_CAPACITY_BELOW_SCHEDULE:
+    "Không thể giảm sức chứa phòng vì có buổi học chưa bắt đầu đang sử dụng sức chứa lớn hơn. Vui lòng kiểm tra lịch học trước.",
+
   COACH_NOT_FOUND:
     "Không tìm thấy huấn luyện viên đã chọn. Hãy tải lại danh sách.",
   COACH_INACTIVE:

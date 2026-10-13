@@ -34,6 +34,8 @@ import { RoomsPage } from "./pages/manager/RoomsPage";
 import { ClassesPage } from "./pages/manager/ClassesPage";
 import { ClassSchedulePage } from "./pages/manager/ClassSchedulePage";
 import { accountEnabled, accessRules } from "./services/accessControl";
+import { MyTeachingSchedulePage } from "./pages/coach/MyTeachingSchedulePage";
+import { ClassRosterPage } from "./pages/coach/ClassRosterPage";
 import type { UserRole } from "./types/auth";
 import "./App.css";
 import "./styles/workspace.css";
@@ -149,6 +151,24 @@ export default function App() {
                   </OwnedScreen>
                 }
               />
+              <Route
+                path="/coach/my-schedule"
+                element={
+                  <OwnedScreen role={["COACH"]}>
+                    <MyTeachingSchedulePage />
+                  </OwnedScreen>
+                }
+              />
+
+              <Route
+                path="/coach/my-schedule/:sessionId/registrations"
+                element={
+                  <OwnedScreen role={["COACH", "CENTER_MANAGER"]}>
+                    <ClassRosterPage />
+                  </OwnedScreen>
+                }
+              />
+
               <Route
                 path="/manager/classes"
                 element={
