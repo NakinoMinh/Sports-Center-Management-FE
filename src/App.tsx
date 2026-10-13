@@ -28,6 +28,7 @@ import { AccessControlPage } from "./pages/manager/AccessControlPage";
 import { PackageCatalogPage } from "./pages/PackageCatalogPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PersonnelPage } from "./pages/manager/PersonnelPage";
+import { AssignCoachPage } from "./pages/manager/AssignCoachPage";
 import { AuditLogPage } from "./pages/manager/AuditLogPage";
 import { RoomsPage } from "./pages/manager/RoomsPage";
 import { ClassesPage } from "./pages/manager/ClassesPage";
@@ -121,6 +122,14 @@ export default function App() {
                 element={
                   <OwnedScreen role={accessRules.members}>
                     <PersonnelPage role="COACH" />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/manager/assign-coach"
+                element={
+                  <OwnedScreen role={["CENTER_MANAGER"]}>
+                    <AssignCoachPage />
                   </OwnedScreen>
                 }
               />

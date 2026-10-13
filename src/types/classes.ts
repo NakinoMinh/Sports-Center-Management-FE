@@ -19,14 +19,12 @@ export interface Sport {
   isActive: boolean;
 }
 
-/** Phòng tập (UC18, Tam sở hữu màn hình; dùng để chọn khi lập lịch). */
-export interface Room {
-  id: string;
-  name: string;
-  location: string;
-  capacity: number;
-  isActive: boolean;
-}
+/**
+ * Phòng tập (UC18) do Tam sở hữu, định nghĩa gốc nằm ở `types/room.ts`.
+ * Re-export để màn hình lập lịch và màn hình quản lý phòng dùng chung một
+ * model: thêm trường ở một nơi là cả hai bên thấy, không lệch nhau.
+ */
+export type { Room } from "./room";
 
 /** Thông tin Coach tối thiểu cần cho dropdown phân công. */
 export interface CoachOption {
