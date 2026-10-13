@@ -177,6 +177,18 @@ export const navSections: readonly NavSection[] = [
     ],
   },
   {
+    title: "Cơ sở vật chất",
+    items: [
+      {
+        to: "/manager/rooms",
+        label: "Quản lý phòng tập",
+        icon: "layers",
+        roles: MANAGER,
+        trail: ["Cơ sở vật chất", "Quản lý phòng tập"],
+      },
+    ],
+  },
+  {
     title: "Tài chính",
     items: [
       {
