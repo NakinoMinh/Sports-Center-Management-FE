@@ -72,6 +72,53 @@ const MESSAGES: Record<string, string> = {
   MEMBER_HAS_MEMBERSHIP_HISTORY:
     "Thành viên này đã có lịch sử đăng ký gói nên không thể xóa. Hãy ngừng hoạt động tài khoản thay vì xóa.",
 
+  // --- Lớp học, lịch học và đăng ký buổi học (Flow 2) ---
+  CLASS_NOT_FOUND: "Không tìm thấy lớp học. Có thể lớp vừa bị xóa hoặc lưu trữ.",
+  CLASS_NAME_DUPLICATE:
+    "Tên lớp này đã tồn tại. Hãy dùng một tên khác để nhân viên không nhầm lớp.",
+  CLASS_HAS_NO_VALID_SESSION:
+    "Lớp chưa có buổi học hợp lệ nào ở tương lai nên chưa thể mở đăng ký. Hãy lập lịch trước.",
+  CLASS_NOT_OPEN:
+    "Lớp này hiện không nhận đăng ký mới. Liên hệ quản lý nếu cần mở lại.",
+  CLASS_ARCHIVED: "Lớp đã được lưu trữ nên không thể thêm hoặc sửa buổi học.",
+  CLASS_HAS_REGISTRATIONS:
+    "Lớp đã có lịch sử đăng ký nên không thể xóa. Hãy chuyển sang trạng thái lưu trữ.",
+  SPORT_NOT_FOUND: "Không tìm thấy bộ môn đã chọn. Hãy tải lại danh sách.",
+  SPORT_INACTIVE:
+    "Bộ môn này đã ngừng hoạt động nên không dùng để tạo lớp mới.",
+  ROOM_NOT_FOUND: "Không tìm thấy phòng đã chọn. Hãy tải lại danh sách.",
+  ROOM_INACTIVE: "Phòng này đã ngừng hoạt động nên không dùng cho lịch mới.",
+  COACH_NOT_FOUND:
+    "Không tìm thấy huấn luyện viên đã chọn. Hãy tải lại danh sách.",
+  COACH_INACTIVE:
+    "Huấn luyện viên này đang ngừng hoạt động nên không thể phân công.",
+  COACH_SCHEDULE_CONFLICT:
+    "Huấn luyện viên đã có buổi khác trùng giờ. Hãy chọn giờ khác hoặc người khác.",
+  ROOM_SCHEDULE_CONFLICT:
+    "Phòng đã được dùng trong khoảng giờ này. Hãy chọn phòng khác hoặc đổi giờ.",
+  MEMBER_SCHEDULE_CONFLICT:
+    "Có buổi học khác trùng giờ. Hãy hủy buổi trùng trước hoặc chọn buổi khác.",
+  CAPACITY_BELOW_REGISTRATIONS:
+    "Sức chứa mới nhỏ hơn số người đã đăng ký. Hãy hủy một số đăng ký trước khi hạ sức chứa.",
+  SESSION_NOT_FOUND: "Không tìm thấy buổi học. Hãy làm mới lịch và thử lại.",
+  SESSION_IN_PAST: "Không thể lập hoặc chuyển buổi học về thời điểm đã qua.",
+  SESSION_ALREADY_STARTED:
+    "Buổi học đã bắt đầu nên không thể thay đổi hoặc hủy nữa.",
+  SESSION_CANCELLED: "Buổi học này đã bị hủy nên không còn nhận thao tác.",
+  NO_CANCELABLE_SESSION:
+    "Không còn buổi học nào ở tương lai để hủy trong phạm vi đã chọn.",
+  CLASS_FULL:
+    "Buổi học đã đủ chỗ. Hãy chọn buổi khác hoặc theo dõi khi có người hủy.",
+  DUPLICATE_REGISTRATION: "Thành viên đã đăng ký buổi học này.",
+  REGISTRATION_NOT_FOUND:
+    "Không tìm thấy đăng ký này. Có thể đăng ký vừa được hủy ở nơi khác.",
+  REGISTRATION_ALREADY_CANCELED:
+    "Đăng ký này đã được hủy trước đó. Chỗ chỉ được trả lại một lần.",
+  MEMBERSHIP_NOT_VALID_FOR_SESSION:
+    "Gói tập không còn hiệu lực vào ngày diễn ra buổi học. Hãy gia hạn trước khi đăng ký.",
+  PACKAGE_NOT_ELIGIBLE:
+    "Gói tập hiện tại không bao gồm bộ môn của lớp này. Hãy nâng gói hoặc chọn lớp khác.",
+
   // --- Concurrency and generic ---
   CONCURRENCY_CONFLICT:
     "Dữ liệu vừa được người khác thay đổi. Hãy làm mới trang và thử lại.",

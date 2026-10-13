@@ -99,6 +99,25 @@ export const navSections: readonly NavSection[] = [
     ],
   },
   {
+    title: "Lớp học",
+    items: [
+      {
+        to: "/manager/classes",
+        label: "Danh mục lớp",
+        icon: "badge",
+        roles: MANAGER,
+        trail: ["Lớp học", "Danh mục lớp"],
+      },
+      {
+        to: "/manager/class-schedule",
+        label: "Lịch học",
+        icon: "calendar",
+        roles: MANAGER,
+        trail: ["Lớp học", "Lịch học"],
+      },
+    ],
+  },
+  {
     title: "Nhân sự",
     items: [
       {

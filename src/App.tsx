@@ -29,6 +29,8 @@ import { PackageCatalogPage } from "./pages/PackageCatalogPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PersonnelPage } from "./pages/manager/PersonnelPage";
 import { AuditLogPage } from "./pages/manager/AuditLogPage";
+import { ClassesPage } from "./pages/manager/ClassesPage";
+import { ClassSchedulePage } from "./pages/manager/ClassSchedulePage";
 import { accountEnabled, accessRules } from "./services/accessControl";
 import type { UserRole } from "./types/auth";
 import "./App.css";
@@ -107,6 +109,8 @@ export default function App() {
             <Route path="/manager/members" element={<OwnedScreen role={accessRules.members}><MembersPage /></OwnedScreen>} />
             <Route path="/manager/coaches" element={<OwnedScreen role={accessRules.members}><PersonnelPage role="COACH" /></OwnedScreen>} />
             <Route path="/manager/staff" element={<OwnedScreen role={accessRules.members}><PersonnelPage role="RECEPTIONIST" /></OwnedScreen>} />
+            <Route path="/manager/classes" element={<OwnedScreen role={accessRules.classes}><ClassesPage /></OwnedScreen>} />
+            <Route path="/manager/class-schedule" element={<OwnedScreen role={accessRules.classes}><ClassSchedulePage /></OwnedScreen>} />
             <Route path="/manager/audit-log" element={<OwnedScreen role={accessRules.members}><AuditLogPage /></OwnedScreen>} />
             <Route path="/manager/access" element={<OwnedScreen role={accessRules.permissions}><AccessControlPage /></OwnedScreen>} />
             {(["attendance", "classes", "support"] as const).map((mode) => (
