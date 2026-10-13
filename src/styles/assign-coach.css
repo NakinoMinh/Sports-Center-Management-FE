@@ -1,0 +1,70 @@
+.assign-coach-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.assign-coach-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--surface-muted, #f5f7f5);
+  border: 1px solid #e1e8e2;
+  border-radius: 12px;
+}
+
+.assign-coach-label {
+  color: #64746b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.assign-coach-info strong {
+  font-size: 16px;
+  color: #193d30;
+}
+
+.assign-coach-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #64746b;
+  font-size: 13px;
+}
+
+.assign-coach-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.assign-coach-field label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #243d32;
+}
+
+.assign-coach-field select {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #d6e0d8;
+  border-radius: 8px;
+  background: #fff;
+  color: #203d30;
+  font: inherit;
+}
+
+.assign-coach-field select:focus {
+  outline: 2px solid #9ac9b0;
+  outline-offset: 2px;
+}
+
+.assign-coach-hint {
+  margin: 0;
+  font-size: 13px;
+  color: #64746b;
+}
