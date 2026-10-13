@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 artifacts/
+
+# Local Claude configuration
+.claude/
+CLAUDE.md
+CLAUDE.local.md

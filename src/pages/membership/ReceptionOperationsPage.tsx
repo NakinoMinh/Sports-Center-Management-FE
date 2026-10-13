@@ -17,6 +17,7 @@ import {
   type ReceptionState,
   type SupportStatus,
 } from "../../services/receptionService";
+import { CounterClassBooking } from "../../components/classes/CounterClassBooking";
 import type { MembershipActor } from "../../types/membership";
 import { formatDate } from "../../utils/format";
 
@@ -65,12 +66,11 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
   const [date, setDate] = useState(todayDate());
   const [filter, setFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
-  const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
   const [dialog, setDialog] = useState<{
-    kind: "book" | "cancel" | "request" | "update";
+    kind: "request" | "update";
     id: string;
   } | null>(null);
   const [dialogError, setDialogError] = useState("");
@@ -84,7 +84,6 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
     if (!currentUser) return;
     try {
       setState(receptionService.getSnapshot(currentUser));
-      setNow(Date.now());
       const realMembers = await memberApi.listAllMembers();
       setMembers(realMembers);
       setError("");
@@ -148,15 +147,6 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
       (!search.trim() ||
         filteredMembers.some((member) => member.id === visit.memberId)),
   );
-  const sessions = state.sessions.filter(
-    (session) => !date || session.date === date,
-  );
-  const bookings = state.bookings.filter(
-    (booking) =>
-      (!memberId || booking.memberId === memberId) &&
-      (!search.trim() ||
-        filteredMembers.some((member) => member.id === booking.memberId)),
-  );
   const requests = state.requests.filter(
     (request) =>
       (!memberId || request.memberId === memberId) &&
@@ -165,7 +155,6 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
       (filter === "ALL" || request.status === filter),
   );
   const activeRequest = state.requests.find((item) => item.id === dialog?.id);
-  const activeSession = state.sessions.find((item) => item.id === dialog?.id);
   const icon =
     mode === "attendance" ? (
       <ClipboardCheck size={26} />
@@ -377,163 +366,20 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
             </section>
           )}
           {mode === "classes" && (
-            <>
-              <section className="panel">
-                <div className="panel-heading">
-                  <div>
-                    <h2>Lịch lớp học</h2>
-                    <p>Gói tập phải có hiệu lực vào ngày diễn ra buổi học.</p>
-                  </div>
-                  <label className="field">
-                    <span>Ngày học</span>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                    />
-                  </label>
-                </div>
-                <div className="reception-class-grid">
-                  {sessions.map((session) => {
-                    const count = state.bookings.filter(
-                      (booking) =>
-                        booking.sessionId === session.id &&
-                        booking.status === "BOOKED",
-                    ).length;
-                    const booked = state.bookings.some(
-                      (booking) =>
-                        booking.sessionId === session.id &&
-                        booking.memberId === memberId &&
-                        booking.status === "BOOKED",
-                    );
-                    const started =
-                      new Date(
-                        `${session.date}T${session.startTime}:00`,
-                      ).getTime() <= now;
-                    return (
-                      <article
-                        className="reception-class-card"
-                        key={session.id}
-                      >
-                        <span className="eyebrow">
-                          {session.discipline} · {session.room}
-                        </span>
-                        <h3>{session.name}</h3>
-                        <p>
-                          {formatDate(session.date)} · {session.startTime}–
-                          {session.endTime}
-                        </p>
-                        <p>HLV: {session.coach}</p>
-                        <span
-                          className={`status-chip ${count >= session.capacity ? "expired" : "active"}`}
-                        >
-                          Còn {Math.max(0, session.capacity - count)} /{" "}
-                          {session.capacity} chỗ
-                        </span>
-                        <button
-                          className="button primary"
-                          disabled={
-                            !memberId ||
-                            booked ||
-                            started ||
-                            count >= session.capacity ||
-                            !!error
-                          }
-                          onClick={() => open("book", session.id)}
-                        >
-                          {started
-                            ? "Đã bắt đầu"
-                            : booked
-                              ? "Đã đăng ký"
-                              : count >= session.capacity
-                                ? "Đã đủ chỗ"
-                                : "Đăng ký cho thành viên"}
-                        </button>
-                      </article>
-                    );
-                  })}
-                </div>
-                {!sessions.length && (
-                  <div className="empty-state">
-                    <h3>Chưa có buổi học trong ngày này</h3>
-                    <p>Chọn ngày khác để tra cứu lịch học.</p>
-                  </div>
-                )}
-              </section>
-              <section className="panel reception-history">
-                <div className="panel-heading">
-                  <h2>
-                    Lịch sử đăng ký lớp{" "}
-                    {selected ? `· ${selected.fullName}` : ""}
-                  </h2>
-                  <span className="count-badge">{bookings.length} đăng ký</span>
-                </div>
-                <div className="table-wrap">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Thành viên</th>
-                        <th>Buổi học</th>
-                        <th>Trạng thái</th>
-                        <th>Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bookings.map((booking) => {
-                        const session = state.sessions.find(
-                          (item) => item.id === booking.sessionId,
-                        );
-                        return (
-                          <tr key={booking.id}>
-                            <td>{memberName(booking.memberId)}</td>
-                            <td>
-                              <strong>
-                                {session?.name ??
-                                  "Buổi học không còn trong lịch"}
-                              </strong>
-                              <small>
-                                {session &&
-                                  `${formatDate(session.date)} · ${session.startTime}–${session.endTime}`}
-                              </small>
-                            </td>
-                            <td>
-                              <span
-                                className={`status-chip ${booking.status === "BOOKED" ? "active" : "canceled"}`}
-                              >
-                                {booking.status === "BOOKED"
-                                  ? "Đã đăng ký"
-                                  : "Đã hủy"}
-                              </span>
-                              {booking.cancelReason && (
-                                <small>Lý do: {booking.cancelReason}</small>
-                              )}
-                            </td>
-                            <td>
-                              {booking.status === "BOOKED" &&
-                                session &&
-                                new Date(
-                                  `${session.date}T${session.startTime}:00`,
-                                ).getTime() > now && (
-                                  <button
-                                    className="text-button"
-                                    disabled={!!error}
-                                    onClick={() => open("cancel", booking.id)}
-                                  >
-                                    Hủy đăng ký
-                                  </button>
-                                )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                {!bookings.length && (
-                  <div className="empty-state">Chưa có đăng ký lớp học.</div>
-                )}
-              </section>
-            </>
+            <CounterClassBooking
+              member={
+                selected
+                  ? {
+                      id: selected.id,
+                      memberCode: selected.username,
+                      fullName: selected.fullName,
+                      email: selected.email,
+                      phone: selected.phone ?? "",
+                      isActive: selected.isActive !== false,
+                    }
+                  : null
+              }
+            />
           )}
           {mode === "support" && (
             <section className="panel">
@@ -619,13 +465,9 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
       {dialog && (
         <Dialog
           title={
-            dialog.kind === "book"
-              ? "Xác nhận đăng ký lớp"
-              : dialog.kind === "cancel"
-                ? "Hủy đăng ký lớp"
-                : dialog.kind === "request"
-                  ? "Tiếp nhận yêu cầu mới"
-                  : "Chi tiết yêu cầu hỗ trợ"
+            dialog.kind === "request"
+              ? "Tiếp nhận yêu cầu mới"
+              : "Chi tiết yêu cầu hỗ trợ"
           }
           onClose={() => setDialog(null)}
         >
@@ -669,18 +511,6 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
               setFieldErrors({});
               run(
                 () => {
-                  if (dialog.kind === "book")
-                    receptionService.bookClass(
-                      currentUser,
-                      memberId,
-                      dialog.id,
-                    );
-                  if (dialog.kind === "cancel")
-                    receptionService.cancelBooking(
-                      currentUser,
-                      dialog.id,
-                      note,
-                    );
                   if (dialog.kind === "request")
                     receptionService.createRequest(currentUser, {
                       memberId,
@@ -696,40 +526,11 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
                       note,
                     );
                 },
-                dialog.kind === "book"
-                  ? "Đã đăng ký lớp cho thành viên."
-                  : dialog.kind === "cancel"
-                    ? "Đã hủy đăng ký và trả lại chỗ cho lớp."
-                    : "Đã lưu yêu cầu hỗ trợ.",
+                "Đã lưu yêu cầu hỗ trợ.",
                 true,
               );
             }}
           >
-            {dialog.kind === "book" && (
-              <div className="order-summary">
-                <h3>{activeSession?.name}</h3>
-                <p>Thành viên: {selected?.fullName}</p>
-                <p>
-                  {activeSession &&
-                    `${formatDate(activeSession.date)} · ${activeSession.startTime}–${activeSession.endTime}`}
-                </p>
-                <p>
-                  {activeSession?.room} · HLV: {activeSession?.coach}
-                </p>
-              </div>
-            )}
-            {dialog.kind === "cancel" && (
-              <p>
-                Hủy lớp cho{" "}
-                <strong>
-                  {memberName(
-                    state.bookings.find((item) => item.id === dialog.id)
-                      ?.memberId ?? "",
-                  )}
-                </strong>
-                . Lịch sử đăng ký và lý do hủy sẽ được giữ lại.
-              </p>
-            )}
             {dialog.kind === "request" && (
               <>
                 <p>
@@ -811,27 +612,23 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
                 </label>
               </>
             )}
-            {dialog.kind !== "book" && (
-              <label className="field">
-                <span>
-                  {dialog.kind === "cancel"
-                    ? "Lý do hủy"
-                    : dialog.kind === "request"
-                      ? "Nội dung yêu cầu"
-                      : "Ghi chú xử lý"}
-                </span>
-                <textarea
-                  maxLength={dialog.kind === "cancel" ? 500 : 2000}
-                  rows={4}
-                  value={note}
-                  aria-invalid={Boolean(fieldErrors.note)}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-                {fieldErrors.note && (
-                  <small className="field-error">{fieldErrors.note}</small>
-                )}
-              </label>
-            )}
+            <label className="field">
+              <span>
+                {dialog.kind === "request"
+                  ? "Nội dung yêu cầu"
+                  : "Ghi chú xử lý"}
+              </span>
+              <textarea
+                maxLength={2000}
+                rows={4}
+                value={note}
+                aria-invalid={Boolean(fieldErrors.note)}
+                onChange={(e) => setNote(e.target.value)}
+              />
+              {fieldErrors.note && (
+                <small className="field-error">{fieldErrors.note}</small>
+              )}
+            </label>
             {dialogError && (
               <p className="form-error" role="alert">
                 {dialogError}
@@ -845,15 +642,8 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
               >
                 Quay lại
               </button>
-              <button
-                type="submit"
-                className={`button ${dialog.kind === "cancel" ? "danger" : "primary"}`}
-              >
-                {dialog.kind === "book"
-                  ? "Xác nhận đăng ký"
-                  : dialog.kind === "cancel"
-                    ? "Xác nhận hủy"
-                    : "Lưu yêu cầu"}
+              <button type="submit" className="button primary">
+                Lưu yêu cầu
               </button>
             </div>
           </form>

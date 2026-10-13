@@ -3,6 +3,8 @@ import type { User, UserRole } from "../types/auth";
 export const accessRules = {
   members: ["CENTER_MANAGER"],
   packages: ["CENTER_MANAGER"],
+  /** Quản lý lớp học và lập lịch (UC19, UC21, UC30). */
+  classes: ["CENTER_MANAGER"],
   permissions: ["CENTER_MANAGER"],
   membership: ["MEMBER", "CENTER_MANAGER"],
   counter: ["RECEPTIONIST", "CENTER_MANAGER"],

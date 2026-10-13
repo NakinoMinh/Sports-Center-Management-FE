@@ -5,6 +5,7 @@ import type { UserRole } from "../../types/auth";
 const rules: Record<keyof typeof accessRules, string> = {
   members: "Quản lý thành viên",
   packages: "Quản lý danh mục gói",
+  classes: "Quản lý lớp học & lịch học",
   permissions: "Xem phân quyền",
   membership: "Gói tập của bản thân",
   counter: "Nghiệp vụ tại quầy",

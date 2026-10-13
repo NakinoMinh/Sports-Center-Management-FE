@@ -1,0 +1,339 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  CalendarDays,
+  FlaskConical,
+  RefreshCw,
+  Users,
+} from "lucide-react";
+import { SessionRegistrationPanel } from "./SessionRegistrationPanel";
+import { classApi, isClassApiMocked } from "../../services/classApi";
+import { describeError } from "../../services/apiErrors";
+import {
+  addCalendarDays,
+  centerToday,
+  classStatusLabels,
+  isClassBookable,
+  formatTimeRange,
+  remainingSeats,
+  sessionStatusLabels,
+} from "../../utils/classSchedule";
+import { formatDate } from "../../utils/format";
+import type {
+  ClassRegistration,
+  ClassSession,
+  SessionMemberOption,
+  TrainingClass,
+} from "../../types/classes";
+
+interface CounterClassBookingProps {
+  /** Thành viên đang được hỗ trợ; null khi lễ tân chưa chọn ai. */
+  member: SessionMemberOption | null;
+}
+
+/**
+ * Đăng ký và hủy lớp tại quầy — UC29.
+ *
+ * Trước đây nhánh này của màn hình quầy đọc buổi học và booking từ
+ * LocalStorage, nên hai máy ở quầy thấy hai tập dữ liệu khác nhau và không có
+ * quy tắc gói nào được kiểm tra. Nay mọi thao tác đi qua `classApi`, dùng đúng
+ * component đăng ký của thành viên (`SessionRegistrationPanel`) để luật UC24
+ * và UC25 chỉ tồn tại ở một chỗ, chỉ khác ở chỗ lưu người thao tác và bắt buộc
+ * lý do hủy.
+ */
+export function CounterClassBooking({ member }: CounterClassBookingProps) {
+  const [date, setDate] = useState(centerToday());
+  const [sessions, setSessions] = useState<ClassSession[]>([]);
+  const [registrations, setRegistrations] = useState<ClassRegistration[]>([]);
+  const [classes, setClasses] = useState<TrainingClass[]>([]);
+  const [sampleMembers, setSampleMembers] = useState<SessionMemberOption[]>([]);
+  const [sampleMemberId, setSampleMemberId] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  // Ô chọn thành viên của trang quầy lấy dữ liệu từ API Member; khi chưa có
+  // backend, danh sách đó rỗng và không demo được gì. Ở chế độ dữ liệu mẫu,
+  // component tự cho chọn một thành viên mẫu để thử đủ các nhánh nghiệp vụ.
+  const usesSampleMembers = isClassApiMocked() && !member;
+  const effectiveMember =
+    member ?? sampleMembers.find((item) => item.id === sampleMemberId) ?? null;
+
+  const refresh = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [sessionList, classList] = await Promise.all([
+        classApi.listSessions({ from: date, to: date, status: "SCHEDULED" }),
+        classApi.listClasses(),
+      ]);
+      setSessions(sessionList);
+      setClasses(classList);
+      setRegistrations(
+        effectiveMember
+          ? await classApi.listMemberRegistrations(effectiveMember.id, true)
+          : [],
+      );
+      if (isClassApiMocked()) setSampleMembers(await classApi.searchMembers(""));
+      setError("");
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setIsLoading(false);
+      setHasLoaded(true);
+    }
+  }, [date, effectiveMember]);
+
+  useEffect(() => {
+    // Hoãn một nhịp như các trang khác trong repo: gọi setState đồng bộ ngay
+    // trong effect làm React dựng lại ngay lần render đầu.
+    const timer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refresh]);
+
+  /** Đăng ký còn hiệu lực của thành viên này, tra theo buổi học. */
+  const activeBySession = useMemo(() => {
+    const map = new Map<string, ClassRegistration>();
+    for (const item of registrations)
+      if (item.status === "BOOKED") map.set(item.sessionId, item);
+    return map;
+  }, [registrations]);
+
+  return (
+    <>
+      <section className="panel" aria-labelledby="counter-class-title">
+        <div className="panel-heading">
+          <div>
+            <h2 id="counter-class-title">Lịch lớp học</h2>
+            <p>
+              Gói tập phải còn hiệu lực vào ngày diễn ra buổi học. Server kiểm
+              tra lại quyền tham gia và số chỗ khi bấm đăng ký.
+            </p>
+          </div>
+          <div className="counter-class-toolbar">
+            <label className="field" htmlFor="counter-class-date">
+              <span>Ngày học</span>
+              <input
+                id="counter-class-date"
+                type="date"
+                value={date}
+                min={centerToday()}
+                max={addCalendarDays(centerToday(), 60)}
+                onChange={(event) => setDate(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => void refresh()}
+            >
+              <RefreshCw size={16} aria-hidden="true" /> Làm mới
+            </button>
+          </div>
+        </div>
+
+        {isClassApiMocked() && (
+          <p className="info-note" role="status">
+            <FlaskConical size={16} aria-hidden="true" />
+            <span>
+              Đang dùng <strong>dữ liệu mẫu</strong> cho lớp học vì chưa cấu
+              hình <code>VITE_API_BASE_URL</code>.
+            </span>
+          </p>
+        )}
+
+        {error && (
+          <div className="error-notice" role="alert">
+            {error}
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => void refresh()}
+            >
+              Tải lại
+            </button>
+          </div>
+        )}
+
+        {usesSampleMembers ? (
+          <label className="field" htmlFor="counter-sample-member">
+            <span>Thành viên mẫu (chỉ có ở chế độ dữ liệu mẫu)</span>
+            <select
+              id="counter-sample-member"
+              value={sampleMemberId}
+              onChange={(event) => setSampleMemberId(event.target.value)}
+            >
+              <option value="">— Chọn thành viên mẫu —</option>
+              {sampleMembers.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.memberCode} · {item.fullName}
+                  {item.isActive ? "" : " (ngừng hoạt động)"}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          !member && (
+            <p className="info-note">
+              Chọn thành viên ở trên để đăng ký hoặc hủy lớp thay cho họ.
+            </p>
+          )
+        )}
+
+        {isLoading && !hasLoaded ? (
+          <div className="empty-state" role="status">
+            Đang tải lịch lớp học…
+          </div>
+        ) : sessions.length ? (
+          <div className="reception-class-grid">
+            {sessions.map((session) => {
+              const registration = activeBySession.get(session.id) ?? null;
+              // Lớp ngừng nhận đăng ký vẫn có buổi trong lịch; nói thẳng ở đây
+              // thay vì để lễ tân bấm rồi mới nhận lỗi từ server.
+              const owner = classes.find((item) => item.id === session.classId);
+              const isBookable = !owner || isClassBookable(owner.status);
+              return (
+                <article className="reception-class-card" key={session.id}>
+                  <span className="eyebrow">
+                    {session.sportName} · {session.roomName}
+                  </span>
+                  <h3>{session.className}</h3>
+                  <p>
+                    {formatDate(session.date)} ·{" "}
+                    {formatTimeRange(session.startTime, session.endTime)}
+                  </p>
+                  <p>HLV: {session.coachName}</p>
+                  <span
+                    className={`status-chip ${remainingSeats(session) > 0 ? "active" : "expired"}`}
+                  >
+                    Còn {remainingSeats(session)} / {session.capacity} chỗ
+                  </span>
+                  {isBookable || registration ? (
+                    <SessionRegistrationPanel
+                      session={session}
+                      registration={registration}
+                      channel="RECEPTIONIST"
+                      onBehalfOf={effectiveMember}
+                      onChanged={refresh}
+                      layout="inline"
+                    />
+                  ) : (
+                    <p className="session-registration-reason">
+                      Lớp “{owner?.name}” (trạng thái:{" "}
+                      {classStatusLabels[owner?.status ?? "DRAFT"]}) chưa nhận
+                      đăng ký mới.
+                    </p>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <CalendarDays size={36} aria-hidden="true" />
+            <h3>Chưa có buổi học trong ngày này</h3>
+            <p>Chọn ngày khác để tra cứu lịch lớp.</p>
+          </div>
+        )}
+      </section>
+
+      <section className="panel reception-history" aria-labelledby="counter-class-history">
+        <div className="panel-heading">
+          <div>
+            <h2 id="counter-class-history">
+              Đăng ký lớp{" "}
+              {effectiveMember ? `· ${effectiveMember.fullName}` : ""}
+            </h2>
+            <p>Giữ cả lịch sử đã hủy kèm người thao tác và lý do.</p>
+          </div>
+          <span className="count-badge">{registrations.length} đăng ký</span>
+        </div>
+
+        {registrations.length ? (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Buổi học</th>
+                  <th scope="col">Nguồn đăng ký</th>
+                  <th scope="col">Trạng thái</th>
+                  <th scope="col">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registrations.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <strong>{item.session.className}</strong>
+                      <small className="cell-caption">
+                        {formatDate(item.session.date)} ·{" "}
+                        {formatTimeRange(
+                          item.session.startTime,
+                          item.session.endTime,
+                        )}{" "}
+                        · {item.session.roomName}
+                      </small>
+                      {item.session.status !== "SCHEDULED" && (
+                        <small className="cell-caption">
+                          Buổi học: {sessionStatusLabels[item.session.status]}
+                        </small>
+                      )}
+                    </td>
+                    <td>
+                      {item.registeredVia === "RECEPTIONIST"
+                        ? "Quầy lễ tân"
+                        : "Thành viên tự đăng ký"}
+                      <small className="cell-caption">
+                        {item.registeredByName}
+                      </small>
+                    </td>
+                    <td>
+                      <span
+                        className={`status-chip ${item.status === "BOOKED" ? "active" : "canceled"}`}
+                      >
+                        {item.status === "BOOKED" ? "Đang giữ chỗ" : "Đã hủy"}
+                      </span>
+                      {item.cancelReason && (
+                        <small className="cell-caption">
+                          Lý do: {item.cancelReason}
+                        </small>
+                      )}
+                      {item.canceledByName && (
+                        <small className="cell-caption">
+                          Người hủy: {item.canceledByName}
+                        </small>
+                      )}
+                    </td>
+                    <td>
+                      {item.status === "BOOKED" ? (
+                        <SessionRegistrationPanel
+                          session={item.session}
+                          registration={item}
+                          channel="RECEPTIONIST"
+                          onBehalfOf={effectiveMember}
+                          onChanged={refresh}
+                          layout="inline"
+                        />
+                      ) : (
+                        <span className="cell-caption">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <Users size={32} aria-hidden="true" />
+            <p>
+              {effectiveMember
+                ? "Thành viên này chưa có đăng ký lớp nào."
+                : "Chọn thành viên để xem đăng ký lớp của họ."}
+            </p>
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
