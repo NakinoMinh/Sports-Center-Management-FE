@@ -28,8 +28,7 @@ const MESSAGES: Record<string, string> = {
   // --- Registration ---
   EMAIL_ALREADY_EXISTS:
     "Email này đã được đăng ký. Hãy dùng email khác hoặc đăng nhập.",
-  PHONE_ALREADY_EXISTS:
-    "Số điện thoại đã tồn tại. Vui lòng dùng số khác.",
+  PHONE_ALREADY_EXISTS: "Số điện thoại đã tồn tại. Vui lòng dùng số khác.",
 
   // --- Email verification ---
   EMAIL_VERIFICATION_REQUIRED:
@@ -75,7 +74,8 @@ const MESSAGES: Record<string, string> = {
   // --- Concurrency and generic ---
   CONCURRENCY_CONFLICT:
     "Dữ liệu vừa được người khác thay đổi. Hãy làm mới trang và thử lại.",
-  VALIDATION_ERROR: "Dữ liệu nhập vào chưa hợp lệ. Vui lòng kiểm tra lại các ô đã đánh dấu.",
+  VALIDATION_ERROR:
+    "Dữ liệu nhập vào chưa hợp lệ. Vui lòng kiểm tra lại các ô đã đánh dấu.",
   INTERNAL_SERVER_ERROR:
     "Máy chủ gặp sự cố khi xử lý yêu cầu. Vui lòng thử lại sau.",
 
@@ -84,6 +84,14 @@ const MESSAGES: Record<string, string> = {
     "Máy chủ phản hồi quá lâu. Kiểm tra kết nối mạng và thử lại.",
   NETWORK_UNREACHABLE:
     "Không kết nối được tới máy chủ. Kiểm tra backend đã chạy chưa.",
+
+  // --- UC20: Assign Coach ---
+  COACH_SCHEDULE_CONFLICT:
+    "Huấn luyện viên đã có lịch dạy khác trong khung giờ này.",
+  COACH_INACTIVE: "Huấn luyện viên đang ngừng hoạt động.",
+  COACH_NOT_FOUND: "Không tìm thấy huấn luyện viên.",
+  SESSION_NOT_FOUND: "Không tìm thấy buổi học.",
+  SESSION_CANCELLED: "Không thể phân công HLV cho buổi học đã bị hủy.",
 };
 
 /** Messages by HTTP status, used when the server sends no code. */
@@ -160,7 +168,9 @@ export function describeError(error: unknown): string {
     // An unmapped code still beats a bare status; show the server text and the
     // code so a report names something searchable.
     if (error.message) {
-      return error.code ? `${error.message} (mã lỗi: ${error.code})` : error.message;
+      return error.code
+        ? `${error.message} (mã lỗi: ${error.code})`
+        : error.message;
     }
   }
 
