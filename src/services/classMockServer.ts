@@ -32,6 +32,7 @@ import type {
   Room,
   SessionMemberOption,
   Sport,
+  SportInput,
   TrainingClass,
 } from "../types/classes";
 import {
@@ -122,14 +123,46 @@ let state: MockState | null = null;
 let sequence = 0;
 const nextId = (prefix: string): string => `${prefix}-${++sequence}`;
 const timestamp = (): string => new Date().toISOString();
+const sportPayload = (input: SportInput): SportInput => ({
+  name: input.name.trim(),
+  description: input.description.trim(),
+});
 
 function seed(): MockState {
   const today = centerToday();
   const sports: Sport[] = [
-    { id: "sport-yoga", name: "Yoga", isActive: true },
-    { id: "sport-boxing", name: "Boxing", isActive: true },
-    { id: "sport-swim", name: "Bơi lội", isActive: true },
-    { id: "sport-dance", name: "Dance fitness", isActive: false },
+    {
+      id: "sport-yoga",
+      name: "Yoga",
+      description: "Các lớp cân bằng, dẻo dai và phục hồi.",
+      isActive: true,
+      createdAt: timestamp(),
+      updatedAt: timestamp(),
+    },
+    {
+      id: "sport-boxing",
+      name: "Boxing",
+      description: "Kỹ thuật đối kháng và thể lực toàn thân.",
+      isActive: true,
+      createdAt: timestamp(),
+      updatedAt: timestamp(),
+    },
+    {
+      id: "sport-swim",
+      name: "Bơi lội",
+      description: "Các lớp bơi theo trình độ tại hồ trong nhà.",
+      isActive: true,
+      createdAt: timestamp(),
+      updatedAt: timestamp(),
+    },
+    {
+      id: "sport-dance",
+      name: "Dance fitness",
+      description: "Vận động theo nhạc dành cho nhóm đông.",
+      isActive: false,
+      createdAt: timestamp(),
+      updatedAt: timestamp(),
+    },
   ];
   const rooms: Room[] = [
     {
@@ -655,6 +688,47 @@ export const classMockServer = {
   async listSports(): Promise<Sport[]> {
     await wait();
     return store().sports.map((item) => ({ ...item }));
+  },
+
+  async saveSport(input: SportInput, sportId?: string): Promise<Sport> {
+    await wait();
+    const data = store();
+    const duplicate = data.sports.some(
+      (item) =>
+        item.id !== sportId && normalizeName(item.name) === normalizeName(input.name),
+    );
+    if (duplicate)
+      fail("SPORT_NAME_DUPLICATE", "Tên bộ môn đã tồn tại.", 409, {
+        name: ["Tên bộ môn đã tồn tại sau khi chuẩn hóa."],
+      });
+    const existing = sportId
+      ? data.sports.find((item) => item.id === sportId)
+      : undefined;
+    if (sportId && !existing)
+      fail("SPORT_NOT_FOUND", "Không tìm thấy bộ môn.", 404);
+    if (existing) {
+      Object.assign(existing, sportPayload(input), { updatedAt: timestamp() });
+      return { ...existing };
+    }
+    const now = timestamp();
+    const created: Sport = {
+      id: nextId("sport"),
+      ...sportPayload(input),
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    data.sports.push(created);
+    return { ...created };
+  },
+
+  async setSportActive(sportId: string, isActive: boolean): Promise<Sport> {
+    await wait();
+    const sport = store().sports.find((item) => item.id === sportId);
+    if (!sport) fail("SPORT_NOT_FOUND", "Không tìm thấy bộ môn.", 404);
+    sport.isActive = isActive;
+    sport.updatedAt = timestamp();
+    return { ...sport };
   },
 
   async listRooms(): Promise<Room[]> {

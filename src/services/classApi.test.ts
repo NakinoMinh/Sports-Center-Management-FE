@@ -17,7 +17,10 @@ describe("mapping reference DTOs", () => {
     expect(mapSport({ id: 7, name: "Yoga" })).toEqual({
       id: "7",
       name: "Yoga",
+      description: "",
       isActive: true,
+      createdAt: "",
+      updatedAt: "",
     });
     expect(mapRoom({ id: 3, name: "Studio A", capacity: 20 }).location).toBe("");
   });
@@ -209,6 +212,17 @@ describe("mock server business rules", () => {
         }),
       ),
     ).toBe("CLASS_NAME_DUPLICATE");
+  });
+
+  it("rejects a duplicate sport name after normalization", async () => {
+    expect(
+      await codeOf(
+        classMockServer.saveSport({
+          name: "  YÔGA ",
+          description: "Tên bị trùng sau chuẩn hóa.",
+        }),
+      ),
+    ).toBe("SPORT_NAME_DUPLICATE");
   });
 
   it("refuses to open a class that has no future session", async () => {

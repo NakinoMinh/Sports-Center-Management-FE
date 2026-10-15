@@ -5,6 +5,10 @@ export const accessRules = {
   packages: ["CENTER_MANAGER"],
   /** Quản lý lớp học và lập lịch (UC19, UC21, UC30). */
   classes: ["CENTER_MANAGER"],
+  sports: ["CENTER_MANAGER"],
+  centerSchedule: ["CENTER_MANAGER", "RECEPTIONIST"],
+  memberClasses: ["MEMBER"],
+  notifications: ["MEMBER", "COACH"],
   permissions: ["CENTER_MANAGER"],
   membership: ["MEMBER", "CENTER_MANAGER"],
   counter: ["RECEPTIONIST", "CENTER_MANAGER"],

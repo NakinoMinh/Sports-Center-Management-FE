@@ -16,8 +16,16 @@
 export interface Sport {
   id: string;
   name: string;
+  description: string;
   isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
+
+export type SportInput = {
+  name: string;
+  description: string;
+};
 
 /**
  * Phòng tập (UC18) do Tam sở hữu, định nghĩa gốc nằm ở `types/room.ts`.
@@ -62,6 +70,12 @@ export interface TrainingClass extends ClassInput {
   createdAt: string;
   updatedAt: string;
 }
+
+export type ClassListFilter = {
+  search?: string;
+  sportId?: string;
+  status?: ClassStatus;
+};
 
 export type ClassSessionStatus = "SCHEDULED" | "CANCELED" | "COMPLETED";
 
