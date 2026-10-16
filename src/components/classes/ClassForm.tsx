@@ -68,12 +68,15 @@ export function ClassForm({
       { sportId, name, description, capacity },
       {
         sportId: v.selected("bộ môn"),
+        // Giới hạn phải khớp CreateClassAPIViewModel/UpdateClassAPIViewModel:
+        // tên tối đa 100, mô tả tối đa 500. Trước đây form cho nhập 120/1000
+        // nên người dùng gõ xong, qua được FE rồi mới bị server trả 400.
         name: v.all(
           v.required("Tên lớp"),
           v.minLength("Tên lớp", 3),
-          v.maxLength("Tên lớp", 120),
+          v.maxLength("Tên lớp", 100),
         ),
-        description: v.text("Mô tả", 1000),
+        description: v.text("Mô tả", 500),
         capacity: v.positiveInteger("Sức chứa", {
           min: Math.max(1, activeRegistrationCount),
           max: 200,
@@ -170,7 +173,7 @@ export function ClassForm({
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Ví dụ: Yoga cân bằng cơ bản"
-            maxLength={120}
+            maxLength={100}
             aria-invalid={Boolean(messageFor("name"))}
             aria-describedby={
               messageFor("name") ? `${prefix}-name-error` : undefined
@@ -191,7 +194,7 @@ export function ClassForm({
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="Đối tượng phù hợp, yêu cầu trình độ, dụng cụ cần mang…"
-            maxLength={1000}
+            maxLength={500}
             aria-invalid={Boolean(messageFor("description"))}
             aria-describedby={
               messageFor("description")

@@ -343,12 +343,18 @@ export function AssignCoachPage() {
               >
                 <option value="">-- Chọn huấn luyện viên --</option>
 
-                {coaches.map((coach) => (
-                  <option key={coach.accountId} value={coach.accountId}>
-                    {coach.fullName}
-                    {coach.specialization ? ` — ${coach.specialization}` : ""}
-                  </option>
-                ))}
+                {coaches.map((coach) => {
+                  const expertise = (coach.disciplines ?? [])
+                    .filter((item) => item.isActive)
+                    .map((item) => item.disciplineName)
+                    .join(", ");
+                  return (
+                    <option key={coach.accountId} value={coach.accountId}>
+                      {coach.fullName}
+                      {expertise ? ` — ${expertise}` : ""}
+                    </option>
+                  );
+                })}
               </select>
 
               {coaches.length === 0 && (

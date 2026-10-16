@@ -17,7 +17,9 @@ import { homeForRole } from "./utils/navigation";
 import { LoginPage } from "./pages/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { RegisterPage } from "./pages/RegisterPage";
-import { DashboardPreview } from "./pages/DashboardPreview";
+import { SchedulePage } from "./pages/SchedulePage";
+import { NotificationsPage } from "./pages/NotificationsPage";
+import { SportsPage } from "./pages/manager/SportsPage";
 import { MembershipPackagesPage } from "./pages/manager/MembershipPackagesPage";
 import { MembershipPage } from "./pages/membership/MembershipPage";
 import { CashPaymentsPage } from "./pages/membership/CashPaymentsPage";
@@ -33,6 +35,7 @@ import { AuditLogPage } from "./pages/manager/AuditLogPage";
 import { RoomsPage } from "./pages/manager/RoomsPage";
 import { ClassesPage } from "./pages/manager/ClassesPage";
 import { ClassSchedulePage } from "./pages/manager/ClassSchedulePage";
+import { PackageSportsPage } from "./pages/manager/PackageSportsPage";
 import { accountEnabled, accessRules } from "./services/accessControl";
 import type { UserRole } from "./types/auth";
 import "./App.css";
@@ -109,6 +112,11 @@ export default function App() {
             <Route path="/register" element={<AuthPage tab="register" />} />
             <Route element={<WorkspaceLayout />}>
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/manager/sports" element={<OwnedScreen role="CENTER_MANAGER"><SportsPage /></OwnedScreen>} />
+              <Route path="/center-schedule" element={<OwnedScreen role={["CENTER_MANAGER", "RECEPTIONIST"]}><SchedulePage key="center" mode="center" /></OwnedScreen>} />
+              <Route path="/member/classes" element={<OwnedScreen role="MEMBER"><SchedulePage key="browse" mode="browse" /></OwnedScreen>} />
+              <Route path="/member/schedule" element={<OwnedScreen role="MEMBER"><SchedulePage key="mine" mode="mine" /></OwnedScreen>} />
+              <Route path="/notifications" element={<OwnedScreen role={["MEMBER", "COACH"]}><NotificationsPage /></OwnedScreen>} />
               <Route
                 path="/manager/members"
                 element={
@@ -166,6 +174,14 @@ export default function App() {
                 }
               />
               <Route
+                path="/manager/package-sports"
+                element={
+                  <OwnedScreen role={accessRules.packages}>
+                    <PackageSportsPage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
                 path="/manager/audit-log"
                 element={
                   <OwnedScreen role={accessRules.members}>
@@ -186,7 +202,7 @@ export default function App() {
                   key={mode}
                   path={`/receptionist/${mode}`}
                   element={
-                    <OwnedScreen role={accessRules.counter}>
+                    <OwnedScreen role={mode === "classes" ? ["RECEPTIONIST"] : accessRules.counter}>
                       <ReceptionOperationsPage key={mode} mode={mode} />
                     </OwnedScreen>
                   }
@@ -236,7 +252,7 @@ export default function App() {
                 path="/coach"
                 element={
                   <OwnedScreen role={accessRules.coach}>
-                    <DashboardPreview />
+                    <SchedulePage mode="coach" />
                   </OwnedScreen>
                 }
               />

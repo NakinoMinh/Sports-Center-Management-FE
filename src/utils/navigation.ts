@@ -102,6 +102,12 @@ export const navSections: readonly NavSection[] = [
   {
     title: "Lớp học",
     items: [
+      { to: "/manager/sports", label: "Bộ môn", icon: "layers", roles: MANAGER, trail: ["Lớp học", "Bộ môn"] },
+      { to: "/center-schedule", label: "Lịch trung tâm", icon: "calendar", roles: COUNTER, trail: ["Lớp học", "Lịch trung tâm"] },
+      { to: "/member/classes", label: "Khám phá lớp học", icon: "compass", roles: ["MEMBER"], trail: ["Lớp học", "Khám phá"] },
+      { to: "/member/schedule", label: "Lịch học của tôi", icon: "calendar", roles: ["MEMBER"], trail: ["Lớp học", "Lịch của tôi"] },
+      { to: "/coach", label: "Lịch dạy và học viên", icon: "calendar", roles: ["COACH"], trail: ["Lớp học", "Lịch dạy"] },
+      { to: "/notifications", label: "Thông báo lớp học", icon: "history", roles: ["MEMBER", "COACH"], trail: ["Lớp học", "Thông báo"] },
       {
         to: "/manager/classes",
         label: "Danh mục lớp",
@@ -173,7 +179,7 @@ export const navSections: readonly NavSection[] = [
         to: "/receptionist/classes",
         label: "Đăng ký lớp học",
         icon: "calendar",
-        roles: COUNTER,
+        roles: ["RECEPTIONIST"],
         trail: ["Quầy lễ tân", "Đăng ký lớp học"],
       },
       {
@@ -206,6 +212,13 @@ export const navSections: readonly NavSection[] = [
         icon: "layers",
         roles: MANAGER,
         trail: ["Tài chính", "Gói & học phí"],
+      },
+      {
+        to: "/manager/package-sports",
+        label: "Quyền bộ môn của gói",
+        icon: "shield",
+        roles: MANAGER,
+        trail: ["Tài chính", "Quyền bộ môn của gói"],
       },
       {
         to: "/payments/cash",

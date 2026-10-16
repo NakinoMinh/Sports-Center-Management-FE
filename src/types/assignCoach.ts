@@ -1,9 +1,22 @@
+/** Bộ môn một huấn luyện viên được phân công dạy (UC7). */
+export interface CoachDiscipline {
+  disciplineId: number;
+  disciplineName: string;
+  isActive: boolean;
+}
+
+/**
+ * Huấn luyện viên theo đúng `CoachListItemAPIViewModel` của backend.
+ *
+ * Chuyên môn nằm trong `disciplines`, không phải một chuỗi `specialization`:
+ * đọc sai tên trường thì ô chọn HLV mất hẳn phần chuyên môn mà không báo lỗi.
+ */
 export interface CoachOption {
   accountId: string;
   fullName: string;
   email: string;
   phone: string | null;
-  specialization: string | null;
+  disciplines: CoachDiscipline[];
   workSchedule: string | null;
   status: string;
 }

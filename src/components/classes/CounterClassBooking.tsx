@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
-  FlaskConical,
   RefreshCw,
   Users,
 } from "lucide-react";
 import { SessionRegistrationPanel } from "./SessionRegistrationPanel";
-import { classApi, isClassApiMocked } from "../../services/classApi";
+import { classApi } from "../../services/classApi";
 import { describeError } from "../../services/apiErrors";
 import {
   addCalendarDays,
@@ -45,18 +44,14 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [registrations, setRegistrations] = useState<ClassRegistration[]>([]);
   const [classes, setClasses] = useState<TrainingClass[]>([]);
-  const [sampleMembers, setSampleMembers] = useState<SessionMemberOption[]>([]);
-  const [sampleMemberId, setSampleMemberId] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
 
-  // Ô chọn thành viên của trang quầy lấy dữ liệu từ API Member; khi chưa có
-  // backend, danh sách đó rỗng và không demo được gì. Ở chế độ dữ liệu mẫu,
-  // component tự cho chọn một thành viên mẫu để thử đủ các nhánh nghiệp vụ.
-  const usesSampleMembers = isClassApiMocked() && !member;
-  const effectiveMember =
-    member ?? sampleMembers.find((item) => item.id === sampleMemberId) ?? null;
+  // Thành viên được hỗ trợ luôn do trang quầy chọn qua API Member. Trước đây
+  // component còn một ô "thành viên mẫu" cho chế độ dữ liệu mẫu; bỏ đi để
+  // không còn đường nào đặt chỗ cho một ID không có trên server.
+  const effectiveMember = member;
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
@@ -72,7 +67,6 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
           ? await classApi.listMemberRegistrations(effectiveMember.id, true)
           : [],
       );
-      if (isClassApiMocked()) setSampleMembers(await classApi.searchMembers(""));
       setError("");
     } catch (caught) {
       setError(describeError(caught));
@@ -132,16 +126,6 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
           </div>
         </div>
 
-        {isClassApiMocked() && (
-          <p className="info-note" role="status">
-            <FlaskConical size={16} aria-hidden="true" />
-            <span>
-              Đang dùng <strong>dữ liệu mẫu</strong> cho lớp học vì chưa cấu
-              hình <code>VITE_API_BASE_URL</code>.
-            </span>
-          </p>
-        )}
-
         {error && (
           <div className="error-notice" role="alert">
             {error}
@@ -155,29 +139,10 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
           </div>
         )}
 
-        {usesSampleMembers ? (
-          <label className="field" htmlFor="counter-sample-member">
-            <span>Thành viên mẫu (chỉ có ở chế độ dữ liệu mẫu)</span>
-            <select
-              id="counter-sample-member"
-              value={sampleMemberId}
-              onChange={(event) => setSampleMemberId(event.target.value)}
-            >
-              <option value="">— Chọn thành viên mẫu —</option>
-              {sampleMembers.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.memberCode} · {item.fullName}
-                  {item.isActive ? "" : " (ngừng hoạt động)"}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          !member && (
-            <p className="info-note">
-              Chọn thành viên ở trên để đăng ký hoặc hủy lớp thay cho họ.
-            </p>
-          )
+        {!member && (
+          <p className="info-note">
+            Chọn thành viên ở trên để đăng ký hoặc hủy lớp thay cho họ.
+          </p>
         )}
 
         {isLoading && !hasLoaded ? (

@@ -82,6 +82,9 @@ const MESSAGES: Record<string, string> = {
   CLASS_ARCHIVED: "Lớp đã được lưu trữ nên không thể thêm hoặc sửa buổi học.",
   CLASS_HAS_REGISTRATIONS:
     "Lớp đã có lịch sử đăng ký nên không thể xóa. Hãy chuyển sang trạng thái lưu trữ.",
+  SPORT_NAME_DUPLICATE: "Tên bộ môn đã tồn tại. Hãy chọn tên khác.",
+  ROOM_NAME_DUPLICATE: "Tên phòng đã tồn tại. Hãy chọn tên khác.",
+  ROOM_CAPACITY_BELOW_SCHEDULE: "Sức chứa nhỏ hơn lịch học đang có. Hãy điều chỉnh lịch trước khi giảm sức chứa phòng.",
   SPORT_NOT_FOUND: "Không tìm thấy bộ môn đã chọn. Hãy tải lại danh sách.",
   SPORT_INACTIVE:
     "Bộ môn này đã ngừng hoạt động nên không dùng để tạo lớp mới.",
@@ -115,8 +118,13 @@ const MESSAGES: Record<string, string> = {
     "Đăng ký này đã được hủy trước đó. Chỗ chỉ được trả lại một lần.",
   MEMBERSHIP_NOT_VALID_FOR_SESSION:
     "Gói tập không còn hiệu lực vào ngày diễn ra buổi học. Hãy gia hạn trước khi đăng ký.",
+  PACKAGE_NOT_FOUND: "Không tìm thấy gói tập. Hãy tải lại danh sách.",
   PACKAGE_NOT_ELIGIBLE:
     "Gói tập hiện tại không bao gồm bộ môn của lớp này. Hãy nâng gói hoặc chọn lớp khác.",
+
+  // --- Thông báo trong ứng dụng (UC31) ---
+  NOTIFICATION_NOT_FOUND:
+    "Không tìm thấy thông báo này. Có thể danh sách đã thay đổi; hãy làm mới trang.",
 
   // --- Concurrency and generic ---
   CONCURRENCY_CONFLICT:

@@ -74,6 +74,7 @@ export function CancelScopeDialog({
   }, [loadImpact]);
 
   async function handleConfirm() {
+    if (!impact || isLoadingImpact) return;
     const trimmed = reason.trim();
     if (trimmed.length < 3 || trimmed.length > 500) {
       setReasonError("Nhập lý do hủy từ 3 đến 500 ký tự.");
@@ -111,7 +112,7 @@ export function CancelScopeDialog({
             type="button"
             className="button danger"
             onClick={handleConfirm}
-            disabled={isWorking || isLoadingImpact}
+            disabled={isWorking || isLoadingImpact || !impact}
           >
             <CalendarX size={17} aria-hidden="true" />
             {isWorking ? "Đang hủy…" : "Xác nhận hủy"}
@@ -136,7 +137,7 @@ export function CancelScopeDialog({
             name={`${prefix}-scope`}
             value="SESSION"
             checked={scope === "SESSION"}
-            onChange={() => setScope("SESSION")}
+            onChange={() => { setImpact(null); setScope("SESSION"); }}
             disabled={isWorking}
           />
           <span>
@@ -151,7 +152,7 @@ export function CancelScopeDialog({
             name={`${prefix}-scope`}
             value="CLASS_FUTURE_SESSIONS"
             checked={scope === "CLASS_FUTURE_SESSIONS"}
-            onChange={() => setScope("CLASS_FUTURE_SESSIONS")}
+            onChange={() => { setImpact(null); setScope("CLASS_FUTURE_SESSIONS"); }}
             disabled={isWorking}
           />
           <span>

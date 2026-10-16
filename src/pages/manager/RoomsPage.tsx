@@ -9,7 +9,8 @@ import { DoorOpen, Edit2, Plus, Power, RefreshCw, Search } from "lucide-react";
 import { Dialog } from "../../components/common/Dialog";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { useToast } from "../../hooks/useToast";
-import { describeError } from "../../services/apiErrors";
+import * as v from "../../utils/validation";
+import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import { roomApi } from "../../services/roomApi";
 import type { Room, RoomInput } from "../../types/room";
 
@@ -26,6 +27,8 @@ export function RoomsPage() {
   const toast = useToast();
 
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -45,12 +48,13 @@ export function RoomsPage() {
     } catch (err) {
       setError(describeError(err));
     } finally {
-      setLoading(false);
+      setLoading(false); setHasLoaded(true);
     }
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const timer = window.setTimeout(() => void refresh(), 0);
+    return () => window.clearTimeout(timer);
   }, [refresh]);
 
   const filteredRooms = useMemo(() => {
@@ -70,6 +74,7 @@ export function RoomsPage() {
   }, [rooms, search, status]);
 
   const openForm = (room: Room | "new") => {
+    setFieldErrors({});
     setEditing(room);
     setError("");
 
@@ -79,6 +84,7 @@ export function RoomsPage() {
       setForm({
         name: room.name,
         location: room.location,
+        roomType: room.roomType,
         capacity: room.capacity,
         isActive: room.isActive,
       });
@@ -88,15 +94,9 @@ export function RoomsPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!form.name.trim()) {
-      toast.error("Vui lòng nhập tên phòng.");
-      return;
-    }
-
-    if (!Number.isInteger(form.capacity) || form.capacity <= 0) {
-      toast.error("Sức chứa phải là số nguyên lớn hơn 0.");
-      return;
-    }
+    const errors = v.validateForm(form, {name: v.all(v.required("Tên phòng"), v.maxLength("Tên phòng",80)), location: v.text("Vị trí",120), capacity: v.positiveInteger("Sức chứa", {max:500})});
+    setFieldErrors(errors);
+    if (v.hasErrors(errors)) return;
 
     setSaving(true);
 
@@ -112,6 +112,7 @@ export function RoomsPage() {
       setEditing(null);
       await refresh();
     } catch (err) {
+      setFieldErrors(fieldErrorsOf(err));
       toast.error(describeError(err));
     } finally {
       setSaving(false);
@@ -190,7 +191,7 @@ export function RoomsPage() {
         Tổng số: <strong>{filteredRooms.length}</strong> phòng
       </p>
 
-      {loading ? (
+      {loading && !hasLoaded ? (
         <p>Đang tải danh sách phòng...</p>
       ) : (
         <div className="table-scroll">
@@ -272,11 +273,13 @@ export function RoomsPage() {
             if (!saving) setEditing(null);
           }}
         >
-          <form onSubmit={(event) => void handleSubmit(event)}>
+          <form noValidate onSubmit={(event) => void handleSubmit(event)}>
             <div className="form-group">
               <label htmlFor="room-name">Tên phòng *</label>
               <input
                 id="room-name"
+                aria-invalid={Boolean(fieldErrors.name)}
+                aria-describedby={fieldErrors.name ? "room-name-error" : undefined}
                 required
                 maxLength={80}
                 value={form.name}
@@ -284,24 +287,30 @@ export function RoomsPage() {
                   setForm({ ...form, name: event.target.value })
                 }
               />
+              {fieldErrors.name && <small id="room-name-error" className="form-error">{fieldErrors.name}</small>}
             </div>
 
             <div className="form-group">
               <label htmlFor="room-location">Vị trí</label>
               <input
                 id="room-location"
+                aria-invalid={Boolean(fieldErrors.location)}
+                aria-describedby={fieldErrors.location ? "room-location-error" : undefined}
                 maxLength={120}
                 value={form.location}
                 onChange={(event) =>
                   setForm({ ...form, location: event.target.value })
                 }
               />
+              {fieldErrors.location && <small id="room-location-error" className="form-error">{fieldErrors.location}</small>}
             </div>
 
             <div className="form-group">
               <label htmlFor="room-capacity">Sức chứa *</label>
               <input
                 id="room-capacity"
+                aria-invalid={Boolean(fieldErrors.capacity)}
+                aria-describedby={fieldErrors.capacity ? "room-capacity-error" : undefined}
                 type="number"
                 required
                 min={1}
@@ -314,8 +323,10 @@ export function RoomsPage() {
                   })
                 }
               />
+              {fieldErrors.capacity && <small id="room-capacity-error" className="form-error">{fieldErrors.capacity}</small>}
             </div>
 
+            <label className="field">Loại phòng<select value={form.roomType ?? ""} onChange={e => setForm({...form, roomType: e.target.value || null})}><option value="">Chưa phân loại</option><option value="STUDIO">Studio</option><option value="GYM">Phòng gym</option><option value="POOL">Hồ bơi</option><option value="COURT">Sân tập</option><option value="OTHER">Khác</option></select></label>
             <div className="modal-actions">
               <button
                 type="button"

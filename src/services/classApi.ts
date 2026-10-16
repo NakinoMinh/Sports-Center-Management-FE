@@ -2,21 +2,21 @@
  * Service cho lớp học, lịch học và đăng ký buổi học (UC19, UC21, UC24, UC25,
  * UC29, UC30).
  *
- * Mỗi hàm có hai đường đi:
- * - Backend đã cấu hình (`VITE_API_BASE_URL`): gọi API thật và map DTO.
- * - Chưa cấu hình: gọi `classMockServer`, mô phỏng đúng mã lỗi của contract.
+ * Mọi hàm gọi API Flow 2 của backend và map DTO sang model của giao diện.
+ * Không còn nhánh dữ liệu mẫu: trước đây service tự rơi về `classMockServer`
+ * khi `VITE_API_BASE_URL` trống, nên một màn hình cấu hình sai vẫn đặt chỗ
+ * "thành công" trên dữ liệu trong bộ nhớ. Nay `apiRequest` ném lỗi cấu hình và
+ * màn hình hiển thị lỗi đó, đúng yêu cầu Sprint 2: booking, counter và lịch cá
+ * nhân chỉ có một nguồn duy nhất là server.
  *
- * Nhờ vậy màn hình chỉ biết một bề mặt duy nhất. Khi API Flow 2 lên, xóa các
- * nhánh `if (runsOnMockData())` là xong — không phải sửa page hay component nào.
- * `isClassApiMocked()` cho màn hình hiển thị nhãn "dữ liệu mẫu", để không ai
- * nhầm bản demo với dữ liệu đã lưu ở server.
+ * Danh tính người gọi do server lấy từ token, nên các hàm `/me`, đăng ký và
+ * hủy đăng ký không nhận tham số actor.
  *
- * Đường dẫn endpoint lấy từ docs/API_SPECIFICATION_SPRINT2_MINH.md. Chốt lại
- * với backend trong ngày đầu sprint trước khi coi là cố định.
+ * Đường dẫn endpoint theo các controller Flow 2 đang chạy
+ * (`SPRINT2_API_TEST_REPORT_FOR_FE_2026-10-15.md`, §3).
  */
 
-import { apiRequest, isApiConfigured } from "./apiClient";
-import { classMockServer } from "./classMockServer";
+import { apiRequest } from "./apiClient";
 import { memberApi } from "./memberApi";
 import type {
   CancelImpact,
@@ -28,18 +28,12 @@ import type {
   ClassSessionInput,
   ClassStatus,
   CoachOption,
-  RegistrationChannel,
   Room,
   SessionMemberOption,
   Sport,
+  SessionRosterMember,
   TrainingClass,
 } from "../types/classes";
-import type { MembershipActor } from "../types/membership";
-
-const runsOnMockData = (): boolean => !isApiConfigured();
-
-/** True khi màn hình đang chạy trên dữ liệu mẫu thay vì API thật. */
-export const isClassApiMocked = (): boolean => runsOnMockData();
 
 // --- DTO ------------------------------------------------------------------
 
@@ -63,6 +57,12 @@ interface CoachOptionDto {
   fullName?: string | null;
   isActive?: boolean;
   status?: string;
+  /**
+   * `GET /api/Coach` gửi chuyên môn trong `disciplines`
+   * (`CoachListItemAPIViewModel`). `specializations` chỉ còn để nhận các DTO cũ
+   * và fixture; nếu chỉ đọc trường đó thì ô chọn HLV mất phần chuyên môn.
+   */
+  disciplines?: { disciplineId?: number | string; disciplineName?: string | null; isActive?: boolean }[] | null;
   specializations?: string[] | string | null;
 }
 
@@ -123,6 +123,16 @@ interface RegistrationDto {
   session: SessionDto;
 }
 
+type RosterDto = Pick<RegistrationDto, "id" | "sessionId" | "memberAccountId" | "memberName" | "memberCode" | "status" | "registeredVia" | "registeredAt">;
+
+export const mapRoster = (dto: RosterDto): SessionRosterMember => ({
+  id: String(dto.id), sessionId: String(dto.sessionId), memberId: dto.memberAccountId ?? "",
+  memberName: dto.memberName ?? "—", memberCode: dto.memberCode ?? "—",
+  status: dto.status === "CANCELED" ? "CANCELED" : "BOOKED",
+  registeredVia: dto.registeredVia === "RECEPTIONIST" ? "RECEPTIONIST" : "MEMBER",
+  registeredAt: dto.registeredAt ?? "",
+});
+
 interface CancelImpactDto {
   scope?: string;
   affectedSessionCount?: number;
@@ -165,17 +175,27 @@ export const mapRoom = (dto: RoomDto): Room => ({
   isActive: activeFlag(dto),
 });
 
+const coachExpertise = (dto: CoachOptionDto): string[] => {
+  if (dto.disciplines?.length) {
+    return dto.disciplines
+      .filter((item) => item.isActive !== false)
+      .map((item) => (item.disciplineName ?? "").trim())
+      .filter(Boolean);
+  }
+  if (typeof dto.specializations === "string") {
+    return dto.specializations
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return dto.specializations ?? [];
+};
+
 export const mapCoachOption = (dto: CoachOptionDto): CoachOption => ({
   id: dto.accountId ?? id(dto.id),
   fullName: dto.fullName?.trim() || "Huấn luyện viên chưa đặt tên",
   isActive: activeFlag(dto),
-  specializations:
-    typeof dto.specializations === "string"
-      ? dto.specializations
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean)
-      : (dto.specializations ?? []),
+  specializations: coachExpertise(dto),
 });
 
 const CLASS_STATUSES: readonly ClassStatus[] = [
@@ -342,19 +362,16 @@ export const classApi = {
   // --- Dữ liệu tham chiếu (bộ môn, phòng, Coach) --------------------------
 
   async listSports(): Promise<Sport[]> {
-    if (runsOnMockData()) return classMockServer.listSports();
     const items = await listAllPages<SportDto>("/Sport");
     return items.map(mapSport);
   },
 
   async listRooms(): Promise<Room[]> {
-    if (runsOnMockData()) return classMockServer.listRooms();
     const items = await listAllPages<RoomDto>("/Room");
     return items.map(mapRoom);
   },
 
   async listCoaches(): Promise<CoachOption[]> {
-    if (runsOnMockData()) return classMockServer.listCoaches();
     const items = await listAllPages<CoachOptionDto>("/Coach");
     return items.map(mapCoachOption);
   },
@@ -362,13 +379,11 @@ export const classApi = {
   // --- UC19: quản lý lớp --------------------------------------------------
 
   async listClasses(): Promise<TrainingClass[]> {
-    if (runsOnMockData()) return classMockServer.listClasses();
     const items = await listAllPages<ClassDto>("/Class");
     return items.map(mapClass);
   },
 
   async saveClass(input: ClassInput, classId?: string): Promise<TrainingClass> {
-    if (runsOnMockData()) return classMockServer.saveClass(input, classId);
     const result = await apiRequest<ClassDto>(
       classId ? `/Class/${classId}` : "/Class",
       {
@@ -383,7 +398,6 @@ export const classApi = {
     classId: string,
     status: ClassStatus,
   ): Promise<TrainingClass> {
-    if (runsOnMockData()) return classMockServer.setClassStatus(classId, status);
     const result = await apiRequest<ClassDto>(`/Class/${classId}/status`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
@@ -394,7 +408,6 @@ export const classApi = {
   // --- UC21: lập và sửa lịch ---------------------------------------------
 
   async listSessions(filter: ClassSessionFilter = {}): Promise<ClassSession[]> {
-    if (runsOnMockData()) return classMockServer.listSessions(filter);
     const items = await listAllPages<SessionDto>(
       `/ClassSession${sessionQuery(filter)}`,
     );
@@ -405,7 +418,6 @@ export const classApi = {
     input: ClassSessionInput,
     sessionId?: string,
   ): Promise<ClassSession> {
-    if (runsOnMockData()) return classMockServer.saveSession(input, sessionId);
     const result = await apiRequest<SessionDto>(
       sessionId ? `/ClassSession/${sessionId}` : "/ClassSession",
       {
@@ -422,7 +434,6 @@ export const classApi = {
     scope: CancelScope,
     target: { sessionId?: string; classId?: string },
   ): Promise<CancelImpact> {
-    if (runsOnMockData()) return classMockServer.previewCancel(scope, target);
     const path =
       scope === "SESSION"
         ? `/ClassSession/${target.sessionId}/cancel-impact`
@@ -435,15 +446,7 @@ export const classApi = {
     scope: CancelScope,
     target: { sessionId?: string; classId?: string },
     reason: string,
-    actor: MembershipActor,
   ): Promise<number> {
-    if (runsOnMockData())
-      return classMockServer.cancelSessions(
-        scope,
-        target,
-        reason,
-        actor.fullName,
-      );
     if (scope === "SESSION") {
       await apiRequest(`/ClassSession/${target.sessionId}/cancel`, {
         method: "POST",
@@ -461,20 +464,21 @@ export const classApi = {
   // --- UC24, UC25, UC29: đăng ký và hủy đăng ký --------------------------
 
   /**
-   * Đăng ký của chính người đang đăng nhập. Danh tính lấy từ token phía server;
-   * `actor` chỉ dùng cho nhánh mock, FE không được gửi memberId của mình lên.
+   * Đăng ký của chính người đang đăng nhập (UC26). Server lấy danh tính từ
+   * token, nên FE không gửi memberId của mình lên; `from`/`to` để không tải cả
+   * lịch sử khi màn hình chỉ xem một tuần.
    */
   async listMyRegistrations(
-    actor: MembershipActor,
     includeCanceled = false,
+    range: { from?: string; to?: string } = {},
   ): Promise<ClassRegistration[]> {
-    if (runsOnMockData())
-      return classMockServer.listRegistrations({
-        memberId: classMockServer.ensureMember(actor),
-        includeCanceled,
-      });
+    const query = new URLSearchParams({
+      includeCanceled: String(includeCanceled),
+    });
+    if (range.from) query.set("from", range.from);
+    if (range.to) query.set("to", range.to);
     const items = await listAllPages<RegistrationDto>(
-      `/ClassRegistration/me?includeCanceled=${includeCanceled}`,
+      `/ClassRegistration/me?${query.toString()}`,
     );
     return items.map(mapRegistration);
   },
@@ -484,28 +488,16 @@ export const classApi = {
     memberId: string,
     includeCanceled = true,
   ): Promise<ClassRegistration[]> {
-    if (runsOnMockData())
-      return classMockServer.listRegistrations({ memberId, includeCanceled });
     const items = await listAllPages<RegistrationDto>(
       `/ClassRegistration?memberAccountId=${encodeURIComponent(memberId)}&includeCanceled=${includeCanceled}`,
     );
     return items.map(mapRegistration);
   },
 
-  async registerMyself(
-    sessionId: string,
-    actor: MembershipActor,
-  ): Promise<ClassRegistration> {
-    if (runsOnMockData())
-      return classMockServer.register(
-        sessionId,
-        classMockServer.ensureMember(actor),
-        "MEMBER",
-        actor.fullName,
-      );
+  async registerMyself(sessionId: string): Promise<ClassRegistration> {
     const result = await apiRequest<RegistrationDto>(
       "/ClassRegistration/register",
-      { method: "POST", body: JSON.stringify({ sessionId }) },
+      { method: "POST", body: JSON.stringify({ sessionId: Number(sessionId) }) },
     );
     return mapRegistration(result);
   },
@@ -513,20 +505,12 @@ export const classApi = {
   async registerAtCounter(
     sessionId: string,
     memberId: string,
-    actor: MembershipActor,
   ): Promise<ClassRegistration> {
-    if (runsOnMockData())
-      return classMockServer.register(
-        sessionId,
-        memberId,
-        "RECEPTIONIST",
-        actor.fullName,
-      );
     const result = await apiRequest<RegistrationDto>(
       "/ClassRegistration/counter-register",
       {
         method: "POST",
-        body: JSON.stringify({ sessionId, memberAccountId: memberId }),
+        body: JSON.stringify({ sessionId: Number(sessionId), memberAccountId: memberId }),
       },
     );
     return mapRegistration(result);
@@ -536,16 +520,7 @@ export const classApi = {
   async cancelMyRegistration(
     registrationId: string,
     reason: string,
-    actor: MembershipActor,
-    channel: RegistrationChannel = "MEMBER",
   ): Promise<ClassRegistration> {
-    if (runsOnMockData())
-      return classMockServer.cancelRegistration(
-        registrationId,
-        reason,
-        actor.fullName,
-        channel === "RECEPTIONIST",
-      );
     const result = await apiRequest<RegistrationDto>(
       `/ClassRegistration/${registrationId}/cancel`,
       {
@@ -560,15 +535,7 @@ export const classApi = {
   async cancelAtCounter(
     registrationId: string,
     reason: string,
-    actor: MembershipActor,
   ): Promise<ClassRegistration> {
-    if (runsOnMockData())
-      return classMockServer.cancelRegistration(
-        registrationId,
-        reason,
-        actor.fullName,
-        true,
-      );
     const result = await apiRequest<RegistrationDto>(
       `/ClassRegistration/${registrationId}/counter-cancel`,
       { method: "POST", body: JSON.stringify({ reason: reason.trim() }) },
@@ -579,16 +546,15 @@ export const classApi = {
   /** Roster một buổi, dùng khi hiển thị ai sẽ bị ảnh hưởng nếu đổi/hủy lịch. */
   async listSessionRegistrations(
     sessionId: string,
-  ): Promise<ClassRegistration[]> {
-    if (runsOnMockData())
-      return classMockServer.listRegistrations({
-        sessionId,
-        includeCanceled: true,
-      });
-    const items = await listAllPages<RegistrationDto>(
-      `/ClassSession/${sessionId}/registrations`,
+  ): Promise<SessionRosterMember[]> {
+    const items = await listAllPages<RosterDto>(
+      `/ClassSession/${sessionId}/registrations?includeCanceled=true`,
     );
-    return items.map(mapRegistration);
+    return items.map(mapRoster);
+  },
+
+  async listTeachingSessions(filter: ClassSessionFilter = {}): Promise<ClassSession[]> {
+    return (await listAllPages<SessionDto>(`/ClassSession/me${sessionQuery(filter)}`)).map(mapSession);
   },
 
   /**
@@ -596,7 +562,6 @@ export const classApi = {
    * backend, nên không phát sinh endpoint mới cho UC29.
    */
   async searchMembers(query: string): Promise<SessionMemberOption[]> {
-    if (runsOnMockData()) return classMockServer.searchMembers(query);
     const result = await memberApi.listMembers(1, 20, query, "ALL");
     return result.items.map((item) => ({
       id: item.id,

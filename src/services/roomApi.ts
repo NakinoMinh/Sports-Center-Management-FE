@@ -1,11 +1,6 @@
 import { apiRequest } from "./apiClient";
 import type { Room, RoomInput } from "../types/room";
 
-interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-}
-
 interface PagedResult<T> {
   items: T[];
   page: number;
@@ -18,6 +13,7 @@ interface RoomDto {
   id: number;
   name: string;
   location: string | null;
+  roomType?: string | null;
   capacity: number;
   isActive: boolean;
   createdAt?: string;
@@ -29,6 +25,7 @@ const toRoom = (dto: RoomDto): Room => ({
   id: String(dto.id),
   name: dto.name,
   location: dto.location ?? "",
+  roomType: dto.roomType ?? null,
   capacity: dto.capacity,
   isActive: dto.isActive,
 });
@@ -59,6 +56,7 @@ const toPayload = (input: RoomInput) => ({
   name: input.name.trim(),
   location: input.location.trim() || null,
   capacity: input.capacity,
+  roomType: input.roomType || null,
 });
 
 export const roomApi = {
@@ -69,12 +67,12 @@ export const roomApi = {
     let totalPages = 1;
 
     do {
-      const response = await apiRequest<ApiResponse<PagedResult<RoomDto>>>(
+      const response = await apiRequest<PagedResult<RoomDto>>(
         `/Room?page=${page}&pageSize=100`,
       );
 
-      rooms.push(...response.data.items.map(toRoom));
-      totalPages = response.data.totalPages;
+      rooms.push(...response.items.map(toRoom));
+      totalPages = response.totalPages;
       page++;
     } while (page <= totalPages);
 
@@ -85,29 +83,29 @@ export const roomApi = {
   async create(input: RoomInput): Promise<Room> {
     validateRoom(input);
 
-    const response = await apiRequest<ApiResponse<RoomDto>>("/Room", {
+    const response = await apiRequest<RoomDto>("/Room", {
       method: "POST",
       body: JSON.stringify(toPayload(input)),
     });
 
-    return toRoom(response.data);
+    return toRoom(response);
   },
 
   // PUT /api/Room/{id}
   async update(id: string, input: RoomInput): Promise<Room> {
     validateRoom(input);
 
-    const response = await apiRequest<ApiResponse<RoomDto>>(`/Room/${id}`, {
+    const response = await apiRequest<RoomDto>(`/Room/${id}`, {
       method: "PUT",
       body: JSON.stringify(toPayload(input)),
     });
 
-    return toRoom(response.data);
+    return toRoom(response);
   },
 
   // PATCH /api/Room/{id}/status
   async setActive(id: string, isActive: boolean): Promise<Room> {
-    const response = await apiRequest<ApiResponse<RoomDto>>(
+    const response = await apiRequest<RoomDto>(
       `/Room/${id}/status`,
       {
         method: "PATCH",
@@ -115,6 +113,6 @@ export const roomApi = {
       },
     );
 
-    return toRoom(response.data);
+    return toRoom(response);
   },
 };

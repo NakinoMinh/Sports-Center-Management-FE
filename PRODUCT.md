@@ -4,7 +4,7 @@
 **Project Name:** Sports Center Management System  
 **Vietnamese Name:** Hệ thống Quản lý Trung tâm Thể thao  
 **Document:** PRODUCT.md  
-**Version:** 1.1
+**Version:** 1.2
 
 ---
 
@@ -23,6 +23,7 @@
 Bằng chứng: `src/services/accessControl.ts`, `memberService.ts`, `membershipService.ts`; `src/pages/manager/MembersPage.tsx`, `AccessControlPage.tsx`, `src/pages/PackageCatalogPage.tsx`, `src/components/membership/CounterRegistrationForm.tsx`, `src/pages/membership/MembershipStatusPage.tsx`. Các dòng hiện trạng bên dưới là bản đối chiếu ngày 27/09; áp dụng phần bổ sung này cho những FR liên quan.
 
 **Ngày đối chiếu:** 27/09/2026. **Phiên bản:** 1.1 — tích hợp yêu cầu người dùng và hiện trạng dự án.
+**Phiên bản 1.2 (13/10/2026)** — làm rõ FR-06→FR-09 và BR-02→BR-05 cho Flow 2; xem mục 0.7.
 
 Đây là tài liệu yêu cầu cho **toàn bộ Sports Center Management System**, không chỉ phần Sprint 1 của một thành viên. Đọc cùng [DESIGN.md](DESIGN.md). Các mục FR-01–FR-23 bên dưới giữ nguyên nội dung yêu cầu gốc; chúng mô tả đích cần đạt, không xác nhận hệ thống đã hoàn thành.
 
@@ -114,6 +115,68 @@ Một yêu cầu chỉ ghi **hoàn thành** khi có UI nếu cần, API, lưu tr
 ## 0.6. Các quyết định còn mở
 
 Cần chốt khi bắt đầu phần liên quan: quyền thu tiền của Manager; quyền gói theo bộ môn/lớp và học phí lớp tách riêng hay đã nằm trong gói; hạn hủy lớp/hoàn tiền; nhiều lần check-in trong ngày; ai được tạm ngưng/mở lại gói và có bù hạn không; thời điểm gửi nhắc hạn; permission chi tiết và việc có cần nhiều role/tài khoản; phạm vi dữ liệu huấn luyện mà lễ tân được xem. Mục 0.4 ghi hành vi hiện có, không tự chốt các chính sách còn mở này.
+
+Một phần danh sách này đã được chốt khi chuẩn bị Flow 2 — xem mục 0.7. Bốn
+quyết định còn lại vẫn mở: hạn hủy lớp, học phí lớp tách riêng, quyền đặt thay
+của Manager, và trạng thái tạm ngưng gói.
+
+## 0.7. Điều chỉnh cho Flow 2 — lớp học, lịch học, đăng ký (13/10/2026)
+
+Phần này ghi những chỗ **nội dung FR gốc được làm rõ hoặc sửa** khi chuẩn bị
+API cho Sprint 2. Theo thứ tự áp dụng ở đầu mục 0, các điều chỉnh tại đây có
+hiệu lực cao hơn câu chữ gốc của FR. Nội dung đã được viết thẳng vào FR-06,
+FR-07, FR-08, FR-09 và BR-02→BR-05; mục này nêu lý do để người đọc sau không
+"sửa ngược".
+
+### 0.7.1. Coach và phòng thuộc về buổi học, không thuộc về lớp
+
+FR-07 bản gốc liệt kê "Coach, Room" trong thông tin lớp. Nay chuyển xuống buổi
+học (FR-08). Lý do: BR-04 và BR-05 cấm trùng **cùng thời điểm**, mà lớp không
+có thời điểm — chỉ buổi học mới có giờ bắt đầu/kết thúc để so sánh. Giữ Coach ở
+cấp lớp thì không viết được phép kiểm trùng, và một lớp ba tháng sẽ khóa cứng
+một Coach cho toàn bộ, không dạy bù lẻ buổi được.
+
+Cái giá: lập lịch nhiều buổi phải chọn Coach/phòng nhiều lần. Khi cần, giải
+pháp đúng là bổ sung chức năng tạo lịch hàng loạt rồi sửa lẻ từng buổi, **không
+phải** đưa Coach ngược lên cấp lớp.
+
+### 0.7.2. "Xem lịch sử dụng phòng" không phải một danh sách riêng
+
+FR-06 giữ nguyên yêu cầu, nhưng được phục vụ bằng lịch học lọc theo phòng.
+Không tạo nguồn dữ liệu thứ hai cho cùng một nội dung.
+
+### 0.7.3. "Trùng thời gian" được định nghĩa bằng khoảng nửa mở
+
+BR-03, BR-04, BR-05 trước đây chỉ nói "trùng thời gian" mà không nói hai buổi
+liền kề có tính là trùng không. Nay chốt `[bắt đầu, kết thúc)`: buổi kết thúc
+09:00 và buổi bắt đầu 09:00 không trùng. Thiếu định nghĩa này thì mỗi người
+viết một kiểu và lịch 08:00–09:00, 09:00–10:00 sẽ bị từ chối ở chỗ này nhưng
+chấp nhận ở chỗ khác.
+
+### 0.7.4. Quyền bộ môn của gói cần một nơi cấu hình
+
+FR-09 yêu cầu "Gói cho phép tham gia lớp đó" nhưng không có FR nào mô tả nơi
+khai báo quan hệ gói–bộ môn, và chuỗi quyền lợi dạng chữ không đủ làm điều kiện
+phân quyền (đã ghi ở mục 0.4). Nay bổ sung vào FR-09 cùng quy ước: **gói chưa
+cấu hình bộ môn nào thì được tham gia mọi bộ môn**, để các gói đã bán giữ
+nguyên quyền lợi.
+
+### 0.7.5. Hủy đăng ký và chống tranh chỗ cuối
+
+FR-09 và BR-02 được bổ sung ba điều trước đây không nói rõ: hủy chỉ trả lại chỗ
+một lần dù yêu cầu bị gửi lặp; hủy thay tại quầy phải lưu người thao tác và lý
+do; hai người đặt chỗ cuối đồng thời chỉ một người thành công.
+
+### 0.7.6. Những gì vẫn còn mở
+
+Bốn quyết định dưới đây là chính sách kinh doanh, tài liệu này **không tự
+chốt**: hạn hủy lớp (hiện ghi "trước giờ bắt đầu, không phạt"); có thu học phí
+riêng theo lớp không; Manager có được đặt/hủy thay Member không; trạng thái
+"tạm ngưng gói" có phải nghiệp vụ thật không.
+
+Chi tiết API và quy tắc triển khai tương ứng nằm ở
+`docs/API_SPECIFICATION_SPRINT2_UNIFIED.md` và
+`docs/BE_HANDOFF_SPRINT2_MINH.md`.
 
 ---
 
@@ -403,6 +466,19 @@ Thông tin phòng gồm:
 - Loại phòng.
 - Trạng thái.
 
+### Business Rules
+
+- Tên phòng là bắt buộc và không trùng sau chuẩn hóa.
+- Sức chứa là số nguyên dương.
+- Phòng ngừng hoạt động không được dùng để lập lịch mới; lịch đã có giữ nguyên.
+- Không hạ sức chứa phòng xuống dưới sức chứa của buổi học đã lập, còn hiệu
+  lực và chưa bắt đầu.
+- Không xóa cứng phòng đã được lịch học tham chiếu; chỉ đổi trạng thái.
+
+"Xem lịch sử dụng phòng" là **xem lịch học lọc theo phòng**, không phải một
+danh sách riêng: dữ liệu đã nằm ở lịch học của FR-08. Tách thành nguồn dữ liệu
+thứ hai sẽ tạo hai chỗ kiểm quyền và hai chỗ phải sửa khi lịch học đổi.
+
 ---
 
 # 9. Class Management
@@ -414,19 +490,39 @@ Center Manager có thể:
 - Tạo lớp.
 - Chỉnh sửa lớp.
 - Hủy lớp.
-- Phân công Coach.
-- Chọn phòng.
 - Thiết lập sức chứa.
+- Phân công Coach và chọn phòng **cho từng buổi học** (xem FR-08).
 
 Thông tin lớp gồm:
 
 - Class ID.
 - Tên lớp.
 - Bộ môn.
-- Coach.
-- Room.
+- Mô tả.
 - Capacity.
 - Trạng thái.
+
+**Coach và phòng không thuộc về lớp, mà thuộc về từng buổi học.** Một lớp kéo
+dài nhiều tuần gồm nhiều buổi, mỗi buổi có thể do Coach khác dạy và diễn ra ở
+phòng khác. Ba lý do:
+
+- BR-04 và BR-05 cấm trùng Coach/phòng **cùng thời điểm**. Lớp không có thời
+  điểm — chỉ buổi học mới có giờ bắt đầu và kết thúc để so sánh.
+- Coach nghỉ một buổi thì chỉ cần đổi người dạy buổi đó, không phải đổi Coach
+  của cả lớp hay tách lớp mới.
+- Phòng có thể bận một hôm, buổi đó chuyển phòng khác mà lớp không đổi.
+
+Trạng thái lớp: `DRAFT` (đang soạn), `OPEN` (nhận đăng ký), `CLOSED` (ngừng
+nhận đăng ký mới), `ARCHIVED` (lưu trữ).
+
+### Business Rules
+
+- Tên lớp không trùng sau chuẩn hóa, xét trên các lớp chưa lưu trữ.
+- Bộ môn ngừng hoạt động không được dùng để tạo lớp mới.
+- Lớp chỉ chuyển sang `OPEN` khi đã có ít nhất một buổi học hợp lệ ở tương lai.
+- Sức chứa lớp là giới hạn trên cho sức chứa từng buổi, và không được hạ xuống
+  dưới số đăng ký còn hiệu lực.
+- Không xóa lớp đã có lịch sử đăng ký; chỉ chuyển sang `ARCHIVED`.
 
 ---
 
@@ -434,9 +530,9 @@ Thông tin lớp gồm:
 
 ## FR-08 – Schedule Management
 
-Center Manager có thể tạo lịch cho lớp.
+Center Manager có thể tạo và sửa lịch cho lớp.
 
-Một lịch học gồm:
+Một buổi học gồm:
 
 - Lớp.
 - Huấn luyện viên.
@@ -444,6 +540,11 @@ Một lịch học gồm:
 - Ngày.
 - Giờ bắt đầu.
 - Giờ kết thúc.
+- Sức chứa.
+- Trạng thái.
+- Ghi chú.
+
+Trạng thái buổi học: `SCHEDULED`, `CANCELED`, `COMPLETED`.
 
 Hệ thống phải kiểm tra xung đột lịch.
 
@@ -451,6 +552,21 @@ Không cho phép:
 
 - Một Coach dạy hai lớp cùng thời điểm.
 - Một phòng được sử dụng bởi hai lớp cùng thời điểm.
+
+### Business Rules
+
+- Giờ bắt đầu phải trước giờ kết thúc.
+- Khoảng thời gian là **nửa mở `[bắt đầu, kết thúc)`**: buổi kết thúc 09:00 và
+  buổi bắt đầu 09:00 **không** bị coi là trùng. Quy tắc này áp dụng như nhau
+  cho Coach, phòng và thành viên.
+- Sức chứa buổi học không vượt quá sức chứa lớp và sức chứa phòng, và không
+  nhỏ hơn số người đã đăng ký buổi đó.
+- Không lập hoặc chuyển buổi học về thời điểm đã qua.
+- Đổi ngày/giờ của buổi đã có người đăng ký phải kiểm tra lại từng học viên:
+  gói còn hiệu lực vào ngày mới và không trùng buổi khác họ đã đặt. Một người
+  không hợp lệ thì từ chối toàn bộ thay đổi, không chuyển một phần.
+- Hủy buổi học hoặc hủy mọi buổi tương lai của lớp phải hủy kèm các đăng ký
+  liên quan trong cùng một giao dịch, giữ lịch sử và không tự hoàn tiền gói.
 
 ---
 
@@ -467,15 +583,36 @@ Member có thể:
 
 Receptionist có thể thực hiện đăng ký/hủy đăng ký thay cho Member.
 
+Đơn vị đăng ký là **một Member cho một buổi học**, không đăng ký tự động cả
+khóa. Nhờ vậy điều kiện gói, sức chứa và việc hủy đều xét theo từng buổi.
+
 ### Business Rules
 
 Member chỉ được đăng ký khi:
 
 - Tài khoản đang hoạt động.
-- Gói thành viên còn hiệu lực.
-- Gói cho phép tham gia lớp đó.
+- Gói thành viên còn hiệu lực **vào ngày diễn ra buổi học**, đã thanh toán và
+  không bị tạm ngưng.
+- Gói cho phép tham gia bộ môn của lớp đó.
+- Lớp đang nhận đăng ký và buổi học chưa bị hủy, chưa bắt đầu.
 - Lớp chưa đầy.
-- Không bị trùng lịch.
+- Không bị trùng lịch với buổi khác đã đăng ký.
+- Chưa có đăng ký còn hiệu lực cho đúng buổi học đó.
+
+Điều kiện "gói cho phép tham gia bộ môn" cần **một nơi cấu hình quan hệ
+gói–bộ môn**; không suy ra từ chuỗi mô tả quyền lợi. Quy ước: gói chưa cấu
+hình bộ môn nào thì được tham gia **mọi** bộ môn, để các gói đã bán không mất
+quyền lợi khi bật quy tắc này.
+
+Hủy đăng ký:
+
+- Member chỉ hủy được đăng ký của chính mình; Receptionist hủy thay được và hệ
+  thống lưu người thao tác cùng lý do.
+- Hủy trước giờ bắt đầu buổi học. Sprint hiện tại không áp dụng phạt hay hoàn
+  tiền tự động.
+- Hủy xong trả lại chỗ **đúng một lần**; gửi lặp cùng một yêu cầu không được
+  trả chỗ lần thứ hai.
+- Giữ nguyên lịch sử đăng ký đã hủy.
 
 ---
 
@@ -793,16 +930,23 @@ Audit Log gồm:
 Member phải có gói hợp lệ để sử dụng các dịch vụ yêu cầu membership.
 
 ### BR-02
-Không cho phép đăng ký lớp vượt quá capacity.
+Không cho phép đăng ký lớp vượt quá capacity, kể cả khi hai người cùng đặt chỗ
+cuối tại một thời điểm. Chỉ một yêu cầu được chấp nhận; yêu cầu còn lại bị từ
+chối vì hết chỗ.
 
 ### BR-03
-Không cho phép Member đăng ký hai lịch học bị trùng thời gian.
+Không cho phép Member đăng ký hai buổi học bị trùng thời gian.
 
 ### BR-04
-Không cho phép Coach được phân công hai lớp trùng thời gian.
+Không cho phép Coach được phân công hai buổi học trùng thời gian.
 
 ### BR-05
-Không cho phép một Room có hai lớp trùng thời gian.
+Không cho phép một Room có hai buổi học trùng thời gian.
+
+**Định nghĩa "trùng thời gian" cho BR-03, BR-04, BR-05:** hai buổi học trùng
+khi cùng ngày và hai khoảng giờ giao nhau theo kiểu nửa mở
+`[bắt đầu, kết thúc)`. Buổi 08:00–09:00 và buổi 09:00–10:00 là liền kề, không
+trùng. Ràng buộc xét trên **buổi học**, không xét trên lớp — xem FR-07.
 
 ### BR-06
 Member không thể điểm danh vào lớp mà mình không đăng ký, trừ trường hợp được nghiệp vụ trung tâm cho phép.

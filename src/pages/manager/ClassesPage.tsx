@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import {
   Archive,
   CalendarClock,
-  FlaskConical,
   GraduationCap,
   Layers3,
   Pencil,
@@ -15,7 +14,7 @@ import { Dialog } from "../../components/common/Dialog";
 import { ClassForm } from "../../components/classes/ClassForm";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
-import { classApi, isClassApiMocked } from "../../services/classApi";
+import { classApi } from "../../services/classApi";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import { classStatusLabels } from "../../utils/classSchedule";
 import type { ClassInput, Sport, TrainingClass } from "../../types/classes";
@@ -204,19 +203,6 @@ export function ClassesPage() {
           </button>
         </div>
       </div>
-
-      {isClassApiMocked() && (
-        <p className="info-note" role="status">
-          <FlaskConical size={16} aria-hidden="true" />
-          {/* .info-note là flex: gói nội dung trong một span để chữ không bị
-              tách thành nhiều cột trên màn hình hẹp. */}
-          <span>
-            Đang dùng <strong>dữ liệu mẫu</strong> vì chưa cấu hình{" "}
-            <code>VITE_API_BASE_URL</code>. Thao tác chỉ tồn tại trong tab này
-            và mất khi tải lại trang.
-          </span>
-        </p>
-      )}
 
       <div className="stats-grid">
         <div className="stat-card">

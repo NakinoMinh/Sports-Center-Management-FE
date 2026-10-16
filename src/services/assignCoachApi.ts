@@ -3,24 +3,23 @@ import type {
   CoachOption,
   ClassSession,
   PagedResult,
-  ApiResponse,
 } from "../types/assignCoach";
 
 export const assignCoachApi = {
   // Lấy danh sách buổi học của trung tâm
-  // GET /api/ScheduleQuery/center
+  // GET /api/ClassSession
   async getSessions(): Promise<ClassSession[]> {
     const sessions: ClassSession[] = [];
     let page = 1;
     let totalPages = 1;
 
     do {
-      const response = await apiRequest<ApiResponse<PagedResult<ClassSession>>>(
-        `/ScheduleQuery/center?page=${page}&pageSize=100`,
+      const response = await apiRequest<PagedResult<ClassSession>>(
+        `/ClassSession?page=${page}&pageSize=100`,
       );
 
-      sessions.push(...response.data.items);
-      totalPages = response.data.totalPages;
+      sessions.push(...response.items);
+      totalPages = response.totalPages;
       page++;
     } while (page <= totalPages);
 
@@ -50,7 +49,7 @@ export const assignCoachApi = {
   // Phân công huấn luyện viên cho buổi học
   // PUT /api/ClassSession/{id}/coach
   async assignCoach(sessionId: number, coachId: string): Promise<void> {
-    await apiRequest<ApiResponse<unknown>>(`/ClassSession/${sessionId}/coach`, {
+    await apiRequest<unknown>(`/ClassSession/${sessionId}/coach`, {
       method: "PUT",
       body: JSON.stringify({ coachId }),
     });

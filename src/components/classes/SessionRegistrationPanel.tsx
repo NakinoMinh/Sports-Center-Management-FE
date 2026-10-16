@@ -3,6 +3,7 @@ import { CalendarCheck, CalendarX, Users } from "lucide-react";
 import { Dialog } from "../common/Dialog";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
+import { ApiError } from "../../services/apiClient";
 import { classApi } from "../../services/classApi";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import {
@@ -81,12 +82,8 @@ export function SessionRegistrationPanel({
     setIsWorking(true);
     try {
       if (isCounter && onBehalfOf)
-        await classApi.registerAtCounter(
-          session.id,
-          onBehalfOf.id,
-          currentUser,
-        );
-      else await classApi.registerMyself(session.id, currentUser);
+        await classApi.registerAtCounter(session.id, onBehalfOf.id);
+      else await classApi.registerMyself(session.id);
       toast.success(
         isCounter
           ? `Đã đăng ký ${onBehalfOf?.fullName} vào buổi ${session.startTime} ngày ${session.date}.`
@@ -95,6 +92,9 @@ export function SessionRegistrationPanel({
       await onChanged();
     } catch (caught) {
       toast.error(describeError(caught));
+      if (caught instanceof ApiError && ["CLASS_FULL", "CONCURRENCY_CONFLICT", "DUPLICATE_REGISTRATION", "SESSION_CANCELLED"].includes(caught.code ?? "")) {
+        try { await onChanged(); } catch (refreshError) { toast.error(describeError(refreshError)); }
+      }
     } finally {
       setIsWorking(false);
     }
@@ -117,17 +117,8 @@ export function SessionRegistrationPanel({
     setIsWorking(true);
     try {
       if (isCounter)
-        await classApi.cancelAtCounter(
-          activeRegistration.id,
-          trimmed,
-          currentUser,
-        );
-      else
-        await classApi.cancelMyRegistration(
-          activeRegistration.id,
-          trimmed,
-          currentUser,
-        );
+        await classApi.cancelAtCounter(activeRegistration.id, trimmed);
+      else await classApi.cancelMyRegistration(activeRegistration.id, trimmed);
       toast.success(
         isCounter
           ? `Đã hủy đăng ký của ${activeRegistration.memberName}. Chỗ được trả lại cho buổi học.`
