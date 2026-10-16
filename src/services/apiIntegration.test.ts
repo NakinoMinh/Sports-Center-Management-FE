@@ -94,6 +94,21 @@ afterEach(() => {
 });
 
 describe("Sprint 1 API adapters", () => {
+  it("starts a frontend-only demo session without calling the API", () => {
+    vi.stubEnv("VITE_API_BASE_URL", "");
+
+    const result = authService.startFrontendDemo({
+      role: "CENTER_MANAGER",
+      email: "manager@example.com",
+      fullName: "Quản lý Demo",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.user?.role).toBe("CENTER_MANAGER");
+    expect(result.user?.fullName).toBe("Quản lý Demo");
+    expect(authService.getStoredToken()).toContain("frontend-demo");
+  });
+
   it("connects UC1 register and starts the new member session", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ message: "sent", expiresInSeconds: 300, cooldownSeconds: 60, demoCode: "123456" }))

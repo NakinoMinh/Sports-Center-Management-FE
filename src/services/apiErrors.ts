@@ -85,7 +85,8 @@ const MESSAGES: Record<string, string> = {
     "Lớp đã có lịch sử đăng ký nên không thể xóa. Hãy chuyển sang trạng thái lưu trữ.",
 
   SPORT_NOT_FOUND: "Không tìm thấy bộ môn đã chọn. Hãy tải lại danh sách.",
-  SPORT_NAME_DUPLICATE: "Tên bộ môn đã tồn tại. Vui lòng chọn tên khác.",
+  SPORT_NAME_DUPLICATE:
+    "Tên bộ môn đã tồn tại. Hãy chọn tên khác dễ phân biệt hơn.",
   SPORT_INACTIVE:
     "Bộ môn này đã ngừng hoạt động nên không dùng để tạo lớp mới.",
 

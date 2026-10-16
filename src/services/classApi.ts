@@ -22,6 +22,7 @@ import type {
   CancelImpact,
   CancelScope,
   ClassInput,
+  ClassListFilter,
   ClassRegistration,
   ClassSession,
   ClassSessionFilter,
@@ -32,6 +33,7 @@ import type {
   Room,
   SessionMemberOption,
   Sport,
+  SportInput,
   TrainingClass,
 } from "../types/classes";
 import type { MembershipActor } from "../types/membership";
@@ -46,7 +48,10 @@ export const isClassApiMocked = (): boolean => runsOnMockData();
 interface SportDto {
   id: number | string;
   name: string;
+  description?: string | null;
   isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string | null;
 }
 
 interface RoomDto {
@@ -154,7 +159,10 @@ const activeFlag = (dto: { isActive?: boolean; status?: string }): boolean =>
 export const mapSport = (dto: SportDto): Sport => ({
   id: id(dto.id),
   name: dto.name,
+  description: dto.description ?? "",
   isActive: activeFlag(dto),
+  createdAt: dto.createdAt ?? "",
+  updatedAt: dto.updatedAt ?? dto.createdAt ?? "",
 });
 
 export const mapRoom = (dto: RoomDto): Room => ({
@@ -292,6 +300,20 @@ const classPayload = (input: ClassInput) => ({
   status: input.status,
 });
 
+const sportPayload = (input: SportInput) => ({
+  name: input.name.trim(),
+  description: input.description.trim(),
+});
+
+const classQuery = (filter: ClassListFilter): string => {
+  const query = new URLSearchParams();
+  if (filter.search?.trim()) query.set("search", filter.search.trim());
+  if (filter.sportId) query.set("sportId", filter.sportId);
+  if (filter.status) query.set("status", filter.status);
+  const text = query.toString();
+  return text ? `?${text}` : "";
+};
+
 const sessionPayload = (input: ClassSessionInput) => ({
   classId: Number.isNaN(Number(input.classId))
     ? input.classId
@@ -347,6 +369,28 @@ export const classApi = {
     return items.map(mapSport);
   },
 
+  async saveSport(input: SportInput, sportId?: string): Promise<Sport> {
+    if (runsOnMockData()) return classMockServer.saveSport(input, sportId);
+    const result = await apiRequest<SportDto>(
+      sportId ? `/Sport/${sportId}` : "/Sport",
+      {
+        method: sportId ? "PUT" : "POST",
+        body: JSON.stringify(sportPayload(input)),
+      },
+    );
+    return mapSport(result);
+  },
+
+  async setSportActive(sportId: string, isActive: boolean): Promise<Sport> {
+    if (runsOnMockData())
+      return classMockServer.setSportActive(sportId, isActive);
+    const result = await apiRequest<SportDto>(`/Sport/${sportId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    });
+    return mapSport(result);
+  },
+
   async listRooms(): Promise<Room[]> {
     if (runsOnMockData()) return classMockServer.listRooms();
     const items = await listAllPages<RoomDto>("/Room");
@@ -361,9 +405,21 @@ export const classApi = {
 
   // --- UC19: quản lý lớp --------------------------------------------------
 
-  async listClasses(): Promise<TrainingClass[]> {
-    if (runsOnMockData()) return classMockServer.listClasses();
-    const items = await listAllPages<ClassDto>("/Class");
+  async listClasses(filter: ClassListFilter = {}): Promise<TrainingClass[]> {
+    if (runsOnMockData()) {
+      const items = await classMockServer.listClasses();
+      const search = filter.search?.trim().toLocaleLowerCase("vi");
+      return items.filter(
+        (item) =>
+          (!search ||
+            `${item.name} ${item.sportName} ${item.description}`
+              .toLocaleLowerCase("vi")
+              .includes(search)) &&
+          (!filter.sportId || item.sportId === filter.sportId) &&
+          (!filter.status || item.status === filter.status),
+      );
+    }
+    const items = await listAllPages<ClassDto>(`/Class${classQuery(filter)}`);
     return items.map(mapClass);
   },
 

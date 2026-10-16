@@ -33,6 +33,10 @@ import { AuditLogPage } from "./pages/manager/AuditLogPage";
 import { RoomsPage } from "./pages/manager/RoomsPage";
 import { ClassesPage } from "./pages/manager/ClassesPage";
 import { ClassSchedulePage } from "./pages/manager/ClassSchedulePage";
+import { SportsPage } from "./pages/manager/SportsPage";
+import { CenterSchedulePage } from "./pages/classes/CenterSchedulePage";
+import { MemberClassesPage } from "./pages/classes/MemberClassesPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 import { accountEnabled, accessRules } from "./services/accessControl";
 import { MyTeachingSchedulePage } from "./pages/coach/MyTeachingSchedulePage";
 import { ClassRosterPage } from "./pages/coach/ClassRosterPage";
@@ -41,6 +45,7 @@ import "./App.css";
 import "./styles/workspace.css";
 import "./styles/rooms.css";
 import "./styles/theme.css";
+import "./styles/sprint2-long.css";
 
 function RouteScrollReset() {
   const { pathname, hash, key } = useLocation();
@@ -170,6 +175,14 @@ export default function App() {
               />
 
               <Route
+                path="/manager/sports"
+                element={
+                  <OwnedScreen role={accessRules.sports}>
+                    <SportsPage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
                 path="/manager/classes"
                 element={
                   <OwnedScreen role={accessRules.classes}>
@@ -182,6 +195,14 @@ export default function App() {
                 element={
                   <OwnedScreen role={accessRules.classes}>
                     <ClassSchedulePage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/manager/center-schedule"
+                element={
+                  <OwnedScreen role={accessRules.centerSchedule}>
+                    <CenterSchedulePage />
                   </OwnedScreen>
                 }
               />
@@ -213,6 +234,14 @@ export default function App() {
                 />
               ))}
               <Route
+                path="/receptionist/class-schedule"
+                element={
+                  <OwnedScreen role={accessRules.centerSchedule}>
+                    <CenterSchedulePage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
                 path="/receptionist/membership-status"
                 element={
                   <OwnedScreen role={accessRules.counter}>
@@ -241,6 +270,30 @@ export default function App() {
                 element={
                   <OwnedScreen role={accessRules.membership}>
                     <MembershipPage mode="member" />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/member/classes"
+                element={
+                  <OwnedScreen role={accessRules.memberClasses}>
+                    <MemberClassesPage view="DISCOVER" />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/member/class-schedule"
+                element={
+                  <OwnedScreen role={accessRules.memberClasses}>
+                    <MemberClassesPage view="SCHEDULE" />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/notifications"
+                element={
+                  <OwnedScreen role={accessRules.notifications}>
+                    <NotificationsPage />
                   </OwnedScreen>
                 }
               />

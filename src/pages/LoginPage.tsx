@@ -6,13 +6,15 @@ import { InputField } from "../components/common/InputField";
 import { AlertBadge } from "../components/common/AlertBadge";
 import { QuickAccounts } from "../components/common/QuickAccounts";
 import { authService } from "../services/authService";
+import { isApiConfigured } from "../services/apiClient";
 
 interface LoginPageProps {
   onSwitchToRegister: () => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
-  const { login, sessionMessage } = useAuth();
+  const { login, sessionMessage, refreshCurrentUser } = useAuth();
+  const frontendDemo = import.meta.env.DEV && !isApiConfigured();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
@@ -227,10 +229,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
         </button>
       </div>
       {import.meta.env.DEV && (
-        <details className="scms-demo-accounts">
-          <summary>Khám phá bằng tài khoản mẫu</summary>
+        <details className="scms-demo-accounts" open={frontendDemo}>
+          <summary>
+            {frontendDemo
+              ? "Vào bản demo frontend theo vai trò"
+              : "Khám phá bằng tài khoản mẫu"}
+          </summary>
           <QuickAccounts
-            onSelectAccount={(selectedEmail, selectedPassword) => {
+            directLogin={frontendDemo}
+            onSelectAccount={(selectedEmail, selectedPassword, role, name) => {
+              if (frontendDemo) {
+                const result = authService.startFrontendDemo({
+                  role,
+                  email: selectedEmail,
+                  fullName: name,
+                  rememberMe,
+                });
+                if (result.success) refreshCurrentUser();
+                else setGeneralError(result.message);
+                return;
+              }
               setEmail(selectedEmail);
               setPassword(selectedPassword);
               setEmailError("");

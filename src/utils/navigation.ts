@@ -31,6 +31,7 @@ export type NavIcon =
   | "cash"
   | "check"
   | "calendar"
+  | "bell"
   | "support";
 
 export interface NavItem {
@@ -51,6 +52,8 @@ export interface NavSection {
 
 const MANAGER: readonly UserRole[] = ["CENTER_MANAGER"];
 const COUNTER: readonly UserRole[] = ["RECEPTIONIST", "CENTER_MANAGER"];
+const MEMBER: readonly UserRole[] = ["MEMBER"];
+const MEMBER_COACH: readonly UserRole[] = ["MEMBER", "COACH"];
 
 /**
  * Single source of truth for the sidebar and the breadcrumb.
@@ -76,6 +79,13 @@ export const navSections: readonly NavSection[] = [
         label: "Khám phá gói tập",
         icon: "compass",
         trail: ["Gói tập", "Khám phá & so sánh"],
+      },
+      {
+        to: "/notifications",
+        label: "Thông báo",
+        icon: "bell",
+        roles: MEMBER_COACH,
+        trail: ["Thông báo", "Cập nhật lớp học"],
       },
     ],
   },
@@ -110,18 +120,39 @@ export const navSections: readonly NavSection[] = [
         trail: ["Lớp học", "Lịch dạy của tôi"],
       },
       {
-        to: "/manager/classes",
-        label: "Danh mục lớp",
-        icon: "badge",
+        to: "/manager/sports",
+        label: "Bộ môn",
+        icon: "layers",
         roles: MANAGER,
-        trail: ["Lớp học", "Danh mục lớp"],
+        trail: ["Lớp học", "Bộ môn"],
       },
       {
-        to: "/manager/class-schedule",
+        to: "/manager/classes",
         label: "Lịch học",
         icon: "calendar",
         roles: MANAGER,
         trail: ["Lớp học", "Lịch học"],
+      },
+      {
+        to: "/manager/center-schedule",
+        label: "Lịch trung tâm",
+        icon: "calendar",
+        roles: MANAGER,
+        trail: ["Lớp học", "Lịch trung tâm"],
+      },
+      {
+        to: "/member/classes",
+        label: "Khám phá lớp",
+        icon: "compass",
+        roles: MEMBER,
+        trail: ["Lớp học", "Khám phá lớp"],
+      },
+      {
+        to: "/member/class-schedule",
+        label: "Lịch của tôi",
+        icon: "calendar",
+        roles: MEMBER,
+        trail: ["Lớp học", "Lịch của tôi"],
       },
     ],
   },
@@ -182,6 +213,13 @@ export const navSections: readonly NavSection[] = [
         icon: "calendar",
         roles: COUNTER,
         trail: ["Quầy lễ tân", "Đăng ký lớp học"],
+      },
+      {
+        to: "/receptionist/class-schedule",
+        label: "Lịch trung tâm",
+        icon: "calendar",
+        roles: ["RECEPTIONIST"],
+        trail: ["Quầy lễ tân", "Lịch trung tâm"],
       },
       {
         to: "/receptionist/support",

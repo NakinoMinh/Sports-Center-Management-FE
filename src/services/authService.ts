@@ -7,7 +7,7 @@ import type {
   RegisterData,
   User,
 } from "../types/auth";
-import { ApiError, apiRequest } from "./apiClient";
+import { ApiError, apiRequest, isApiConfigured } from "./apiClient";
 
 export const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 const TOKEN_KEY = "scms_auth_token";
@@ -50,6 +50,13 @@ const roleFromApi = (role: AuthSessionDto["role"]): User["role"] => ({
   Member: "MEMBER",
   Receptionist: "RECEPTIONIST",
 })[role] as User["role"];
+
+const apiRoleByUserRole: Record<User["role"], AuthSessionDto["role"]> = {
+  CENTER_MANAGER: "CenterManager",
+  COACH: "Coach",
+  MEMBER: "Member",
+  RECEPTIONIST: "Receptionist",
+};
 
 const allStores = (): Storage[] => [sessionStorage, localStorage];
 
@@ -103,16 +110,21 @@ const mergeProfile = (
   createdAt: profile.createdAt,
 });
 
-const saveSession = (session: AuthSessionDto, rememberMe: boolean): AuthResponse => {
+const saveSession = (
+  session: AuthSessionDto,
+  rememberMe: boolean,
+  identity?: { fullName?: string; username?: string },
+): AuthResponse => {
   const now: number = Date.now();
   const role: User["role"] = roleFromApi(session.role);
-  const username: string = session.email.split("@")[0];
+  const username: string = identity?.username ?? session.email.split("@")[0];
+  const fullName: string = identity?.fullName ?? username;
   const user: Omit<User, "passwordHash"> = {
     id: session.accountId,
     username,
     email: session.email,
     role,
-    fullName: username,
+    fullName,
     createdAt: new Date(now).toISOString(),
     failedAttempts: 0,
     isLocked: false,
@@ -123,7 +135,7 @@ const saveSession = (session: AuthSessionDto, rememberMe: boolean): AuthResponse
     username,
     email: user.email,
     role,
-    fullName: user.fullName,
+    fullName,
     iat: now,
     exp: Date.parse(session.expiresAtUtc),
   };
@@ -179,6 +191,33 @@ export const authService = {
 
   getStoredToken,
   clearSession,
+
+  startFrontendDemo: (input: {
+    role: User["role"];
+    email: string;
+    fullName: string;
+    rememberMe?: boolean;
+  }): AuthResponse => {
+    if (isApiConfigured()) {
+      return {
+        success: false,
+        message: "Chế độ demo nhanh chỉ dùng khi frontend chưa nối backend.",
+      };
+    }
+    const now = Date.now();
+    return saveSession(
+      {
+        accessToken: `frontend-demo-${input.role.toLowerCase()}`,
+        tokenType: "Bearer",
+        expiresAtUtc: new Date(now + SESSION_DURATION_MS).toISOString(),
+        accountId: `frontend-demo-${input.role.toLowerCase()}`,
+        email: input.email,
+        role: apiRoleByUserRole[input.role],
+      },
+      input.rememberMe ?? true,
+      { fullName: input.fullName },
+    );
+  },
 
   requestEmailVerification: async (input: {
     email: string;
