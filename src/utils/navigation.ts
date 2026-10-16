@@ -113,6 +113,13 @@ export const navSections: readonly NavSection[] = [
     title: "Lớp học",
     items: [
       {
+        to: "/coach/my-schedule",
+        label: "Lịch dạy của tôi",
+        icon: "calendar",
+        roles: ["COACH"],
+        trail: ["Lớp học", "Lịch dạy của tôi"],
+      },
+      {
         to: "/manager/sports",
         label: "Bộ môn",
         icon: "layers",
@@ -121,13 +128,6 @@ export const navSections: readonly NavSection[] = [
       },
       {
         to: "/manager/classes",
-        label: "Danh mục lớp",
-        icon: "badge",
-        roles: MANAGER,
-        trail: ["Lớp học", "Danh mục lớp"],
-      },
-      {
-        to: "/manager/class-schedule",
         label: "Lịch học",
         icon: "calendar",
         roles: MANAGER,

@@ -348,7 +348,9 @@ textarea {
   letter-spacing: var(--tracking-tight);
   text-decoration: none;
   border: 1px solid transparent;
-  transition: var(--transition-colors), translate var(--duration-fast) var(--ease-out);
+  transition:
+    var(--transition-colors),
+    translate var(--duration-fast) var(--ease-out);
 }
 /* Press feedback is a 1px drop rather than a scale, so the button never
    overlaps its neighbours in a dense toolbar. */
@@ -603,11 +605,7 @@ textarea {
   background:
     linear-gradient(to left, var(--bg-surface), transparent 2rem) right center /
       2.5rem 100% no-repeat,
-    radial-gradient(
-        farthest-side at right,
-        rgba(16, 44, 38, 0.14),
-        transparent
-      )
+    radial-gradient(farthest-side at right, rgba(16, 44, 38, 0.14), transparent)
       right center / 0.75rem 100% no-repeat;
   background-attachment: local, scroll;
 }
@@ -1785,34 +1783,152 @@ textarea {
     font-size: 13px;
   }
 }
-.membership-status-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
-.membership-status-stat { padding: 24px 20px; text-align: left; cursor: pointer; color: inherit; font: inherit; }
-.membership-status-stat span { display: block; font-size: 14px; }
-.membership-status-stat strong { display: block; font-size: 28px; margin-top: 12px; }
-.membership-status-stat.selected { border-color: #247b60; background: #eaf3ed; }
-.membership-status-help { padding: 0 24px 20px; color: #667b75; font-size: 14px; }
-.membership-expiry-warning { display: flex !important; align-items: center; gap: 4px; color: #a05b13 !important; }
-.status-chip.suspended { background: #f0eafa; color: #7448a1; }
-.status-chip.none { background: #eef1ef; color: #5c6c64; }
-.reception-member-panel, .reception-history { margin-bottom: 24px; }
-.reception-history { margin-top: 24px; }
-.reception-member-summary { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px 28px; }
-.reception-member-summary p { color: #667b75; font-size: 14px; margin-top: 8px; }
-.reception-class-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; padding: 0 28px 28px; }
-.reception-class-card { border: 1px solid #dce6df; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
-.reception-class-card p { color: #667b75; font-size: 14px; }
-.reception-class-card .button { width: 100%; margin-top: 8px; }
-.reception-form { display: flex; flex-direction: column; gap: 20px; }
-.reception-preserve-text { white-space: pre-wrap; overflow-wrap: anywhere; }
-.public-catalog { min-height: 100vh; }
-.catalog-nav { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 24px max(32px, calc((100vw - 1200px) / 2)); background: #112f2d; }
-.catalog-brand { color: #d4efae; display: flex; align-items: center; gap: 12px; font-weight: 800; text-decoration: none; }
-.catalog-main { max-width: 1264px; margin: auto; padding: 48px 32px; }
-.catalog-main .toolbar { margin-bottom: 28px; border-radius: 10px; }
-.catalog-compare { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; font-size: 14px; }
-.catalog-benefits { padding-left: 20px; white-space: normal; }
-.catalog-benefits li { margin-bottom: 8px; }
-.initial-password { display: block; padding: 16px; margin: 16px 0; background: #eaf3ed; overflow-wrap: anywhere; user-select: all; }
+.membership-status-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.membership-status-stat {
+  padding: 24px 20px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.membership-status-stat span {
+  display: block;
+  font-size: 14px;
+}
+.membership-status-stat strong {
+  display: block;
+  font-size: 28px;
+  margin-top: 12px;
+}
+.membership-status-stat.selected {
+  border-color: #247b60;
+  background: #eaf3ed;
+}
+.membership-status-help {
+  padding: 0 24px 20px;
+  color: #667b75;
+  font-size: 14px;
+}
+.membership-expiry-warning {
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+  color: #a05b13 !important;
+}
+.status-chip.suspended {
+  background: #f0eafa;
+  color: #7448a1;
+}
+.status-chip.none {
+  background: #eef1ef;
+  color: #5c6c64;
+}
+.reception-member-panel,
+.reception-history {
+  margin-bottom: 24px;
+}
+.reception-history {
+  margin-top: 24px;
+}
+.reception-member-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 28px;
+}
+.reception-member-summary p {
+  color: #667b75;
+  font-size: 14px;
+  margin-top: 8px;
+}
+.reception-class-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  padding: 0 28px 28px;
+}
+.reception-class-card {
+  border: 1px solid #dce6df;
+  border-radius: 10px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+.reception-class-card p {
+  color: #667b75;
+  font-size: 14px;
+}
+.reception-class-card .button {
+  width: 100%;
+  margin-top: 8px;
+}
+.reception-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.reception-preserve-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.public-catalog {
+  min-height: 100vh;
+}
+.catalog-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 24px max(32px, calc((100vw - 1200px) / 2));
+  background: #112f2d;
+}
+.catalog-brand {
+  color: #d4efae;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.catalog-main {
+  max-width: 1264px;
+  margin: auto;
+  padding: 48px 32px;
+}
+.catalog-main .toolbar {
+  margin-bottom: 28px;
+  border-radius: 10px;
+}
+.catalog-compare {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+.catalog-benefits {
+  padding-left: 20px;
+  white-space: normal;
+}
+.catalog-benefits li {
+  margin-bottom: 8px;
+}
+.initial-password {
+  display: block;
+  padding: 16px;
+  margin: 16px 0;
+  background: #eaf3ed;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
 
 /* ==========================================================================
    PROFILE PAGE (UC4) - MODERN AVATAR & TWO-COLUMN CARD LAYOUT
@@ -2291,8 +2407,6 @@ textarea {
   line-height: 1.5;
 }
 
-
-
 .text-danger {
   color: #dc2626 !important;
 }
@@ -2560,7 +2674,9 @@ textarea {
   font: inherit;
   color: inherit;
   cursor: pointer;
-  transition: var(--transition-colors), translate var(--duration-fast) var(--ease-out);
+  transition:
+    var(--transition-colors),
+    translate var(--duration-fast) var(--ease-out);
 }
 .stat-card-button:hover {
   border-color: var(--border-strong);
@@ -3241,5 +3357,276 @@ textarea {
 
   .cancel-scope-impact {
     gap: var(--space-2);
+  }
+}
+
+/* UC28 - Class Roster */
+
+.class-roster-page {
+  padding: 24px;
+}
+
+.class-roster-page .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.class-roster-page .toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.class-roster-page .toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.class-roster-page .toolbar input[type="search"] {
+  min-width: 240px;
+  padding: 10px 12px;
+}
+
+.class-roster-page .toolbar input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+
+.class-roster-page .table-scroll {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
+.class-roster-page .modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+  .class-roster-page {
+    padding: 16px;
+  }
+
+  .class-roster-page .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .class-roster-page .toolbar input[type="search"] {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* =========================================
+   UC27 - My Teaching Schedule
+   ========================================= */
+
+.my-teaching-schedule-page {
+  padding: 24px;
+}
+
+/* Tiêu đề và nút Làm mới */
+.my-teaching-schedule-page .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.my-teaching-schedule-page .page-header h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.my-teaching-schedule-page .page-header p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.my-teaching-schedule-page .page-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Thanh bộ lọc */
+.my-teaching-schedule-page .toolbar {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.my-teaching-schedule-page .toolbar label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.my-teaching-schedule-page .toolbar input[type="date"],
+.my-teaching-schedule-page .toolbar select {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+}
+
+.my-teaching-schedule-page .toolbar select {
+  min-width: 170px;
+}
+
+.my-teaching-schedule-page .toolbar button {
+  min-height: 40px;
+  padding: 8px 14px;
+  white-space: nowrap;
+}
+
+/* Thông báo lỗi */
+.my-teaching-schedule-page [role="alert"] {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+  line-height: 1.6;
+}
+
+/* Bảng lịch dạy */
+.my-teaching-schedule-page .table-scroll {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
+.my-teaching-schedule-page .data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.my-teaching-schedule-page .data-table th,
+.my-teaching-schedule-page .data-table td {
+  padding: 14px 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+/* Phân trang */
+.my-teaching-schedule-page .modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .my-teaching-schedule-page {
+    padding: 16px;
+  }
+
+  .my-teaching-schedule-page .page-header {
+    align-items: flex-start;
+  }
+
+  .my-teaching-schedule-page .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px;
+  }
+
+  .my-teaching-schedule-page .toolbar label,
+  .my-teaching-schedule-page .toolbar input[type="date"],
+  .my-teaching-schedule-page .toolbar select,
+  .my-teaching-schedule-page .toolbar button {
+    width: 100%;
+  }
+
+  .my-teaching-schedule-page .modal-actions {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+/* =========================================
+   UC32 - Audit Log Filters
+   ========================================= */
+
+.audit-toolbar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: end;
+  padding: 20px;
+}
+
+.audit-toolbar .field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.audit-toolbar .field span {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.audit-toolbar .search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.audit-toolbar input,
+.audit-toolbar select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  box-sizing: border-box;
+}
+
+.audit-toolbar .search-field input {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 1000px) {
+  .audit-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .audit-toolbar {
+    grid-template-columns: 1fr;
+    padding: 16px;
   }
 }

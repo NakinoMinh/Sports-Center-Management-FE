@@ -13,6 +13,14 @@ const ACTION_LABELS: Record<string, { label: string; chipClass: string }> = {
   DEACTIVATE: { label: "Vô hiệu hóa", chipClass: "action-deactivate" },
   DELETE: { label: "Xóa", chipClass: "action-delete" },
   CONFIRM_PAYMENT: { label: "Thanh toán", chipClass: "action-payment" },
+  PAYMENT_CONFIRMED: {
+    label: "Xác nhận thanh toán",
+    chipClass: "action-payment",
+  },
+  SYSTEM_INITIALIZATION: {
+    label: "Khởi tạo hệ thống",
+    chipClass: "action-default",
+  },
   CANCEL: { label: "Hủy yêu cầu", chipClass: "action-cancel" },
 };
 
@@ -40,6 +48,9 @@ export function AuditLogPage() {
   const [items, setItems] = useState<AuditEntry[]>([]);
   const [query, setQuery] = useState("");
   const [action, setAction] = useState("");
+  const [actorId, setActorId] = useState("");
+  const [entityType, setEntityType] = useState("");
+  const [entityId, setEntityId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [error, setError] = useState("");
@@ -54,7 +65,15 @@ export function AuditLogPage() {
     }
 
     try {
-      const data = await auditApi.list({ query, action, from, to });
+      const data = await auditApi.list({
+        query,
+        action,
+        actorId,
+        entityType,
+        entityId,
+        from,
+        to,
+      });
       setItems(data);
       setError("");
     } catch (err) {
@@ -62,8 +81,7 @@ export function AuditLogPage() {
         err instanceof Error ? err.message : "Không tải được lịch sử thao tác.",
       );
     }
-  }, [currentUser, query, action, from, to]);
-
+  }, [currentUser, query, action, actorId, entityType, entityId, from, to]);
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -71,11 +89,16 @@ export function AuditLogPage() {
   const clearFilters = () => {
     setQuery("");
     setAction("");
+    setActorId("");
+    setEntityType("");
+    setEntityId("");
     setFrom("");
     setTo("");
   };
 
-  const hasActiveFilters = Boolean(query || action || from || to);
+  const hasActiveFilters = Boolean(
+    query || action || actorId || entityType || entityId || from || to,
+  );
   const dateError = v.dateRange(from)(to);
   return (
     <>
@@ -138,7 +161,15 @@ export function AuditLogPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </label>
-
+          <label className="field">
+            <span>ID người thực hiện</span>
+            <input
+              type="text"
+              placeholder="Nhập Actor ID"
+              value={actorId}
+              onChange={(e) => setActorId(e.target.value)}
+            />
+          </label>
           <select
             aria-label="Loại thao tác"
             value={action}
@@ -155,6 +186,28 @@ export function AuditLogPage() {
             <option value="CANCEL">Hủy yêu cầu</option>
             <option value="DELETE">Xóa dữ liệu</option>
           </select>
+
+          <label className="field">
+            <span>Loại đối tượng</span>
+            <select
+              value={entityType}
+              onChange={(e) => setEntityType(e.target.value)}
+            >
+              <option value="">Tất cả đối tượng</option>
+              <option value="Class">Lớp học</option>
+              <option value="ClassSession">Buổi học</option>
+            </select>
+          </label>
+
+          <label className="field">
+            <span>ID đối tượng</span>
+            <input
+              type="text"
+              placeholder="Nhập ID lớp hoặc buổi"
+              value={entityId}
+              onChange={(e) => setEntityId(e.target.value)}
+            />
+          </label>
 
           <label className="field toolbar-date-field">
             <span>Từ ngày</span>
