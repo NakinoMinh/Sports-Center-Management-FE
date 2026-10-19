@@ -12,7 +12,7 @@ export function homeForRole(role: UserRole) {
     CENTER_MANAGER: "/manager/packages",
     MEMBER: "/member/membership",
     RECEPTIONIST: "/receptionist/memberships",
-    COACH: "/coach",
+    COACH: "/coach/my-schedule",
   }[role];
 }
 
@@ -112,10 +112,13 @@ export const navSections: readonly NavSection[] = [
   {
     title: "Lớp học",
     items: [
-      // Chỉ giữ mục lịch dạy: các mục còn lại của nhánh này trùng với bản tách
-      // theo vai ở dưới, và hai trong số đó (`/center-schedule`,
-      // `/member/schedule`) trỏ vào route không còn tồn tại sau khi gộp.
-      { to: "/coach", label: "Lịch dạy và học viên", icon: "calendar", roles: ["COACH"], trail: ["Lớp học", "Lịch dạy"] },
+      {
+        to: "/coach/my-schedule",
+        label: "Lịch dạy của tôi",
+        icon: "calendar",
+        roles: ["COACH"],
+        trail: ["Lớp học", "Lịch dạy của tôi"],
+      },
       {
         to: "/manager/sports",
         label: "Bộ môn",

@@ -72,12 +72,18 @@ export const auditApi = {
       if (filters[key]?.trim()) params.set(key, filters[key].trim());
     }
     if (filters.query?.trim()) params.set("search", filters.query.trim());
-    if (filters.action?.trim() && filters.action !== "ALL") params.set("action", filters.action.trim());
-    if (filters.entityType?.trim() && filters.entityType !== "ALL") params.set("entityType", filters.entityType.trim());
+    if (filters.action?.trim() && filters.action !== "ALL")
+      params.set("action", filters.action.trim());
+    if (filters.entityType?.trim() && filters.entityType !== "ALL")
+      params.set("entityType", filters.entityType.trim());
+
     if (filters.from?.trim()) params.set("fromDate", filters.from.trim());
     if (filters.to?.trim()) params.set("toDate", filters.to.trim());
 
-    const result: PagedAuditLogResultDto = await apiRequest<PagedAuditLogResultDto>(`/AuditLog?${params.toString()}`);
+    const result: PagedAuditLogResultDto =
+      await apiRequest<PagedAuditLogResultDto>(
+        `/AuditLog?${params.toString()}`,
+      );
     return result.items.map(mapDtoToEntry);
   },
 };

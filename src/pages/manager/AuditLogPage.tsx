@@ -19,6 +19,14 @@ const ACTION_LABELS: Record<string, { label: string; chipClass: string }> = {
   REGISTER: { label: "Đăng ký gói", chipClass: "action-create" },
   RENEW: { label: "Gia hạn gói", chipClass: "action-update" },
   LOGIN: { label: "Đăng nhập", chipClass: "action-default" },
+  PAYMENT_CONFIRMED: {
+    label: "Xác nhận thanh toán",
+    chipClass: "action-payment",
+  },
+  SYSTEM_INITIALIZATION: {
+    label: "Khởi tạo hệ thống",
+    chipClass: "action-default",
+  },
   CANCEL: { label: "Hủy yêu cầu", chipClass: "action-cancel" },
 
   // --- Sprint 2 / Flow 2: bộ môn, phòng, lớp, lịch và đăng ký buổi học ---
@@ -103,6 +111,9 @@ const ACTION_GROUPS: readonly { title: string; actions: readonly string[] }[] = 
       "ACTIVATE",
       "DEACTIVATE",
       "CONFIRM_PAYMENT",
+      "PAYMENT_CONFIRMED",
+      "SYSTEM_INITIALIZATION",
+      "LOGIN",
       "REGISTER",
       "RENEW",
       "CANCEL",
@@ -152,6 +163,7 @@ export function AuditLogPage() {
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [action, setAction] = useState("");
+  const [entityId, setEntityId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [error, setError] = useState("");
@@ -166,7 +178,7 @@ export function AuditLogPage() {
     }
 
     try {
-      const data = await auditApi.list({ query, action, from, to, classId, sessionId, actorId, entityType, page, pageSize: 50 });
+      const data = await auditApi.list({ query, action, from, to, classId, sessionId, actorId, entityType, entityId, page, pageSize: 50 });
       setItems(data);
       setError("");
     } catch (err) {
@@ -174,7 +186,7 @@ export function AuditLogPage() {
         describeError(err),
       );
     }
-  }, [currentUser, query, action, from, to, classId, sessionId, actorId, entityType, page]);
+  }, [currentUser, query, action, from, to, classId, sessionId, actorId, entityType, entityId, page]);
 
   useEffect(() => {
     void refresh();
@@ -184,11 +196,12 @@ export function AuditLogPage() {
     setClassId(""); setSessionId(""); setActorId(""); setEntityType(""); setPage(1);
     setQuery("");
     setAction("");
+    setEntityId("");
     setFrom("");
     setTo("");
   };
 
-  const hasActiveFilters = Boolean(query || action || from || to || classId || sessionId || actorId || entityType);
+  const hasActiveFilters = Boolean(query || action || from || to || classId || sessionId || actorId || entityType || entityId);
   const dateError = v.dateRange(from)(to);
   return (
     <>
@@ -252,10 +265,9 @@ export function AuditLogPage() {
             <input
               placeholder="Tìm theo người thực hiện, đối tượng, mô tả..."
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); setPage(1); }}
             />
           </label>
-
           <select
             aria-label="Loại thao tác"
             value={action}
@@ -276,12 +288,22 @@ export function AuditLogPage() {
             ))}
           </select>
 
+          <label className="field">
+            <span>ID đối tượng</span>
+            <input
+              type="text"
+              placeholder="Nhập ID lớp hoặc buổi"
+              value={entityId}
+              onChange={(e) => { setEntityId(e.target.value); setPage(1); }}
+            />
+          </label>
+
           <label className="field toolbar-date-field">
             <span>Từ ngày</span>
             <input
               type="date"
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              onChange={(e) => { setFrom(e.target.value); setPage(1); }}
             />
           </label>
 
@@ -291,7 +313,7 @@ export function AuditLogPage() {
               type="date"
               value={to}
               aria-invalid={Boolean(dateError)}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={(e) => { setTo(e.target.value); setPage(1); }}
             />
             {dateError && <small className="field-error">{dateError}</small>}
           </label>

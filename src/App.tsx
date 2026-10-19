@@ -17,7 +17,6 @@ import { homeForRole } from "./utils/navigation";
 import { LoginPage } from "./pages/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { RegisterPage } from "./pages/RegisterPage";
-import { SchedulePage } from "./pages/SchedulePage";
 import { MembershipPackagesPage } from "./pages/manager/MembershipPackagesPage";
 import { MembershipPage } from "./pages/membership/MembershipPage";
 import { CashPaymentsPage } from "./pages/membership/CashPaymentsPage";
@@ -39,6 +38,8 @@ import { MemberClassesPage } from "./pages/classes/MemberClassesPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { PackageSportsPage } from "./pages/manager/PackageSportsPage";
 import { accountEnabled, accessRules } from "./services/accessControl";
+import { MyTeachingSchedulePage } from "./pages/coach/MyTeachingSchedulePage";
+import { ClassRosterPage } from "./pages/coach/ClassRosterPage";
 import type { UserRole } from "./types/auth";
 import "./App.css";
 import "./styles/workspace.css";
@@ -155,6 +156,24 @@ export default function App() {
                   </OwnedScreen>
                 }
               />
+              <Route
+                path="/coach/my-schedule"
+                element={
+                  <OwnedScreen role={["COACH"]}>
+                    <MyTeachingSchedulePage />
+                  </OwnedScreen>
+                }
+              />
+
+              <Route
+                path="/coach/my-schedule/:sessionId/registrations"
+                element={
+                  <OwnedScreen role={["COACH", "CENTER_MANAGER"]}>
+                    <ClassRosterPage />
+                  </OwnedScreen>
+                }
+              />
+
               <Route
                 path="/manager/sports"
                 element={
@@ -298,10 +317,7 @@ export default function App() {
                 path="/coach"
                 element={
                   <OwnedScreen role={accessRules.coach}>
-                    {/* UC27/UC28: lịch dạy và roster thật. Nhánh main còn trỏ
-                        vào DashboardPreview — trang giữ chỗ đã bị bỏ khi ghép
-                        API Sprint 2. */}
-                    <SchedulePage mode="coach" />
+                    <Navigate to="/coach/my-schedule" replace />
                   </OwnedScreen>
                 }
               />

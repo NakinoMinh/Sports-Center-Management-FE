@@ -12,6 +12,16 @@ import { describeError } from "../../services/apiErrors";
 import { assignCoachApi } from "../../services/assignCoachApi";
 import type { ClassSession, CoachOption } from "../../types/assignCoach";
 import "../../styles/assign-coach.css";
+const hasSessionStarted = (startsAt: string): boolean => {
+  const startTime = Date.parse(startsAt);
+
+  // Không cho phân công nếu thời gian không hợp lệ
+  if (!Number.isFinite(startTime)) {
+    return true;
+  }
+
+  return Date.now() >= startTime;
+};
 const statusLabels: Record<string, string> = {
   SCHEDULED: "Đã lên lịch",
   COMPLETED: "Đã hoàn thành",
@@ -105,7 +115,15 @@ export function AssignCoachPage() {
 
   const handleAssignCoach = async () => {
     if (!selectedSession) return;
-
+    if (
+      selectedSession.status !== "SCHEDULED" ||
+      hasSessionStarted(selectedSession.startsAt)
+    ) {
+      setFormError(
+        "Buổi học đã bắt đầu, đã hủy hoặc không còn cho phép thay đổi huấn luyện viên.",
+      );
+      return;
+    }
     if (!selectedCoachId) {
       setFormError("Vui lòng chọn huấn luyện viên.");
       return;
@@ -115,7 +133,16 @@ export function AssignCoachPage() {
       setFormError("Huấn luyện viên này đã được phân công cho buổi học.");
       return;
     }
+    const selectedCoach = coaches.find(
+      (coach) => coach.accountId === selectedCoachId,
+    );
 
+    if (!selectedCoach || selectedCoach.status.toLowerCase() !== "active") {
+      setFormError(
+        "Huấn luyện viên đã chọn không còn hoạt động. Vui lòng chọn huấn luyện viên khác.",
+      );
+      return;
+    }
     setSaving(true);
     setFormError("");
 
@@ -271,7 +298,10 @@ export function AssignCoachPage() {
                         type="button"
                         className="button secondary"
                         onClick={() => openAssignDialog(session)}
-                        disabled={session.status !== "SCHEDULED"}
+                        disabled={
+                          session.status !== "SCHEDULED" ||
+                          hasSessionStarted(session.startsAt)
+                        }
                       >
                         <UserRoundCheck size={15} aria-hidden="true" />
                         Phân công
@@ -348,10 +378,17 @@ export function AssignCoachPage() {
                     .filter((item) => item.isActive)
                     .map((item) => item.disciplineName)
                     .join(", ");
+                  const isInactive = coach.status.toLowerCase() !== "active";
+
                   return (
-                    <option key={coach.accountId} value={coach.accountId}>
+                    <option
+                      key={coach.accountId}
+                      value={coach.accountId}
+                      disabled={isInactive}
+                    >
                       {coach.fullName}
                       {expertise ? ` — ${expertise}` : ""}
+                      {isInactive ? " (Ngừng hoạt động)" : ""}
                     </option>
                   );
                 })}

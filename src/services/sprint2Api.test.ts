@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { classRosterApi } from "./classRosterApi";
+import { myTeachingScheduleApi } from "./myTeachingScheduleApi";
 import { classApi } from "./classApi";
 import { roomApi } from "./roomApi";
 import { assignCoachApi } from "./assignCoachApi";
@@ -122,5 +124,38 @@ describe("Sprint 2 backend master contracts", () => {
     expect((await auditApi.list())[0].actorName).toBe("Hệ thống");
     const url=new URL(request.mock.calls[0][0],"http://test");
     expect(url.searchParams.get("classId")).toBe("2");expect(url.searchParams.get("sessionId")).toBe("7");expect(url.searchParams.get("actorId")).toBe("manager");
+  });
+});
+
+
+describe("merged Sprint 2 contracts", () => {
+  it("preserves room type through reads and writes", async () => {
+    const room = { id: 3, name: "Studio", location: null, capacity: 10, roomType: "STUDIO", isActive: true };
+    request.mockResolvedValue(room);
+    const result = await roomApi.update("3", {name: " Studio ", location: "", capacity: 10, roomType: "STUDIO", isActive: true});
+    expect(result.roomType).toBe("STUDIO");
+    expect(JSON.parse(request.mock.calls[0][1]?.body as string)).toMatchObject({name: "Studio", location: null, roomType: "STUDIO"});
+  });
+  it("combines audit entity filters with class filters and pagination", async () => {
+    request.mockResolvedValue(paged([]));
+    await auditApi.list({classId:"2",sessionId:"7",actorId:"manager",entityType:"ClassSession",entityId:"7",page:2,pageSize:50});
+    const params = new URL(request.mock.calls[0][0], "http://test").searchParams;
+    expect(Object.fromEntries(params)).toEqual({classId:"2",sessionId:"7",actorId:"manager",entityType:"ClassSession",entityId:"7",page:"2",pageSize:"50"});
+  });
+  it("searches roster across server pages and retains cancellation filter", async () => {
+    request.mockResolvedValue(paged([]));
+    await classRosterApi.getRegistrations(7, {search:" An ", page:2, includeCanceled:true});
+    const params = new URL(request.mock.calls[0][0], "http://test").searchParams;
+    expect(Object.fromEntries(params)).toEqual({search:"An",page:"2",pageSize:"20",includeCanceled:"true"});
+  });
+  it("rejects invalid roster IDs without requesting an endpoint", async () => {
+    await expect(classRosterApi.getRegistrations(0)).rejects.toThrow();
+    expect(request).not.toHaveBeenCalled();
+  });
+  it("loads the new teaching screen using token identity and server filters", async () => {
+    request.mockResolvedValue(paged([session]));
+    const result = await myTeachingScheduleApi.getMySchedule({from:"2026-10-20",to:"2026-10-26",status:"CANCELED",page:2});
+    expect(result.items).toEqual([session]);
+    expect(request.mock.calls[0][0]).toBe("/ClassSession/me?from=2026-10-20&to=2026-10-26&status=CANCELED&page=2&pageSize=20");
   });
 });

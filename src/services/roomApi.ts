@@ -1,6 +1,5 @@
 import { apiRequest } from "./apiClient";
-import type { Room, RoomInput } from "../types/room";
-
+import type { Room, RoomInput, RoomType } from "../types/room";
 interface PagedResult<T> {
   items: T[];
   page: number;
@@ -13,34 +12,26 @@ interface RoomDto {
   id: number;
   name: string;
   location: string | null;
-  roomType?: string | null;
   capacity: number;
+  roomType?: RoomType | null;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string | null;
 }
 
-// Chuyển dữ liệu BE sang kiểu Room mà giao diện đang sử dụng
+// Chuyển dữ liệu từ BE sang kiểu Room của FE
 const toRoom = (dto: RoomDto): Room => ({
   id: String(dto.id),
   name: dto.name,
   location: dto.location ?? "",
-  roomType: dto.roomType ?? null,
   capacity: dto.capacity,
+  roomType: dto.roomType ?? null,
   isActive: dto.isActive,
 });
 
 const validateRoom = (input: RoomInput): void => {
   if (!input.name.trim()) {
     throw new Error("Tên phòng không được để trống.");
-  }
-
-  if (
-    !Number.isInteger(input.capacity) ||
-    input.capacity < 1 ||
-    input.capacity > 500
-  ) {
-    throw new Error("Sức chứa phải từ 1 đến 500 người.");
   }
 
   if (input.name.trim().length > 80) {
@@ -50,15 +41,18 @@ const validateRoom = (input: RoomInput): void => {
   if (input.location.trim().length > 120) {
     throw new Error("Vị trí tối đa 120 ký tự.");
   }
+
+  if (!Number.isInteger(input.capacity) || input.capacity < 1 || input.capacity > 500) {
+    throw new Error("Sức chứa phải từ 1 đến 500 người.");
+  }
 };
 
 const toPayload = (input: RoomInput) => ({
   name: input.name.trim(),
   location: input.location.trim() || null,
   capacity: input.capacity,
-  roomType: input.roomType || null,
+  roomType: input.roomType ?? null,
 });
-
 export const roomApi = {
   // GET /api/Room
   async getAll(): Promise<Room[]> {
@@ -105,13 +99,10 @@ export const roomApi = {
 
   // PATCH /api/Room/{id}/status
   async setActive(id: string, isActive: boolean): Promise<Room> {
-    const response = await apiRequest<RoomDto>(
-      `/Room/${id}/status`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({ isActive }),
-      },
-    );
+    const response = await apiRequest<RoomDto>(`/Room/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    });
 
     return toRoom(response);
   },
