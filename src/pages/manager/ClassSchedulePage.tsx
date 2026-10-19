@@ -6,7 +6,6 @@ import {
   CalendarX,
   ChevronLeft,
   ChevronRight,
-  FlaskConical,
   Pencil,
   Plus,
   Users,
@@ -16,7 +15,7 @@ import { SessionForm } from "../../components/classes/SessionForm";
 import { CancelScopeDialog } from "../../components/classes/CancelScopeDialog";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
-import { classApi, isClassApiMocked } from "../../services/classApi";
+import { classApi } from "../../services/classApi";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import {
   addCalendarDays,
@@ -32,7 +31,7 @@ import {
 import { formatDate } from "../../utils/format";
 import type {
   CancelScope,
-  ClassRegistration,
+  SessionRosterMember,
   ClassSession,
   ClassSessionInput,
   ClassSessionStatus,
@@ -77,7 +76,7 @@ export function ClassSchedulePage() {
   const [canceling, setCanceling] = useState<ClassSession | null>(null);
   const [roster, setRoster] = useState<{
     session: ClassSession;
-    items: ClassRegistration[];
+    items: SessionRosterMember[];
   } | null>(null);
   const [formError, setFormError] = useState("");
   const [formFieldErrors, setFormFieldErrors] = useState<
@@ -210,7 +209,6 @@ export function ClassSchedulePage() {
         ? { sessionId: canceling.id }
         : { classId: canceling.classId },
       reason,
-      currentUser,
     );
   }
 
@@ -260,19 +258,6 @@ export function ClassSchedulePage() {
           </button>
         </div>
       </div>
-
-      {isClassApiMocked() && (
-        <p className="info-note" role="status">
-          <FlaskConical size={16} aria-hidden="true" />
-          {/* .info-note là flex: gói nội dung trong một span để chữ không bị
-              tách thành nhiều cột trên màn hình hẹp. */}
-          <span>
-            Đang dùng <strong>dữ liệu mẫu</strong> vì chưa cấu hình{" "}
-            <code>VITE_API_BASE_URL</code>. Thao tác chỉ tồn tại trong tab này
-            và mất khi tải lại trang.
-          </span>
-        </p>
-      )}
 
       <div className="stats-grid">
         <div className="stat-card">
@@ -608,7 +593,7 @@ export function ClassSchedulePage() {
                           ? "Quầy lễ tân"
                           : "Thành viên tự đăng ký"}
                         <small className="cell-caption">
-                          {item.registeredByName}
+                          {item.memberCode}
                         </small>
                       </td>
                       <td>
@@ -617,11 +602,6 @@ export function ClassSchedulePage() {
                         >
                           {item.status === "BOOKED" ? "Đang giữ chỗ" : "Đã hủy"}
                         </span>
-                        {item.cancelReason && (
-                          <small className="cell-caption">
-                            {item.cancelReason}
-                          </small>
-                        )}
                       </td>
                     </tr>
                   ))}

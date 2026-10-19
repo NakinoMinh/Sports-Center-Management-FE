@@ -17,7 +17,6 @@ import { homeForRole } from "./utils/navigation";
 import { LoginPage } from "./pages/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { RegisterPage } from "./pages/RegisterPage";
-import { DashboardPreview } from "./pages/DashboardPreview";
 import { MembershipPackagesPage } from "./pages/manager/MembershipPackagesPage";
 import { MembershipPage } from "./pages/membership/MembershipPage";
 import { CashPaymentsPage } from "./pages/membership/CashPaymentsPage";
@@ -37,7 +36,10 @@ import { SportsPage } from "./pages/manager/SportsPage";
 import { CenterSchedulePage } from "./pages/classes/CenterSchedulePage";
 import { MemberClassesPage } from "./pages/classes/MemberClassesPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { PackageSportsPage } from "./pages/manager/PackageSportsPage";
 import { accountEnabled, accessRules } from "./services/accessControl";
+import { MyTeachingSchedulePage } from "./pages/coach/MyTeachingSchedulePage";
+import { ClassRosterPage } from "./pages/coach/ClassRosterPage";
 import type { UserRole } from "./types/auth";
 import "./App.css";
 import "./styles/workspace.css";
@@ -155,6 +157,24 @@ export default function App() {
                 }
               />
               <Route
+                path="/coach/my-schedule"
+                element={
+                  <OwnedScreen role={["COACH"]}>
+                    <MyTeachingSchedulePage />
+                  </OwnedScreen>
+                }
+              />
+
+              <Route
+                path="/coach/my-schedule/:sessionId/registrations"
+                element={
+                  <OwnedScreen role={["COACH", "CENTER_MANAGER"]}>
+                    <ClassRosterPage />
+                  </OwnedScreen>
+                }
+              />
+
+              <Route
                 path="/manager/sports"
                 element={
                   <OwnedScreen role={accessRules.sports}>
@@ -175,6 +195,14 @@ export default function App() {
                 element={
                   <OwnedScreen role={accessRules.classes}>
                     <ClassSchedulePage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/manager/package-sports"
+                element={
+                  <OwnedScreen role={accessRules.packages}>
+                    <PackageSportsPage />
                   </OwnedScreen>
                 }
               />
@@ -289,7 +317,7 @@ export default function App() {
                 path="/coach"
                 element={
                   <OwnedScreen role={accessRules.coach}>
-                    <DashboardPreview />
+                    <Navigate to="/coach/my-schedule" replace />
                   </OwnedScreen>
                 }
               />

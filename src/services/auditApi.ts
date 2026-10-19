@@ -3,7 +3,13 @@ import { apiRequest } from "./apiClient";
 export interface AuditLogItemDto {
   id: string;
   accountId: string | null;
-  accountName: string | null;
+  /**
+   * Backend trả tên và email của ngưối thao tác trong hai trường riêng
+   * (`AuditLogAPIViewModel`). Trước đây FE đọc `accountName` — trường không
+   * tồn tại trong contract — nên mọi dòng audit đều hiển thị “Hệ thống”.
+   */
+  actorFullName: string | null;
+  actorEmail: string | null;
   action: string;
   entityType: string | null;
   entityId: string | null;
@@ -31,6 +37,10 @@ export interface AuditEntry {
 }
 
 export interface AuditLogFilters {
+  classId?: string;
+  sessionId?: string;
+  actorId?: string;
+  entityId?: string;
   query?: string;
   action?: string;
   entityType?: string;
@@ -43,7 +53,7 @@ export interface AuditLogFilters {
 const mapDtoToEntry = (dto: AuditLogItemDto): AuditEntry => ({
   id: dto.id,
   actorId: dto.accountId ?? "",
-  actorName: dto.accountName ?? "Hệ thống",
+  actorName: dto.actorFullName?.trim() || dto.actorEmail?.trim() || "Hệ thống",
   action: dto.action,
   entity: dto.entityType ?? "",
   entityId: dto.entityId ?? "",
@@ -58,13 +68,22 @@ export const auditApi = {
       pageSize: String(filters.pageSize ?? 50),
     });
 
+    for (const key of ["classId", "sessionId", "actorId", "entityId"] as const) {
+      if (filters[key]?.trim()) params.set(key, filters[key].trim());
+    }
     if (filters.query?.trim()) params.set("search", filters.query.trim());
-    if (filters.action?.trim() && filters.action !== "ALL") params.set("action", filters.action.trim());
-    if (filters.entityType?.trim() && filters.entityType !== "ALL") params.set("entityType", filters.entityType.trim());
+    if (filters.action?.trim() && filters.action !== "ALL")
+      params.set("action", filters.action.trim());
+    if (filters.entityType?.trim() && filters.entityType !== "ALL")
+      params.set("entityType", filters.entityType.trim());
+
     if (filters.from?.trim()) params.set("fromDate", filters.from.trim());
     if (filters.to?.trim()) params.set("toDate", filters.to.trim());
 
-    const result: PagedAuditLogResultDto = await apiRequest<PagedAuditLogResultDto>(`/AuditLog?${params.toString()}`);
+    const result: PagedAuditLogResultDto =
+      await apiRequest<PagedAuditLogResultDto>(
+        `/AuditLog?${params.toString()}`,
+      );
     return result.items.map(mapDtoToEntry);
   },
 };

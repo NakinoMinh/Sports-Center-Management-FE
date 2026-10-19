@@ -10,7 +10,7 @@ import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { Dialog } from "../../components/common/Dialog";
 import { useToast } from "../../hooks/useToast";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
-import { classApi, isClassApiMocked } from "../../services/classApi";
+import { classApi } from "../../services/classApi";
 import type { Sport, SportInput } from "../../types/classes";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
@@ -135,10 +135,6 @@ export function SportsPage() {
           <Dumbbell size={26} aria-hidden="true" />
         </span>
       </div>
-
-      {isClassApiMocked() && (
-        <p className="info-note">Đang hiển thị dữ liệu mẫu của Flow 2.</p>
-      )}
 
       {error && (
         <div className="feedback error" role="alert">

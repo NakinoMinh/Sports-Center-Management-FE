@@ -170,3 +170,5 @@ export interface SessionMemberOption {
   phone: string;
   isActive: boolean;
 }
+
+export type SessionRosterMember = Pick<ClassRegistration, "id" | "sessionId" | "memberId" | "memberName" | "memberCode" | "status" | "registeredVia" | "registeredAt">;

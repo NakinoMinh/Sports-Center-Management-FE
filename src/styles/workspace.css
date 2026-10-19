@@ -348,7 +348,9 @@ textarea {
   letter-spacing: var(--tracking-tight);
   text-decoration: none;
   border: 1px solid transparent;
-  transition: var(--transition-colors), translate var(--duration-fast) var(--ease-out);
+  transition:
+    var(--transition-colors),
+    translate var(--duration-fast) var(--ease-out);
 }
 /* Press feedback is a 1px drop rather than a scale, so the button never
    overlaps its neighbours in a dense toolbar. */
@@ -496,6 +498,10 @@ textarea {
 }
 .toolbar {
   display: flex;
+  /* Các màn hình lịch có tới bảy bộ lọc trên một hàng. Không cho xuống dòng
+     thì `.field` co hết cỡ rồi vẫn tràn (ô select cuối nằm ngoài khung và cả
+     trang trượt ngang ~166px ở 1440px). Cho wrap để hàng lọc tự xuống dòng. */
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 16px;
   border-top: 1px solid #f0f3f0;
@@ -603,11 +609,7 @@ textarea {
   background:
     linear-gradient(to left, var(--bg-surface), transparent 2rem) right center /
       2.5rem 100% no-repeat,
-    radial-gradient(
-        farthest-side at right,
-        rgba(16, 44, 38, 0.14),
-        transparent
-      )
+    radial-gradient(farthest-side at right, rgba(16, 44, 38, 0.14), transparent)
       right center / 0.75rem 100% no-repeat;
   background-attachment: local, scroll;
 }
@@ -641,6 +643,26 @@ textarea {
   text-align: left;
   width: 100%;
   font-size: var(--text-sm);
+}
+/* Một từ dài hơn ô thì bẻ từ đó ra thay vì đẩy chữ lọt khỏi cột.
+   Dùng `break-word` chứ KHÔNG dùng `anywhere`: `anywhere` còn hạ bề rộng tối
+   thiểu của ô xuống một ký tự, khiến bố cục bảng tự động nén cột lại và bẻ cả
+   chữ bình thường ("Sức chứa" thành "Sức chứ/a"). `break-word` giữ nguyên bề
+   rộng tối thiểu theo từ dài nhất nên chỉ bẻ khi thật sự cần. */
+.data-table :is(th, td) {
+  overflow-wrap: break-word;
+}
+/* Ô chứa văn bản do người dùng nhập tự do (mô tả audit, vị trí phòng) có thể
+   dài hàng trăm ký tự không dấu cách. Với `break-word`, bề rộng tối thiểu của
+   ô bằng cả từ đó nên bố cục bảng tự động dành cho cột này rất nhiều chỗ và
+   bóp các cột còn lại ra ngoài vùng nhìn. `anywhere` cho ô co lại được; thêm
+   `max-width` để một giá trị dài không chiếm hết bảng. */
+.audit-desc-cell,
+.data-table td.cell-freetext {
+  overflow-wrap: anywhere;
+}
+.data-table td.cell-freetext {
+  max-width: 18rem;
 }
 /* The header stays put while a long result set scrolls.
    Headers are NOT uppercased and NOT letter-spaced here: combined with
@@ -1799,7 +1821,11 @@ textarea {
 .reception-member-summary { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px 28px; }
 .reception-member-summary p { color: #667b75; font-size: 14px; margin-top: 8px; }
 .reception-class-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; padding: 0 28px 28px; }
-.reception-class-card { border: 1px solid #dce6df; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+/* `align-items: flex-start` cho con rộng theo nội dung, nên một tiêu đề dài
+   không dấu cách vượt khỏi thẻ và đẩy cả lưới ra ngoài khung (trang Bộ môn
+   trượt ngang ~230px). Giới hạn bề ngang con theo thẻ và cho ngắt dòng. */
+.reception-class-card { border: 1px solid #dce6df; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; min-width: 0; overflow-wrap: anywhere; }
+.reception-class-card > * { max-width: 100%; }
 .reception-class-card p { color: #667b75; font-size: 14px; }
 .reception-class-card .button { width: 100%; margin-top: 8px; }
 .reception-form { display: flex; flex-direction: column; gap: 20px; }
@@ -2291,8 +2317,6 @@ textarea {
   line-height: 1.5;
 }
 
-
-
 .text-danger {
   color: #dc2626 !important;
 }
@@ -2560,7 +2584,9 @@ textarea {
   font: inherit;
   color: inherit;
   cursor: pointer;
-  transition: var(--transition-colors), translate var(--duration-fast) var(--ease-out);
+  transition:
+    var(--transition-colors),
+    translate var(--duration-fast) var(--ease-out);
 }
 .stat-card-button:hover {
   border-color: var(--border-strong);
@@ -2753,6 +2779,13 @@ textarea {
 }
 .data-table-fixed .cell-contact,
 .data-table-fixed .schedule-cell {
+  max-width: 100%;
+}
+/* Ô của bảng cố định có `overflow: hidden`, nên thứ gì không xuống dòng được
+   sẽ bị cắt cụt chứ không tràn ra cho ta thấy. Cho chữ trong chip xuống dòng
+   để ở bề ngang hẹp nó cao thêm một dòng thay vì mất chữ. */
+.data-table-fixed .status-chip {
+  white-space: normal;
   max-width: 100%;
 }
 
@@ -3241,5 +3274,363 @@ textarea {
 
   .cancel-scope-impact {
     gap: var(--space-2);
+  }
+}
+
+/* ==========================================================================
+   QUYỀN BỘ MÔN CỦA GÓI TẬP (FR-09)
+   ========================================================================== */
+
+.sport-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sport-chip {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background: var(--bg-subtle);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-default);
+}
+
+.entitlement-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.entitlement-summary svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.entitlement-summary.is-open {
+  border: 1px solid var(--success-border);
+  background: var(--success-bg);
+  color: var(--success-fg);
+}
+
+.entitlement-summary.is-restricted {
+  border: 1px solid var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+}
+
+.sport-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.sport-picker legend {
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-overline);
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.sport-picker label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: var(--transition-colors);
+}
+
+.sport-picker label:hover {
+  border-color: var(--border-brand);
+  background: var(--bg-subtle);
+}
+
+.sport-picker input {
+  flex-shrink: 0;
+}
+/* UC28 - Class Roster */
+
+.class-roster-page {
+  padding: var(--space-6);
+}
+
+.class-roster-page .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.class-roster-page .toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.class-roster-page .toolbar label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.class-roster-page .toolbar input[type="search"] {
+  min-width: calc(var(--space-12) * 2);
+  padding: var(--space-3) var(--space-3);
+}
+
+.class-roster-page .toolbar input[type="checkbox"] {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.class-roster-page .table-scroll {
+  margin-top: var(--space-4);
+  overflow-x: auto;
+}
+
+.class-roster-page .modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+@media (max-width: 48rem) {
+  .class-roster-page {
+    padding: var(--space-4);
+  }
+
+  .class-roster-page .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .class-roster-page .toolbar input[type="search"] {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* =========================================
+   UC27 - My Teaching Schedule
+   ========================================= */
+
+.my-teaching-schedule-page {
+  padding: var(--space-6);
+}
+
+/* Tiêu đề và nút Làm mới */
+.my-teaching-schedule-page .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.my-teaching-schedule-page .page-header h1 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+}
+
+.my-teaching-schedule-page .page-header p {
+  margin: 0;
+  color: var(--fg-muted);
+  line-height: var(--leading-normal);
+}
+
+.my-teaching-schedule-page .page-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+/* Thanh bộ lọc */
+.my-teaching-schedule-page .toolbar {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+  border: thin solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+}
+
+.my-teaching-schedule-page .toolbar label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.my-teaching-schedule-page .toolbar input[type="date"],
+.my-teaching-schedule-page .toolbar select {
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border: thin solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  font: inherit;
+}
+
+.my-teaching-schedule-page .toolbar select {
+  min-width: calc(var(--space-8) * 4);
+}
+
+.my-teaching-schedule-page .toolbar button {
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  white-space: nowrap;
+}
+
+/* Thông báo lỗi */
+.my-teaching-schedule-page [role="alert"] {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border: thin solid var(--danger-border);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  line-height: var(--leading-normal);
+}
+
+/* Bảng lịch dạy */
+.my-teaching-schedule-page .table-scroll {
+  margin-top: var(--space-4);
+  overflow-x: auto;
+}
+
+.my-teaching-schedule-page .data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.my-teaching-schedule-page .data-table th,
+.my-teaching-schedule-page .data-table td {
+  padding: var(--space-3) var(--space-3);
+  text-align: left;
+  vertical-align: middle;
+}
+
+/* Phân trang */
+.my-teaching-schedule-page .modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+/* Responsive */
+@media (max-width: 48rem) {
+  .my-teaching-schedule-page {
+    padding: var(--space-4);
+  }
+
+  .my-teaching-schedule-page .page-header {
+    align-items: flex-start;
+  }
+
+  .my-teaching-schedule-page .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--space-4);
+  }
+
+  .my-teaching-schedule-page .toolbar label,
+  .my-teaching-schedule-page .toolbar input[type="date"],
+  .my-teaching-schedule-page .toolbar select,
+  .my-teaching-schedule-page .toolbar button {
+    width: 100%;
+  }
+
+  .my-teaching-schedule-page .modal-actions {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+/* =========================================
+   UC32 - Audit Log Filters
+   ========================================= */
+
+.audit-toolbar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: end;
+  padding: var(--space-5);
+}
+
+.audit-toolbar .field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.audit-toolbar .field span {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+.audit-toolbar .search-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.audit-toolbar input,
+.audit-toolbar select {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  box-sizing: border-box;
+}
+
+.audit-toolbar .search-field input {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 62.5rem) {
+  .audit-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 40rem) {
+  .audit-toolbar {
+    grid-template-columns: 1fr;
+    padding: var(--space-4);
   }
 }

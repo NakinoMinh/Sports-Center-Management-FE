@@ -1,23 +1,26 @@
 /**
- * Mock server cho Flow 2, dùng khi backend lớp/lịch/đăng ký chưa có thật.
+ * Bộ quy tắc Flow 2 dùng **chỉ cho unit test** (`classApi.test.ts`,
+ * `packageSportApi.test.ts`).
  *
- * Vì sao cần: UC19/21/24/25/29/30 có rất nhiều nhánh bị-từ-chối (trùng Coach,
- * trùng phòng, hết chỗ, gói không hợp lệ, buổi đã bắt đầu…). Nếu FE chỉ dựng
- * khung rỗng thì không ai thấy được những nhánh đó cho tới khi API xong. File
- * này mô phỏng đúng tập quy tắc đã chốt ở Sprint2.md §6 và ném `ApiError` với
- * **cùng mã lỗi** mà contract yêu cầu backend trả về, nên khi API thật lên,
- * `classApi` chỉ cần bỏ nhánh mock, màn hình không phải sửa.
+ * Trước đây `classApi` tự rơi về file này khi `VITE_API_BASE_URL` trống, nên
+ * một màn hình cấu hình sai vẫn đặt chỗ “thành công” trên dữ liệu trong bộ nhớ.
+ * Nhánh đó đã bị bỏ: API Flow 2 của backend đã chạy, và Sprint 2 yêu cầu
+ * booking, counter và lịch cá nhân chỉ có một nguồn duy nhất là server. Không
+ * import file này từ page, component hay service chạy thật.
  *
- * Ràng buộc có ý thức:
- * - Dữ liệu nằm trong bộ nhớ của tab, mất khi tải lại trang. Cố ý không dùng
- *   LocalStorage: Sprint2 yêu cầu bỏ nguồn booking LocalStorage khỏi luồng
- *   thật, và việc dữ liệu mock biến mất sau khi refresh nhắc đúng rằng đây
- *   chưa phải dữ liệu đã lưu ở server.
- * - Không mô phỏng được tranh chấp chỗ cuối giữa hai người dùng thật; đó là
- *   phần backend phải chứng minh bằng khóa hoặc optimistic concurrency.
+ * Còn giữ lại vì nó mô tả đúng tập quy tắc đã chốt ở Sprint2.md §6 và ném
+ * `ApiError` với **cùng mã lỗi** contract yêu cầu, nên các test ở trên kiểm
+ * được rằng FE xử lý đủ các nhánh bị-từ-chối (trùng Coach, trùng phòng, hết
+ * chỗ, gói không hợp lệ, buổi đã bắt đầu…). Đây là test fixture, không phải
+ * bằng chứng backend đã pass: điều đó phải do test tích hợp với API thật
+ * chứng minh.
  */
 
 import { ApiError } from "./apiClient";
+import type {
+  PackageSportEntitlement,
+  PackageSummary,
+} from "../types/packageSports";
 import type {
   CancelImpact,
   CancelScope,
@@ -105,8 +108,12 @@ interface MockRegistrationRecord {
 interface MockMemberRecord extends SessionMemberOption {
   membershipStatus: "ACTIVE" | "PENDING_PAYMENT" | "EXPIRED" | "SUSPENDED";
   membershipEndDate: string;
-  /** "ALL" hoặc danh sách sportId mà gói cho phép. */
-  allowedSportIds: "ALL" | string[];
+  /**
+   * Gói đang dùng. Quyền bộ môn suy ra từ gói chứ không gắn thẳng vào thành
+   * viên, để màn hình cấu hình quyền (FR-09) đổi một chỗ là mọi thành viên
+   * dùng gói đó đổi theo — đúng như backend sẽ hành xử.
+   */
+  packageId: string;
 }
 
 interface MockState {
@@ -117,6 +124,9 @@ interface MockState {
   sessions: MockSessionRecord[];
   registrations: MockRegistrationRecord[];
   members: MockMemberRecord[];
+  packages: PackageSummary[];
+  /** Gói không có dòng nào ở đây = vào được mọi bộ môn. */
+  packageSports: { packageId: string; sportIds: string[] }[];
 }
 
 let state: MockState | null = null;
@@ -336,7 +346,7 @@ function seed(): MockState {
       isActive: true,
       membershipStatus: "ACTIVE",
       membershipEndDate: addCalendarDays(today, 120),
-      allowedSportIds: "ALL",
+      packageId: "4",
     },
     {
       id: "member-binh",
@@ -347,7 +357,7 @@ function seed(): MockState {
       isActive: true,
       membershipStatus: "ACTIVE",
       membershipEndDate: addCalendarDays(today, 45),
-      allowedSportIds: ["sport-yoga"],
+      packageId: "5",
     },
     {
       id: "member-chi",
@@ -358,7 +368,7 @@ function seed(): MockState {
       isActive: true,
       membershipStatus: "PENDING_PAYMENT",
       membershipEndDate: addCalendarDays(today, 30),
-      allowedSportIds: "ALL",
+      packageId: "1",
     },
     {
       id: "member-dung",
@@ -370,7 +380,7 @@ function seed(): MockState {
       membershipStatus: "ACTIVE",
       // Gói hết hạn ngay mai, nên các buổi từ ngày thứ ba trở đi bị từ chối.
       membershipEndDate: addCalendarDays(today, 1),
-      allowedSportIds: "ALL",
+      packageId: "1",
     },
     {
       id: "member-em",
@@ -381,7 +391,7 @@ function seed(): MockState {
       isActive: false,
       membershipStatus: "ACTIVE",
       membershipEndDate: addCalendarDays(today, 60),
-      allowedSportIds: "ALL",
+      packageId: "4",
     },
   ];
 
@@ -415,7 +425,34 @@ function seed(): MockState {
     },
   ];
 
-  return { sports, rooms, coaches, classes, sessions, registrations, members };
+  // Bảy gói mirror đúng seed SQL của Sprint 1, để demo khớp dữ liệu thật.
+  const packages: PackageSummary[] = [
+    { id: "1", name: "Gói Trải Nghiệm 1 Tháng", durationMonths: 1, price: 500000, isActive: true },
+    { id: "2", name: "Gói Tiêu Chuẩn 3 Tháng", durationMonths: 3, price: 1350000, isActive: true },
+    { id: "3", name: "Gói Năng Động 6 Tháng", durationMonths: 6, price: 2400000, isActive: true },
+    { id: "4", name: "Gói Toàn Diện 12 Tháng", durationMonths: 12, price: 4200000, isActive: true },
+    { id: "5", name: "Gói Học Viên Yoga 3 Tháng", durationMonths: 3, price: 1600000, isActive: true },
+    { id: "6", name: "Gói Thể Thao Bơi Lội 6 Tháng", durationMonths: 6, price: 2200000, isActive: true },
+    { id: "7", name: "Gói Thẻ Hội Viên VIP 24 Tháng", durationMonths: 24, price: 7500000, isActive: true },
+  ];
+  // Chỉ hai gói chuyên đề bị giới hạn; năm gói còn lại không có dòng nào nên
+  // vào được mọi bộ môn.
+  const packageSports = [
+    { packageId: "5", sportIds: ["sport-yoga"] },
+    { packageId: "6", sportIds: ["sport-swim"] },
+  ];
+
+  return {
+    sports,
+    rooms,
+    coaches,
+    classes,
+    sessions,
+    registrations,
+    members,
+    packages,
+    packageSports,
+  };
 }
 
 const store = (): MockState => (state ??= seed());
@@ -591,6 +628,19 @@ function assertNoResourceConflict(
   }
 }
 
+/**
+ * Gói không có dòng nào trong bảng quyền = vào được mọi bộ môn. Quy ước này
+ * giữ cho các gói đã bán từ Sprint 1 không mất quyền lợi khi bật tính năng.
+ */
+const packageAllowsSport = (packageId: string, sportId: string): boolean => {
+  const entitlement = store().packageSports.find(
+    (item) => item.packageId === packageId,
+  );
+  return !entitlement || entitlement.sportIds.length === 0
+    ? true
+    : entitlement.sportIds.includes(sportId);
+};
+
 const membershipCoversDate = (
   member: MockMemberRecord,
   date: string,
@@ -617,10 +667,7 @@ function assertMemberEligible(
         : `Gói tập của ${member.fullName} chưa dùng được (trạng thái ${member.membershipStatus}).`,
       409,
     );
-  if (
-    member.allowedSportIds !== "ALL" &&
-    !member.allowedSportIds.includes(owner.sportId)
-  )
+  if (!packageAllowsSport(member.packageId, owner.sportId))
     fail(
       "PACKAGE_NOT_ELIGIBLE",
       `Gói tập của ${member.fullName} không bao gồm bộ môn của lớp này.`,
@@ -1061,6 +1108,65 @@ export const classMockServer = {
     return cancelable.length;
   },
 
+  async listPackages(): Promise<PackageSummary[]> {
+    await wait();
+    return store().packages.map((item) => ({ ...item }));
+  },
+
+  async getPackageSports(packageId: string): Promise<PackageSportEntitlement> {
+    await wait();
+    const data = store();
+    if (!data.packages.some((item) => item.id === packageId))
+      fail("PACKAGE_NOT_FOUND", "Không tìm thấy gói tập.", 404);
+    const sportIds =
+      data.packageSports.find((item) => item.packageId === packageId)
+        ?.sportIds ?? [];
+    return {
+      packageId,
+      sportIds: [...sportIds],
+      allowsAllSports: sportIds.length === 0,
+    };
+  },
+
+  async setPackageSports(
+    packageId: string,
+    sportIds: string[],
+  ): Promise<PackageSportEntitlement> {
+    await wait();
+    const data = store();
+    if (!data.packages.some((item) => item.id === packageId))
+      fail("PACKAGE_NOT_FOUND", "Không tìm thấy gói tập.", 404);
+    const unknown = sportIds.filter(
+      (id) => !data.sports.some((sport) => sport.id === id),
+    );
+    if (unknown.length)
+      fail("SPORT_NOT_FOUND", "Có bộ môn không còn tồn tại.", 404, {
+        sportIds: ["Danh sách bộ môn chứa mục không hợp lệ."],
+      });
+    const inactive = sportIds.filter((id) =>
+      data.sports.some((sport) => sport.id === id && !sport.isActive),
+    );
+    if (inactive.length)
+      fail(
+        "SPORT_INACTIVE",
+        "Không thể cấp quyền cho bộ môn đã ngừng hoạt động.",
+        409,
+        { sportIds: ["Bỏ bộ môn đã ngừng hoạt động khỏi danh sách."] },
+      );
+
+    const unique = [...new Set(sportIds)];
+    const existing = data.packageSports.find(
+      (item) => item.packageId === packageId,
+    );
+    if (existing) existing.sportIds = unique;
+    else data.packageSports.push({ packageId, sportIds: unique });
+    return {
+      packageId,
+      sportIds: unique,
+      allowsAllSports: unique.length === 0,
+    };
+  },
+
   async searchMembers(query: string): Promise<SessionMemberOption[]> {
     await wait();
     const needle = normalizeName(query);
@@ -1098,7 +1204,7 @@ export const classMockServer = {
       isActive: true,
       membershipStatus: "ACTIVE",
       membershipEndDate: addCalendarDays(centerToday(), 180),
-      allowedSportIds: "ALL",
+      packageId: "4",
     });
     return actor.id;
   },

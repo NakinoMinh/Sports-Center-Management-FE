@@ -38,13 +38,7 @@ const supportLabels: Record<SupportStatus, string> = {
   IN_PROGRESS: "Đang xử lý",
   RESOLVED: "Đã giải quyết",
 };
-const empty: ReceptionState = {
-  version: 1,
-  sessions: [],
-  bookings: [],
-  visits: [],
-  requests: [],
-};
+const empty: ReceptionState = { version: 1, visits: [], requests: [] };
 const normalize = (value: string) =>
   value
     .normalize("NFD")

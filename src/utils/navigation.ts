@@ -12,7 +12,7 @@ export function homeForRole(role: UserRole) {
     CENTER_MANAGER: "/manager/packages",
     MEMBER: "/member/membership",
     RECEPTIONIST: "/receptionist/memberships",
-    COACH: "/coach",
+    COACH: "/coach/my-schedule",
   }[role];
 }
 
@@ -113,6 +113,13 @@ export const navSections: readonly NavSection[] = [
     title: "Lớp học",
     items: [
       {
+        to: "/coach/my-schedule",
+        label: "Lịch dạy của tôi",
+        icon: "calendar",
+        roles: ["COACH"],
+        trail: ["Lớp học", "Lịch dạy của tôi"],
+      },
+      {
         to: "/manager/sports",
         label: "Bộ môn",
         icon: "layers",
@@ -211,7 +218,7 @@ export const navSections: readonly NavSection[] = [
         to: "/receptionist/classes",
         label: "Đăng ký lớp học",
         icon: "calendar",
-        roles: COUNTER,
+        roles: ["RECEPTIONIST"],
         trail: ["Quầy lễ tân", "Đăng ký lớp học"],
       },
       {
@@ -251,6 +258,13 @@ export const navSections: readonly NavSection[] = [
         icon: "layers",
         roles: MANAGER,
         trail: ["Tài chính", "Gói & học phí"],
+      },
+      {
+        to: "/manager/package-sports",
+        label: "Quyền bộ môn của gói",
+        icon: "shield",
+        roles: MANAGER,
+        trail: ["Tài chính", "Quyền bộ môn của gói"],
       },
       {
         to: "/payments/cash",

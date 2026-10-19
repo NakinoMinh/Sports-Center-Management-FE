@@ -1,5 +1,16 @@
+/**
+ * Điểm danh và yêu cầu hỗ trợ tại quầy, lưu tạm trên LocalStorage vì hai
+ * chức năng này chưa có API (ngoài phạm vi Sprint 2).
+ *
+ * Đặt và hủy lớp **không** còn ở đây: trước đây service giữ sẵn bảy ngày buổi
+ * học mẫu và một mảng `bookings` trong LocalStorage, nên hai máy ở quầy thấy
+ * hai tập dữ liệu khác nhau và không có quy tắc gói tập nào được kiểm tra.
+ * UC29 nay đi qua `classApi` — xem `CounterClassBooking` — nên phần
+ * lịch/booking ở đây đã được bỏ hẳn: không còn nguồn booking nào ngoài server.
+ */
+
 import { authorizeRoles, accessRules } from "./accessControl";
-import { addDateDays, todayDate } from "./membershipService";
+import { todayDate } from "./membershipService";
 import type { MembershipActor } from "../types/membership";
 
 export const RECEPTION_STORAGE_KEY = "scms_reception_v1";
@@ -10,28 +21,6 @@ export interface CenterVisit {
   checkedInAt: string;
   checkedOutAt?: string;
   createdBy: string;
-}
-export interface ClassSession {
-  id: string;
-  name: string;
-  discipline: string;
-  coach: string;
-  room: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  capacity: number;
-}
-export interface ClassBooking {
-  id: string;
-  memberId: string;
-  sessionId: string;
-  status: "BOOKED" | "CANCELED";
-  createdAt: string;
-  createdBy: string;
-  canceledAt?: string;
-  canceledBy?: string;
-  cancelReason?: string;
 }
 export type SupportStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED";
 export interface SupportRequest {
@@ -48,8 +37,6 @@ export interface SupportRequest {
 export interface ReceptionState {
   version: 1;
   visits: CenterVisit[];
-  sessions: ClassSession[];
-  bookings: ClassBooking[];
   requests: SupportRequest[];
 }
 
@@ -84,58 +71,19 @@ function read(): ReceptionState {
       const value = JSON.parse(raw);
       if (
         value.version !== 1 ||
-        ![value.visits, value.sessions, value.bookings, value.requests].every(
-          Array.isArray,
-        )
+        ![value.visits, value.requests].every(Array.isArray)
       )
         throw new Error();
-      return value;
+      // Dữ liệu lưu từ bản cũ còn `sessions`/`bookings`: bỏ qua hai mảng đó
+      // thay vì báo lỗi, để lịch sử điểm danh và hỗ trợ không mất khi nâng cấp.
+      return { version: 1, visits: value.visits, requests: value.requests };
     } catch {
       throw new Error("Dữ liệu lễ tân không hợp lệ. Không thể tải danh sách.");
     }
   }
-  const sessions: ClassSession[] = Array.from({ length: 7 }, (_, day) =>
-    [
-      {
-        name: "Yoga cân bằng",
-        discipline: "Yoga",
-        room: "Studio A",
-        startTime: "08:00",
-        endTime: "09:00",
-        capacity: 15,
-      },
-      {
-        name: "Sức mạnh toàn thân",
-        discipline: "Fitness",
-        room: "Studio B",
-        startTime: "17:30",
-        endTime: "18:30",
-        capacity: 20,
-      },
-    ].map((item, index) => ({
-      ...item,
-      id: `session_${day}_${index}`,
-      date: addDateDays(todayDate(), day),
-      coach: "Trần Huấn Luyện Viên",
-    })),
-  ).flat();
-  const state: ReceptionState = {
-    version: 1,
-    visits: [],
-    sessions,
-    bookings: [],
-    requests: [],
-  };
+  const state: ReceptionState = { version: 1, visits: [], requests: [] };
   save(state);
   return state;
-}
-function sessionFuture(session: ClassSession) {
-  if (
-    new Date(`${session.date}T${session.startTime}:00`).getTime() <= Date.now()
-  )
-    throw new Error(
-      "Buổi học đã bắt đầu; không thể đăng ký hoặc hủy tại quầy.",
-    );
 }
 const timestamp = () => new Date().toISOString();
 export const receptionService = {
@@ -169,74 +117,6 @@ export const receptionService = {
     if (!visit || visit.checkedOutAt)
       throw new Error("Lượt điểm danh không tồn tại hoặc đã ghi nhận ra về.");
     visit.checkedOutAt = timestamp();
-    save(state);
-  },
-  bookClass(actor: MembershipActor, memberId: string, sessionId: string) {
-    authorize(actor);
-    const state = read();
-    const session = state.sessions.find((item) => item.id === sessionId);
-    if (!session) throw new Error("Không tìm thấy buổi học.");
-    sessionFuture(session);
-    hasAccess(actor, memberId, session.date);
-    const booked = state.bookings.filter(
-      (booking) => booking.status === "BOOKED",
-    );
-    if (
-      booked.some(
-        (booking) =>
-          booking.memberId === memberId && booking.sessionId === sessionId,
-      )
-    )
-      throw new Error("Thành viên đã đăng ký buổi học này.");
-    if (
-      booked.filter((booking) => booking.sessionId === sessionId).length >=
-      session.capacity
-    )
-      throw new Error("Lớp học đã đủ chỗ.");
-    if (
-      booked.some((booking) => {
-        const other = state.sessions.find(
-          (item) => item.id === booking.sessionId,
-        );
-        return (
-          booking.memberId === memberId &&
-          other &&
-          other.date === session.date &&
-          other.startTime < session.endTime &&
-          other.endTime > session.startTime
-        );
-      })
-    )
-      throw new Error("Buổi học trùng lịch với lớp thành viên đã đăng ký.");
-    state.bookings.unshift({
-      id: crypto.randomUUID(),
-      memberId,
-      sessionId,
-      status: "BOOKED",
-      createdAt: timestamp(),
-      createdBy: actor.id,
-    });
-    save(state);
-  },
-  cancelBooking(actor: MembershipActor, id: string, reason: string) {
-    authorize(actor);
-    const state = read();
-    const booking = state.bookings.find((item) => item.id === id);
-    if (!booking || booking.status !== "BOOKED")
-      throw new Error("Đăng ký không tồn tại hoặc đã hủy.");
-    const session = state.sessions.find(
-      (item) => item.id === booking.sessionId,
-    );
-    if (!session) throw new Error("Không tìm thấy buổi học.");
-    sessionFuture(session);
-    if (reason.trim().length < 3 || reason.trim().length > 500)
-      throw new Error("Nhập lý do hủy từ 3 đến 500 ký tự.");
-    Object.assign(booking, {
-      status: "CANCELED",
-      canceledAt: timestamp(),
-      canceledBy: actor.id,
-      cancelReason: reason.trim(),
-    });
     save(state);
   },
   createRequest(

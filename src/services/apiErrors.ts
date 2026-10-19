@@ -72,7 +72,8 @@ const MESSAGES: Record<string, string> = {
     "Thành viên này đã có lịch sử đăng ký gói nên không thể xóa. Hãy ngừng hoạt động tài khoản thay vì xóa.",
 
   // --- Lớp học, lịch học và đăng ký buổi học (Flow 2) ---
-  CLASS_NOT_FOUND: "Không tìm thấy lớp học. Có thể lớp vừa bị xóa hoặc lưu trữ.",
+  CLASS_NOT_FOUND:
+    "Không tìm thấy lớp học. Có thể lớp vừa bị xóa hoặc lưu trữ.",
   CLASS_NAME_DUPLICATE:
     "Tên lớp này đã tồn tại. Hãy dùng một tên khác để nhân viên không nhầm lớp.",
   CLASS_HAS_NO_VALID_SESSION:
@@ -82,13 +83,20 @@ const MESSAGES: Record<string, string> = {
   CLASS_ARCHIVED: "Lớp đã được lưu trữ nên không thể thêm hoặc sửa buổi học.",
   CLASS_HAS_REGISTRATIONS:
     "Lớp đã có lịch sử đăng ký nên không thể xóa. Hãy chuyển sang trạng thái lưu trữ.",
+
   SPORT_NOT_FOUND: "Không tìm thấy bộ môn đã chọn. Hãy tải lại danh sách.",
+  // Hai nhánh cùng khai báo mã này khi gộp; giữ bản nói rõ phải làm gì tiếp.
   SPORT_NAME_DUPLICATE:
     "Tên bộ môn đã tồn tại. Hãy chọn tên khác dễ phân biệt hơn.",
   SPORT_INACTIVE:
     "Bộ môn này đã ngừng hoạt động nên không dùng để tạo lớp mới.",
+
   ROOM_NOT_FOUND: "Không tìm thấy phòng đã chọn. Hãy tải lại danh sách.",
+  ROOM_NAME_DUPLICATE: "Tên phòng đã tồn tại. Vui lòng chọn tên phòng khác.",
   ROOM_INACTIVE: "Phòng này đã ngừng hoạt động nên không dùng cho lịch mới.",
+  ROOM_CAPACITY_BELOW_SCHEDULE:
+    "Không thể giảm sức chứa phòng vì có buổi học chưa bắt đầu đang sử dụng sức chứa lớn hơn. Vui lòng kiểm tra lịch học trước.",
+
   COACH_NOT_FOUND:
     "Không tìm thấy huấn luyện viên đã chọn. Hãy tải lại danh sách.",
   COACH_INACTIVE:
@@ -117,8 +125,13 @@ const MESSAGES: Record<string, string> = {
     "Đăng ký này đã được hủy trước đó. Chỗ chỉ được trả lại một lần.",
   MEMBERSHIP_NOT_VALID_FOR_SESSION:
     "Gói tập không còn hiệu lực vào ngày diễn ra buổi học. Hãy gia hạn trước khi đăng ký.",
+  PACKAGE_NOT_FOUND: "Không tìm thấy gói tập. Hãy tải lại danh sách.",
   PACKAGE_NOT_ELIGIBLE:
     "Gói tập hiện tại không bao gồm bộ môn của lớp này. Hãy nâng gói hoặc chọn lớp khác.",
+
+  // --- Thông báo trong ứng dụng (UC31) ---
+  NOTIFICATION_NOT_FOUND:
+    "Không tìm thấy thông báo này. Có thể danh sách đã thay đổi; hãy làm mới trang.",
 
   // --- Concurrency and generic ---
   CONCURRENCY_CONFLICT:

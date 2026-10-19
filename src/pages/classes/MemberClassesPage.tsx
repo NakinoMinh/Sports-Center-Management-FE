@@ -83,7 +83,7 @@ export function MemberClassesPage({ view }: Props) {
               from: centerToday(),
               status: "SCHEDULED",
             }),
-            classApi.listMyRegistrations(currentUser, true),
+            classApi.listMyRegistrations(true),
             classApi.listSports(),
             classApi.listCoaches(),
           ]);
@@ -100,7 +100,7 @@ export function MemberClassesPage({ view }: Props) {
         setCoaches(coachList.filter((item) => item.isActive));
       } else {
         setRegistrations(
-          (await classApi.listMyRegistrations(currentUser, true)).sort(
+          (await classApi.listMyRegistrations(true)).sort(
             byRegistrationStart,
           ),
         );
