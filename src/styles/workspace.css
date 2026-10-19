@@ -496,6 +496,10 @@ textarea {
 }
 .toolbar {
   display: flex;
+  /* Các màn hình lịch có tới bảy bộ lọc trên một hàng. Không cho xuống dòng
+     thì `.field` co hết cỡ rồi vẫn tràn (ô select cuối nằm ngoài khung và cả
+     trang trượt ngang ~166px ở 1440px). Cho wrap để hàng lọc tự xuống dòng. */
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 16px;
   border-top: 1px solid #f0f3f0;
@@ -641,6 +645,26 @@ textarea {
   text-align: left;
   width: 100%;
   font-size: var(--text-sm);
+}
+/* Một từ dài hơn ô thì bẻ từ đó ra thay vì đẩy chữ lọt khỏi cột.
+   Dùng `break-word` chứ KHÔNG dùng `anywhere`: `anywhere` còn hạ bề rộng tối
+   thiểu của ô xuống một ký tự, khiến bố cục bảng tự động nén cột lại và bẻ cả
+   chữ bình thường ("Sức chứa" thành "Sức chứ/a"). `break-word` giữ nguyên bề
+   rộng tối thiểu theo từ dài nhất nên chỉ bẻ khi thật sự cần. */
+.data-table :is(th, td) {
+  overflow-wrap: break-word;
+}
+/* Ô chứa văn bản do người dùng nhập tự do (mô tả audit, vị trí phòng) có thể
+   dài hàng trăm ký tự không dấu cách. Với `break-word`, bề rộng tối thiểu của
+   ô bằng cả từ đó nên bố cục bảng tự động dành cho cột này rất nhiều chỗ và
+   bóp các cột còn lại ra ngoài vùng nhìn. `anywhere` cho ô co lại được; thêm
+   `max-width` để một giá trị dài không chiếm hết bảng. */
+.audit-desc-cell,
+.data-table td.cell-freetext {
+  overflow-wrap: anywhere;
+}
+.data-table td.cell-freetext {
+  max-width: 18rem;
 }
 /* The header stays put while a long result set scrolls.
    Headers are NOT uppercased and NOT letter-spaced here: combined with
@@ -1799,7 +1823,11 @@ textarea {
 .reception-member-summary { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px 28px; }
 .reception-member-summary p { color: #667b75; font-size: 14px; margin-top: 8px; }
 .reception-class-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; padding: 0 28px 28px; }
-.reception-class-card { border: 1px solid #dce6df; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+/* `align-items: flex-start` cho con rộng theo nội dung, nên một tiêu đề dài
+   không dấu cách vượt khỏi thẻ và đẩy cả lưới ra ngoài khung (trang Bộ môn
+   trượt ngang ~230px). Giới hạn bề ngang con theo thẻ và cho ngắt dòng. */
+.reception-class-card { border: 1px solid #dce6df; border-radius: 10px; padding: 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; min-width: 0; overflow-wrap: anywhere; }
+.reception-class-card > * { max-width: 100%; }
 .reception-class-card p { color: #667b75; font-size: 14px; }
 .reception-class-card .button { width: 100%; margin-top: 8px; }
 .reception-form { display: flex; flex-direction: column; gap: 20px; }
@@ -2753,6 +2781,13 @@ textarea {
 }
 .data-table-fixed .cell-contact,
 .data-table-fixed .schedule-cell {
+  max-width: 100%;
+}
+/* Ô của bảng cố định có `overflow: hidden`, nên thứ gì không xuống dòng được
+   sẽ bị cắt cụt chứ không tràn ra cho ta thấy. Cho chữ trong chip xuống dòng
+   để ở bề ngang hẹp nó cao thêm một dòng thay vì mất chữ. */
+.data-table-fixed .status-chip {
+  white-space: normal;
   max-width: 100%;
 }
 

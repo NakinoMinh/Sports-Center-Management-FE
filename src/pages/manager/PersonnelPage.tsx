@@ -413,10 +413,13 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
                   email truncates instead of widening the table. */}
               <colgroup>
                 <col style={{ width: "22%" }} />
-                <col style={{ width: "24%" }} />
+                <col style={{ width: "22%" }} />
                 <col style={{ width: "15%" }} />
                 <col style={{ width: "17%" }} />
-                <col style={{ width: "14%" }} />
+                {/* Cột trạng thái: chip "Đang hoạt động" rộng 130px cộng 40px
+                    padding. Ở 14% thì cột chỉ 146px tại 1440px nên chip bị
+                    `overflow: hidden` cắt mất chữ. */}
+                <col style={{ width: "16%" }} />
                 <col style={{ width: "7rem" }} />
               </colgroup>
               <thead>

@@ -194,7 +194,7 @@ export function RoomsPage() {
       {loading && !hasLoaded ? (
         <p>Đang tải danh sách phòng...</p>
       ) : (
-        <div className="table-scroll">
+        <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
@@ -216,7 +216,9 @@ export function RoomsPage() {
                     </div>
                   </td>
 
-                  <td>{room.location || "Chưa cập nhật"}</td>
+                  <td className="cell-freetext">
+                    {room.location || "Chưa cập nhật"}
+                  </td>
 
                   <td>{room.capacity} người</td>
 
