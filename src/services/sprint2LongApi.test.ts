@@ -119,13 +119,17 @@ describe("Sprint 2 Long API adapters", () => {
     ]);
   });
 
-  it("supports UC31 mock notifications when the API is not configured", async () => {
+  // UC31 khong con nhanh du lieu mau. Mot danh sach thong bao dung san con te
+  // hon danh sach rong: nguoi dung tuong da nam duoc thay doi lich trong khi
+  // khong. Cau hinh thieu phai thanh loi nhin thay duoc.
+  it("refuses to invent notifications when the API is not configured", async () => {
     vi.stubEnv("VITE_API_BASE_URL", "");
 
-    const unread = await notificationApi.list({ isRead: false });
-    expect(unread.items.length).toBeGreaterThan(0);
-
-    const updated = await notificationApi.markRead(unread.items[0].id);
-    expect(updated.isRead).toBe(true);
+    await expect(notificationApi.list({ isRead: false })).rejects.toThrow(
+      /VITE_API_BASE_URL/,
+    );
+    await expect(notificationApi.markRead("77")).rejects.toThrow(
+      /VITE_API_BASE_URL/,
+    );
   });
 });
