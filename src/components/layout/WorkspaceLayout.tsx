@@ -9,6 +9,7 @@ import {
 import {
   BadgeCheck,
   Banknote,
+  Bell,
   CalendarDays,
   ClipboardCheck,
   Compass,
@@ -48,6 +49,7 @@ const icons: Record<NavIcon, typeof House> = {
   cash: Banknote,
   check: ClipboardCheck,
   calendar: CalendarDays,
+  bell: Bell,
   support: LifeBuoy,
 };
 

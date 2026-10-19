@@ -14,13 +14,20 @@ interface QuickAccountItem {
 }
 
 interface QuickAccountsProps {
-  onSelectAccount: (email: string, password: string) => void;
+  onSelectAccount: (
+    email: string,
+    password: string,
+    role: UserRole,
+    name: string,
+  ) => void;
   disabled?: boolean;
+  directLogin?: boolean;
 }
 
 export const QuickAccounts: React.FC<QuickAccountsProps> = ({
   onSelectAccount,
   disabled = false,
+  directLogin = false,
 }) => {
   if (!import.meta.env.DEV) return null;
 
@@ -70,7 +77,9 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
           Tài khoản kiểm thử theo vai trò
         </span>
         <span className="scms-quick-sub">
-          Tài khoản mẫu từ cơ sở dữ liệu BE
+          {directLogin
+            ? "Nhấn một vai trò để vào demo ngay, không cần backend"
+            : "Tài khoản mẫu từ cơ sở dữ liệu BE"}
         </span>
       </div>
 
@@ -80,9 +89,16 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
             key={acc.email}
             type="button"
             className="scms-quick-btn"
-            onClick={() => onSelectAccount(acc.email, acc.password ?? "")}
+            onClick={() =>
+              onSelectAccount(
+                acc.email,
+                acc.password ?? "",
+                acc.role,
+                acc.name,
+              )
+            }
             disabled={disabled}
-            title={`Điền thông tin ${acc.roleTitle}`}
+            title={`${directLogin ? "Vào demo" : "Điền thông tin"} ${acc.roleTitle}`}
           >
             <div className="scms-quick-btn-top">
               <span className={`scms-role-tag ${acc.badgeClass}`}>

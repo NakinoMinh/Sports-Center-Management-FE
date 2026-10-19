@@ -22,6 +22,7 @@ import type {
   CancelImpact,
   CancelScope,
   ClassInput,
+  ClassListFilter,
   ClassRegistration,
   ClassSession,
   ClassSessionFilter,
@@ -31,6 +32,7 @@ import type {
   Room,
   SessionMemberOption,
   Sport,
+  SportInput,
   SessionRosterMember,
   TrainingClass,
 } from "../types/classes";
@@ -40,7 +42,10 @@ import type {
 interface SportDto {
   id: number | string;
   name: string;
+  description?: string | null;
   isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string | null;
 }
 
 interface RoomDto {
@@ -164,7 +169,10 @@ const activeFlag = (dto: { isActive?: boolean; status?: string }): boolean =>
 export const mapSport = (dto: SportDto): Sport => ({
   id: id(dto.id),
   name: dto.name,
+  description: dto.description ?? "",
   isActive: activeFlag(dto),
+  createdAt: dto.createdAt ?? "",
+  updatedAt: dto.updatedAt ?? dto.createdAt ?? "",
 });
 
 export const mapRoom = (dto: RoomDto): Room => ({
@@ -302,6 +310,21 @@ export const mapCancelImpact = (
   nextSessionStartsAt: dto.nextSessionStartsAt ?? undefined,
 });
 
+/** Bo loc danh sach lop (UC19/UC23), de server loc thay vi tai het roi loc. */
+const classQuery = (filter: ClassListFilter): string => {
+  const query = new URLSearchParams();
+  if (filter.search?.trim()) query.set("search", filter.search.trim());
+  if (filter.sportId) query.set("sportId", filter.sportId);
+  if (filter.status) query.set("status", filter.status);
+  const text = query.toString();
+  return text ? `?${text}` : "";
+};
+
+const sportPayload = (input: SportInput) => ({
+  name: input.name.trim(),
+  description: input.description.trim(),
+});
+
 const classPayload = (input: ClassInput) => ({
   sportId: Number.isNaN(Number(input.sportId))
     ? input.sportId
@@ -366,6 +389,30 @@ export const classApi = {
     return items.map(mapSport);
   },
 
+  /**
+   * UC17. Hai hàm này đến từ nhánh `main` khi gộp; nhánh dữ liệu mẫu của bản
+   * gốc đã được bỏ cho khớp phần còn lại của service — bộ môn là dữ liệu dùng
+   * chung cho lớp và quyền lợi gói, nên không được sửa trên bộ nhớ tạm.
+   */
+  async saveSport(input: SportInput, sportId?: string): Promise<Sport> {
+    const result = await apiRequest<SportDto>(
+      sportId ? `/Sport/${sportId}` : "/Sport",
+      {
+        method: sportId ? "PUT" : "POST",
+        body: JSON.stringify(sportPayload(input)),
+      },
+    );
+    return mapSport(result);
+  },
+
+  async setSportActive(sportId: string, isActive: boolean): Promise<Sport> {
+    const result = await apiRequest<SportDto>(`/Sport/${sportId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    });
+    return mapSport(result);
+  },
+
   async listRooms(): Promise<Room[]> {
     const items = await listAllPages<RoomDto>("/Room");
     return items.map(mapRoom);
@@ -378,8 +425,8 @@ export const classApi = {
 
   // --- UC19: quản lý lớp --------------------------------------------------
 
-  async listClasses(): Promise<TrainingClass[]> {
-    const items = await listAllPages<ClassDto>("/Class");
+  async listClasses(filter: ClassListFilter = {}): Promise<TrainingClass[]> {
+    const items = await listAllPages<ClassDto>(`/Class${classQuery(filter)}`);
     return items.map(mapClass);
   },
 

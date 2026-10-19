@@ -82,10 +82,12 @@ const MESSAGES: Record<string, string> = {
   CLASS_ARCHIVED: "Lớp đã được lưu trữ nên không thể thêm hoặc sửa buổi học.",
   CLASS_HAS_REGISTRATIONS:
     "Lớp đã có lịch sử đăng ký nên không thể xóa. Hãy chuyển sang trạng thái lưu trữ.",
-  SPORT_NAME_DUPLICATE: "Tên bộ môn đã tồn tại. Hãy chọn tên khác.",
   ROOM_NAME_DUPLICATE: "Tên phòng đã tồn tại. Hãy chọn tên khác.",
   ROOM_CAPACITY_BELOW_SCHEDULE: "Sức chứa nhỏ hơn lịch học đang có. Hãy điều chỉnh lịch trước khi giảm sức chứa phòng.",
   SPORT_NOT_FOUND: "Không tìm thấy bộ môn đã chọn. Hãy tải lại danh sách.",
+  // Hai nhánh cùng khai báo mã này khi gộp; giữ bản nói rõ phải làm gì tiếp.
+  SPORT_NAME_DUPLICATE:
+    "Tên bộ môn đã tồn tại. Hãy chọn tên khác dễ phân biệt hơn.",
   SPORT_INACTIVE:
     "Bộ môn này đã ngừng hoạt động nên không dùng để tạo lớp mới.",
   ROOM_NOT_FOUND: "Không tìm thấy phòng đã chọn. Hãy tải lại danh sách.",

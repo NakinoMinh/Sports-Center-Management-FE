@@ -1,34 +1,185 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { sprint2Api } from "../services/sprint2Api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Bell, BellRing, Check, RefreshCw } from "lucide-react";
 import { describeError } from "../services/apiErrors";
-import { useToast } from "../hooks/useToast";
-import { formatDate } from "../utils/format";
-import { notificationTypeLabels, type ClassNotification } from "../types/sprint2";
+import { notificationApi } from "../services/notificationApi";
+import type { ClassNotification } from "../types/notification";
+
+type ReadFilter = "ALL" | "UNREAD" | "READ";
+
+const TYPE_LABELS: Record<string, string> = {
+  CLASS_REGISTERED: "Đăng ký lớp",
+  SESSION_RESCHEDULED: "Đổi lịch học",
+  SESSION_COACH_CHANGED: "Đổi huấn luyện viên",
+  SESSION_CANCELED: "Hủy buổi học",
+};
+
+const formatCreatedAt = (value: string): string => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Không rõ thời gian"
+    : new Intl.DateTimeFormat("vi-VN", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(date);
+};
 
 export function NotificationsPage() {
-  const toast = useToast();
-  const [items,setItems] = useState<ClassNotification[]>([]);
-  const [page,setPage] = useState(1);
-  const [totalPages,setTotalPages] = useState(0);
-  const [unread,setUnread] = useState(0);
-  const [filter,setFilter] = useState("");
-  const [isLoading,setIsLoading] = useState(false);
-  const [isSaving,setIsSaving] = useState(false);
-  const [error,setError] = useState("");
-  const requestId = useRef(0);
+  const [items, setItems] = useState<ClassNotification[]>([]);
+  const [filter, setFilter] = useState<ReadFilter>("ALL");
+  const [isLoading, setIsLoading] = useState(true);
+  const [markingId, setMarkingId] = useState("");
+  const [error, setError] = useState("");
+
   const refresh = useCallback(async () => {
-    const request = ++requestId.current;
     setIsLoading(true);
-    try { const [result,count] = await Promise.all([sprint2Api.notifications(page,filter === "" ? undefined : filter === "true"),sprint2Api.unreadCount()]);if (request !== requestId.current) return; setItems(result.items);setTotalPages(result.totalPages);setUnread(count);setError(""); }
-    catch(caught) {if (request === requestId.current) setError(describeError(caught));}
-    finally {if (request === requestId.current) setIsLoading(false);}
-  },[page,filter]);
-  useEffect(() => { const timer = window.setTimeout(() => void refresh(), 150); return () => { window.clearTimeout(timer); requestId.current++; }; }, [refresh]);
-  async function handleRead(item: ClassNotification) {
-    setIsSaving(true);
-    try {await sprint2Api.markRead(item.id,!item.isRead);await refresh();}
-    catch(caught) {toast.error(describeError(caught));}
-    finally {setIsSaving(false);}
-  }
-  return <><div className="page-heading"><div><h1>Thông báo lớp học</h1><p>{unread} thông báo chưa đọc</p></div><button className="button secondary" disabled={isLoading} onClick={() => void refresh()}>Làm mới</button></div><section className="panel"><label className="field">Trạng thái<select value={filter} onChange={e => {setFilter(e.target.value);setPage(1);}}><option value="">Tất cả</option><option value="false">Chưa đọc</option><option value="true">Đã đọc</option></select></label>{error && <p role="alert">{error}</p>}{isLoading && <p role="status">Đang tải thông báo…</p>}<div className="reception-class-grid">{items.map(item => <article className="reception-class-card" key={item.id}><span className="eyebrow">{notificationTypeLabels[item.type] ?? item.type}</span><h2>{item.title}</h2><p>{item.body}</p><p>{formatDate(item.createdAt)} · {item.isRead ? "Đã đọc" : "Chưa đọc"}</p><button className="button secondary" disabled={isSaving} onClick={() => void handleRead(item)}>{item.isRead ? "Đánh dấu chưa đọc" : "Đánh dấu đã đọc"}</button></article>)}</div>{!isLoading && !error && !items.length && <p className="empty-state">Không có thông báo phù hợp.</p>}<div className="table-footer"><button className="button secondary" disabled={isLoading || page<=1} onClick={() => setPage(page-1)}>Trước</button><span>Trang {page} / {Math.max(1,totalPages)}</span><button className="button secondary" disabled={isLoading || page>=totalPages} onClick={() => setPage(page+1)}>Sau</button></div></section></>;
+    try {
+      const result = await notificationApi.list({
+        pageSize: 100,
+        isRead:
+          filter === "ALL" ? undefined : filter === "READ",
+      });
+      setItems(result.items);
+      setError("");
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filter]);
+
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
+    void refresh();
+  }, [refresh]);
+
+  const unreadCount = useMemo(
+    () => items.filter((item) => !item.isRead).length,
+    [items],
+  );
+
+  const handleMarkRead = async (item: ClassNotification) => {
+    setMarkingId(item.id);
+    try {
+      const updated = await notificationApi.markRead(item.id);
+      setItems((current) =>
+        current.map((entry) => (entry.id === item.id ? updated : entry)),
+      );
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setMarkingId("");
+    }
+  };
+
+  return (
+    <div className="long-page-stack">
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">UC31 · THÔNG BÁO LỚP HỌC</span>
+          <h1>Thông báo của tôi</h1>
+          <p>
+            Theo dõi đăng ký, đổi lịch, đổi huấn luyện viên và các buổi bị hủy.
+          </p>
+        </div>
+        <span className="page-icon">
+          <BellRing size={26} aria-hidden="true" />
+        </span>
+      </div>
+
+      {error && (
+        <div className="feedback error" role="alert">
+          <span>{error}</span>
+          <button type="button" className="button secondary" onClick={refresh}>
+            Thử lại
+          </button>
+        </div>
+      )}
+
+      <section className="panel" aria-labelledby="notifications-title">
+        <div className="panel-heading">
+          <div>
+            <h2 id="notifications-title">Cập nhật gần đây</h2>
+            <p>{unreadCount} thông báo chưa đọc trong danh sách hiện tại.</p>
+          </div>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={isLoading}
+            onClick={refresh}
+          >
+            <RefreshCw size={16} aria-hidden="true" />
+            Làm mới
+          </button>
+        </div>
+
+        <div className="toolbar">
+          <div className="segmented-control" aria-label="Lọc trạng thái thông báo">
+            {(["ALL", "UNREAD", "READ"] as const).map((value) => (
+              <button
+                type="button"
+                key={value}
+                className={filter === value ? "is-active" : ""}
+                onClick={() => setFilter(value)}
+              >
+                {value === "ALL"
+                  ? "Tất cả"
+                  : value === "UNREAD"
+                    ? "Chưa đọc"
+                    : "Đã đọc"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="empty-state" role="status">
+            <p>Đang tải thông báo...</p>
+          </div>
+        ) : items.length ? (
+          <div className="notification-list">
+            {items.map((item) => (
+              <article
+                className={`notification-item ${item.isRead ? "is-read" : "is-unread"}`}
+                key={item.id}
+              >
+                <span className="notification-icon">
+                  <Bell size={19} aria-hidden="true" />
+                </span>
+                <div className="notification-content">
+                  <div className="notification-heading">
+                    <div>
+                      <span className="eyebrow">
+                        {TYPE_LABELS[item.type] ?? "Cập nhật lớp học"}
+                      </span>
+                      <h3>{item.title}</h3>
+                    </div>
+                    {!item.isRead && <span className="notification-dot">Mới</span>}
+                  </div>
+                  <p>{item.body}</p>
+                  <time dateTime={item.createdAt}>{formatCreatedAt(item.createdAt)}</time>
+                </div>
+                {!item.isRead && (
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={markingId === item.id}
+                    onClick={() => handleMarkRead(item)}
+                  >
+                    <Check size={15} aria-hidden="true" />
+                    {markingId === item.id ? "Đang lưu..." : "Đã đọc"}
+                  </button>
+                )}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state" role="status">
+            <Bell size={34} aria-hidden="true" />
+            <h3>Không có thông báo phù hợp</h3>
+            <p>Các thay đổi lớp học liên quan đến bạn sẽ xuất hiện tại đây.</p>
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }
