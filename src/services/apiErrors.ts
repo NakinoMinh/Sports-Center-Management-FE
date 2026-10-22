@@ -101,6 +101,8 @@ const MESSAGES: Record<string, string> = {
     "Không tìm thấy huấn luyện viên đã chọn. Hãy tải lại danh sách.",
   COACH_INACTIVE:
     "Huấn luyện viên này đang ngừng hoạt động nên không thể phân công.",
+  COACH_DISCIPLINE_MISMATCH:
+    "Huấn luyện viên không phụ trách bộ môn của lớp học này. Hãy chọn huấn luyện viên phù hợp.",
   COACH_SCHEDULE_CONFLICT:
     "Huấn luyện viên đã có buổi khác trùng giờ. Hãy chọn giờ khác hoặc người khác.",
   ROOM_SCHEDULE_CONFLICT:

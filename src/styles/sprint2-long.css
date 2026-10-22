@@ -60,6 +60,10 @@
 }
 
 .segmented-control button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   min-height: var(--control-height-sm);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
@@ -75,11 +79,202 @@
   box-shadow: var(--shadow-xs);
 }
 
+/* --- Bảng chọn Khung giờ (Slot) cố định theo lưới 4 cột chuẩn hàng lối --- */
+.slot-overview-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 28px;
+  border-top: 1px solid #ecf1ec;
+  background: #f8fbf9;
+}
+
+.slot-overview-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.slot-overview-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.slot-overview-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--titan-ink, #203a32);
+  font-size: 14px;
+}
+
+.slot-overview-title svg {
+  flex-shrink: 0;
+  color: var(--titan-primary, #176b51);
+}
+
+.slot-overview-heading p {
+  margin: 0;
+  color: var(--titan-muted, #57685e);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.slot-overview-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #cce3d6;
+  border-radius: 999px;
+  background: #eaf5ef;
+  color: #155e46;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.slot-overview-badge svg {
+  flex-shrink: 0;
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.slot-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 68px;
+  padding: 11px 14px;
+  border: 1px solid #d7e2d9;
+  border-radius: 10px;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
+}
+
+.slot-card:hover {
+  border-color: #82b89f;
+  background: #f4faf6;
+  transform: translateY(-1px);
+}
+
+.slot-card.is-active {
+  border-color: var(--titan-primary, #176b51);
+  background: #eaf5ef;
+  box-shadow: 0 0 0 2px rgba(23, 107, 81, 0.14);
+}
+
+.slot-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.slot-card-name {
+  color: var(--titan-ink, #203a32);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.slot-card.is-active .slot-card-name {
+  color: var(--titan-primary-hover, #11523e);
+}
+
+.slot-card-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eff3ef;
+  color: #63756b;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.slot-card-count.has-sessions {
+  background: #e1f2e8;
+  color: #166a4e;
+}
+
+.slot-card.is-active .slot-card-count {
+  background: var(--titan-primary, #176b51);
+  color: #ffffff;
+}
+
+.slot-card-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #5e7267;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.slot-card-time svg {
+  flex-shrink: 0;
+  color: var(--titan-primary, #176b51);
+}
+
+/* --- Căn chỉnh hàng bộ lọc (.toolbar) và ghi chú trong .panel --- */
+.panel > .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 28px;
+  border-top: 1px solid #ecf1ec;
+  border-bottom: 1px solid #ecf1ec;
+  background: #fcfdfb;
+}
+
+.panel > .toolbar > select {
+  margin-left: 0;
+  flex: 1 1 180px;
+  min-width: 165px;
+}
+
+.panel > .toolbar > .long-search-field,
+.panel > .toolbar > .search-field {
+  flex: 2 1 240px;
+  max-width: none;
+}
+
+.panel > .info-note {
+  margin: 16px 28px 0;
+}
+
+.panel > .week-grid {
+  padding-top: var(--space-5);
+}
+
 .member-class-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(21rem, 1fr));
   gap: var(--space-5);
-  padding: 0 var(--space-6) var(--space-6);
+  padding: var(--space-5) var(--space-6) var(--space-6);
 }
 
 .member-class-card {
@@ -235,7 +430,33 @@
   font-weight: var(--weight-bold);
 }
 
+@media (max-width: 72rem) {
+  .slot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 48rem) {
+  .slot-overview-bar {
+    padding: var(--space-4);
+  }
+
+  .slot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .slot-overview-badge {
+    white-space: normal;
+  }
+
+  .panel > .toolbar {
+    padding: var(--space-4);
+  }
+
+  .panel > .info-note {
+    margin: var(--space-3) var(--space-4) 0;
+  }
+
   .sports-table-wrap {
     overflow: visible;
     padding: var(--space-4);

@@ -50,6 +50,13 @@ describe("describeError", () => {
     expect(describeError(new Error("boom"))).toBe("boom");
     expect(describeError("not an error")).toMatch(/không xác định/);
   });
+
+  it("translates COACH_DISCIPLINE_MISMATCH to Vietnamese guidance", () => {
+    const message = describeError(
+      new ApiError("Coach does not teach this discipline.", 409, "COACH_DISCIPLINE_MISMATCH"),
+    );
+    expect(message).toMatch(/bộ môn/);
+  });
 });
 
 describe("fieldErrorsOf", () => {

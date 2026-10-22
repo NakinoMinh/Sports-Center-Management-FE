@@ -276,6 +276,23 @@ describe("mock server business rules", () => {
     expect(created.status).toBe("SCHEDULED");
   });
 
+  it("rejects assigning a coach whose specialization does not match the class sport", async () => {
+    expect(
+      await codeOf(
+        classMockServer.saveSession({
+          classId: "class-yoga-basic",
+          coachId: "coach-nam",
+          roomId: "room-b",
+          date: addCalendarDays(today, 2),
+          startTime: "09:00",
+          endTime: "10:00",
+          capacity: 10,
+          notes: "",
+        }),
+      ),
+    ).toBe("COACH_DISCIPLINE_MISMATCH");
+  });
+
   it("rejects a session capacity above the room limit", async () => {
     expect(
       await codeOf(

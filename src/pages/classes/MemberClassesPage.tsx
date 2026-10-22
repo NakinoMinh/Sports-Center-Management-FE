@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { SessionRegistrationPanel } from "../../components/classes/SessionRegistrationPanel";
+import { SlotFilterBar } from "../../components/classes/SlotFilterBar";
 import { useAuth } from "../../hooks/useAuth";
 import { describeError } from "../../services/apiErrors";
 import { classApi } from "../../services/classApi";
@@ -24,11 +25,14 @@ import type {
   TrainingClass,
 } from "../../types/classes";
 import {
+  CENTER_TIME_SLOTS,
   addCalendarDays,
   byStartTime,
   centerToday,
   classStatusLabels,
-  formatTimeRange,
+  deriveCoachOptionsFromSessions,
+  formatSlotLabel,
+  matchesTimeSlot,
   remainingSeats,
   sessionStatusLabels,
   weekRangeOf,
@@ -66,6 +70,7 @@ export function MemberClassesPage({ view }: Props) {
   const [search, setSearch] = useState("");
   const [sportId, setSportId] = useState("ALL");
   const [coachId, setCoachId] = useState("ALL");
+  const [slotFilter, setSlotFilter] = useState("ALL");
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("LIST");
   const [anchorDate, setAnchorDate] = useState(centerToday());
   const [isLoading, setIsLoading] = useState(true);
@@ -76,7 +81,7 @@ export function MemberClassesPage({ view }: Props) {
     setIsLoading(true);
     try {
       if (view === "DISCOVER") {
-        const [classList, sessionList, registrationList, sportList, coachList] =
+        const [classList, sessionList, registrationList, sportList] =
           await Promise.all([
             classApi.listClasses({ status: "OPEN" }),
             classApi.listSessions({
@@ -85,19 +90,17 @@ export function MemberClassesPage({ view }: Props) {
             }),
             classApi.listMyRegistrations(true),
             classApi.listSports(),
-            classApi.listCoaches(),
           ]);
+        const upcomingSessions = sessionList
+          .filter(
+            (item) => item.status === "SCHEDULED" && item.date >= centerToday(),
+          )
+          .sort(byStartTime);
         setClasses(classList.filter((item) => item.status === "OPEN"));
-        setSessions(
-          sessionList
-            .filter(
-              (item) => item.status === "SCHEDULED" && item.date >= centerToday(),
-            )
-            .sort(byStartTime),
-        );
+        setSessions(upcomingSessions);
         setRegistrations(registrationList);
         setSports(sportList.filter((item) => item.isActive));
-        setCoaches(coachList.filter((item) => item.isActive));
+        setCoaches(deriveCoachOptionsFromSessions(upcomingSessions));
       } else {
         setRegistrations(
           (await classApi.listMyRegistrations(true)).sort(
@@ -121,7 +124,10 @@ export function MemberClassesPage({ view }: Props) {
   const visibleClasses = useMemo(() => {
     const keyword = search.trim().toLocaleLowerCase("vi");
     return classes.filter((item) => {
-      const classSessions = sessions.filter((session) => session.classId === item.id);
+      const classSessions = sessions.filter(
+        (session) =>
+          session.classId === item.id && matchesTimeSlot(session, slotFilter),
+      );
       const matchesSearch =
         !keyword ||
         `${item.name} ${item.sportName} ${item.description}`
@@ -131,9 +137,14 @@ export function MemberClassesPage({ view }: Props) {
       const matchesCoach =
         coachId === "ALL" ||
         classSessions.some((session) => session.coachId === coachId);
-      return matchesSearch && matchesSport && matchesCoach && classSessions.length > 0;
+      return (
+        matchesSearch &&
+        matchesSport &&
+        matchesCoach &&
+        classSessions.length > 0
+      );
     });
-  }, [classes, coachId, search, sessions, sportId]);
+  }, [classes, coachId, search, sessions, slotFilter, sportId]);
 
   const week = useMemo(() => weekRangeOf(anchorDate), [anchorDate]);
   const weekDays = useMemo(
@@ -157,11 +168,15 @@ export function MemberClassesPage({ view }: Props) {
           <span className="eyebrow">
             {isDiscover ? "UC23 · THÀNH VIÊN" : "UC26 · THÀNH VIÊN"}
           </span>
-          <h1>{isDiscover ? "Khám phá lớp học" : "Lịch học của tôi"}</h1>
+          <h1>
+            {isDiscover
+              ? "Khám phá lớp học theo Khung giờ (Slot)"
+              : "Lịch học của tôi"}
+          </h1>
           <p>
             {isDiscover
-              ? "Xem các lớp đang mở, buổi sắp tới, huấn luyện viên, phòng và số chỗ còn lại."
-              : "Theo dõi toàn bộ đăng ký của bạn, kể cả buổi hoặc đăng ký đã hủy."}
+              ? "Xem danh sách khung giờ (Slot) có sẵn, các lớp đang mở theo từng slot, huấn luyện viên phụ trách, phòng tập và số chỗ còn lại."
+              : "Theo dõi toàn bộ đăng ký theo khung giờ (Slot) của bạn, kể cả buổi hoặc đăng ký đã hủy."}
           </p>
         </div>
         <span className="page-icon">
@@ -201,10 +216,19 @@ export function MemberClassesPage({ view }: Props) {
         <section className="panel" aria-labelledby="member-classes-title">
           <div className="panel-heading">
             <div>
-              <h2 id="member-classes-title">Lớp đang nhận đăng ký</h2>
+              <h2 id="member-classes-title">
+                Lớp đang nhận đăng ký theo Khung giờ (Slot)
+              </h2>
               <p>{visibleClasses.length} lớp có buổi học sắp tới.</p>
             </div>
           </div>
+
+          <SlotFilterBar
+            sessions={sessions}
+            selectedSlotId={slotFilter}
+            onSelectSlot={setSlotFilter}
+          />
+
           <div className="toolbar">
             <label className="long-search-field">
               <Search size={17} aria-hidden="true" />
@@ -215,6 +239,18 @@ export function MemberClassesPage({ view }: Props) {
                 placeholder="Tìm tên lớp hoặc bộ môn..."
               />
             </label>
+            <select
+              aria-label="Lọc lớp theo khung giờ"
+              value={slotFilter}
+              onChange={(event) => setSlotFilter(event.target.value)}
+            >
+              <option value="ALL">Tất cả khung giờ (Slot)</option>
+              {CENTER_TIME_SLOTS.map((slot) => (
+                <option key={slot.id} value={slot.id}>
+                  {slot.name} · {slot.startTime} – {slot.endTime}
+                </option>
+              ))}
+            </select>
             <select
               aria-label="Lọc lớp theo bộ môn"
               value={sportId}
@@ -249,7 +285,9 @@ export function MemberClassesPage({ view }: Props) {
             <div className="member-class-grid">
               {visibleClasses.map((item) => {
                 const classSessions = sessions.filter(
-                  (session) => session.classId === item.id,
+                  (session) =>
+                    session.classId === item.id &&
+                    matchesTimeSlot(session, slotFilter),
                 );
                 return (
                   <article className="member-class-card" key={item.id}>
@@ -265,36 +303,50 @@ export function MemberClassesPage({ view }: Props) {
                     <p>{item.description || "Chưa có mô tả cho lớp học này."}</p>
                     <div className="member-class-meta">
                       <span>
-                        <Users size={15} aria-hidden="true" /> Tối đa {item.capacity}
-                        người
+                        <Users size={15} aria-hidden="true" /> Tối đa{" "}
+                        {item.capacity} người
                       </span>
                       <span>
-                        <CalendarDays size={15} aria-hidden="true" /> {classSessions.length}
-                        buổi sắp tới
+                        <CalendarDays size={15} aria-hidden="true" />{" "}
+                        {classSessions.length} buổi sắp tới
                       </span>
                     </div>
                     <div className="member-session-stack">
                       {classSessions.map((session) => (
-                        <section className="member-session-card" key={session.id}>
+                        <section
+                          className="member-session-card"
+                          key={session.id}
+                        >
                           <div className="member-session-heading">
                             <strong>{formatDate(session.date)}</strong>
-                            <span>{formatTimeRange(session.startTime, session.endTime)}</span>
+                            <span>
+                              {formatSlotLabel(
+                                session.startTime,
+                                session.endTime,
+                              )}
+                            </span>
                           </div>
                           <div className="member-session-details">
                             <span>
-                              <UserRound size={14} aria-hidden="true" /> {session.coachName}
+                              <UserRound size={14} aria-hidden="true" /> HLV quản
+                              lý: {session.coachName}
                             </span>
                             <span>
-                              <MapPin size={14} aria-hidden="true" /> {session.roomName}
+                              <MapPin size={14} aria-hidden="true" /> Phòng:{" "}
+                              {session.roomName}
                             </span>
                             <span>
-                              <Users size={14} aria-hidden="true" /> {remainingSeats(session)}
-                              /{session.capacity} chỗ trống
+                              <Users size={14} aria-hidden="true" />{" "}
+                              {remainingSeats(session)}/{session.capacity} chỗ
+                              trống
                             </span>
                           </div>
                           <SessionRegistrationPanel
                             session={session}
-                            registration={registrationFor(registrations, session.id)}
+                            registration={registrationFor(
+                              registrations,
+                              session.id,
+                            )}
                             onChanged={refresh}
                           />
                         </section>
@@ -320,7 +372,10 @@ export function MemberClassesPage({ view }: Props) {
               <p>{registrations.length} đăng ký, bao gồm lịch sử đã hủy.</p>
             </div>
             <div className="long-view-actions">
-              <div className="segmented-control" aria-label="Chế độ xem lịch cá nhân">
+              <div
+                className="segmented-control"
+                aria-label="Chế độ xem lịch cá nhân"
+              >
                 <button
                   type="button"
                   className={scheduleMode === "LIST" ? "is-active" : ""}
@@ -388,21 +443,25 @@ export function MemberClassesPage({ view }: Props) {
                           <li className="week-session" key={registration.id}>
                             <div className="week-session-time">
                               <Clock3 size={14} aria-hidden="true" />
-                              {formatTimeRange(
+                              {formatSlotLabel(
                                 registration.session.startTime,
                                 registration.session.endTime,
                               )}
                             </div>
                             <div className="week-session-title">
                               <strong>{registration.session.className}</strong>
-                              <span>{registration.session.coachName}</span>
-                              <span>{registration.session.roomName}</span>
+                              <span>HLV: {registration.session.coachName}</span>
+                              <span>
+                                Phòng: {registration.session.roomName}
+                              </span>
                             </div>
                             <span
                               className={`status-chip ${registration.status === "BOOKED" ? "active" : "canceled"}`}
                             >
                               {registration.status === "BOOKED"
-                                ? sessionStatusLabels[registration.session.status]
+                                ? sessionStatusLabels[
+                                    registration.session.status
+                                  ]
                                 : "Đã hủy đăng ký"}
                             </span>
                           </li>
@@ -417,10 +476,15 @@ export function MemberClassesPage({ view }: Props) {
             ) : (
               <div className="member-registration-list">
                 {registrations.map((registration) => (
-                  <article className="member-registration-card" key={registration.id}>
+                  <article
+                    className="member-registration-card"
+                    key={registration.id}
+                  >
                     <div className="member-registration-main">
                       <div>
-                        <span className="eyebrow">{registration.session.sportName}</span>
+                        <span className="eyebrow">
+                          {registration.session.sportName}
+                        </span>
                         <h2>{registration.session.className}</h2>
                       </div>
                       <span
@@ -433,16 +497,23 @@ export function MemberClassesPage({ view }: Props) {
                     </div>
                     <div className="member-session-details">
                       <span>
-                        <CalendarDays size={15} aria-hidden="true" /> {formatDate(registration.session.date)}
+                        <CalendarDays size={15} aria-hidden="true" />{" "}
+                        {formatDate(registration.session.date)}
                       </span>
                       <span>
-                        <Clock3 size={15} aria-hidden="true" /> {formatTimeRange(registration.session.startTime, registration.session.endTime)}
+                        <Clock3 size={15} aria-hidden="true" />{" "}
+                        {formatSlotLabel(
+                          registration.session.startTime,
+                          registration.session.endTime,
+                        )}
                       </span>
                       <span>
-                        <UserRound size={15} aria-hidden="true" /> {registration.session.coachName}
+                        <UserRound size={15} aria-hidden="true" /> HLV quản lý:{" "}
+                        {registration.session.coachName}
                       </span>
                       <span>
-                        <MapPin size={15} aria-hidden="true" /> {registration.session.roomName}
+                        <MapPin size={15} aria-hidden="true" /> Phòng:{" "}
+                        {registration.session.roomName}
                       </span>
                     </div>
                     {registration.cancelReason && (

@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { myTeachingScheduleApi } from "../../services/myTeachingScheduleApi";
 import { describeError } from "../../services/apiErrors";
+import {
+  CENTER_TIME_SLOTS,
+  formatSlotLabel,
+  matchesTimeSlot,
+} from "../../utils/classSchedule";
 import type {
   TeachingSession,
   TeachingSchedulePage,
@@ -62,6 +67,7 @@ export function MyTeachingSchedulePage() {
   const [fromDate, setFromDate] = useState(() => getVietnamDate(0));
   const [toDate, setToDate] = useState(() => getVietnamDate(7));
   const [statusFilter, setStatusFilter] = useState("");
+  const [slotFilter, setSlotFilter] = useState("ALL");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -113,16 +119,34 @@ export function MyTeachingSchedulePage() {
   useEffect(() => {
     // Debounce filter edits and ignore responses from the previous filter.
     const timer = setTimeout(() => void loadSchedule(), 150);
-    return () => { clearTimeout(timer); requestId.current += 1; };
+    return () => {
+      clearTimeout(timer);
+      requestId.current += 1;
+    };
   }, [loadSchedule]);
+
+  const visibleSessions = useMemo(
+    () =>
+      sessions.filter((session) =>
+        matchesTimeSlot(
+          {
+            startTime: formatTime(session.startTime),
+            endTime: formatTime(session.endTime),
+          },
+          slotFilter,
+        ),
+      ),
+    [sessions, slotFilter],
+  );
 
   return (
     <section className="panel my-teaching-schedule-page">
       <div className="page-header">
         <div>
-          <h1>Lịch dạy của tôi</h1>
+          <h1>Lịch dạy của tôi (Quản lý lớp theo Slot)</h1>
           <p>
-            Xem lịch các buổi học được phân công, bao gồm cả buổi học đã hủy.
+            Xem và quản lý các buổi học theo khung giờ (Slot) cố định được phân
+            công tại phòng tập, bao gồm cả buổi học đã hủy.
           </p>
         </div>
 
@@ -165,6 +189,19 @@ export function MyTeachingSchedulePage() {
         </label>
 
         <select
+          aria-label="Lọc theo khung giờ"
+          value={slotFilter}
+          onChange={(event) => setSlotFilter(event.target.value)}
+        >
+          <option value="ALL">Tất cả khung giờ (Slot)</option>
+          {CENTER_TIME_SLOTS.map((slot) => (
+            <option key={slot.id} value={slot.id}>
+              {slot.name} · {slot.startTime} – {slot.endTime}
+            </option>
+          ))}
+        </select>
+
+        <select
           aria-label="Lọc trạng thái buổi học"
           value={statusFilter}
           onChange={(event) => {
@@ -184,6 +221,7 @@ export function MyTeachingSchedulePage() {
             setFromDate(getVietnamDate(0));
             setToDate(getVietnamDate(7));
             setStatusFilter("");
+            setSlotFilter("ALL");
             setPage(1);
           }}
         >
@@ -195,7 +233,8 @@ export function MyTeachingSchedulePage() {
 
       {!error && (
         <p>
-          Tổng số: <strong>{totalItems}</strong> buổi học
+          Tổng số: <strong>{visibleSessions.length}</strong>/{totalItems} buổi
+          học theo Slot
         </p>
       )}
 
@@ -209,10 +248,10 @@ export function MyTeachingSchedulePage() {
             <thead>
               <tr>
                 <th>Ngày</th>
-                <th>Thời gian</th>
+                <th>Khung giờ (Slot)</th>
                 <th>Lớp học</th>
                 <th>Bộ môn</th>
-                <th>Phòng</th>
+                <th>Phòng tập</th>
                 <th>Học viên</th>
                 <th>Trạng thái</th>
                 <th>Thao tác</th>
@@ -220,14 +259,15 @@ export function MyTeachingSchedulePage() {
             </thead>
 
             <tbody>
-              {sessions.map((session) => (
+              {visibleSessions.map((session) => (
                 <tr key={session.id}>
                   <td>{formatDate(session.date)}</td>
 
                   <td>
-                    {formatTime(session.startTime)}
-                    {" - "}
-                    {formatTime(session.endTime)}
+                    {formatSlotLabel(
+                      formatTime(session.startTime),
+                      formatTime(session.endTime),
+                    )}
                   </td>
 
                   <td>{session.className}</td>
@@ -258,13 +298,13 @@ export function MyTeachingSchedulePage() {
                         )
                       }
                     >
-                      Xem học viên
+                      Quản lý học viên
                     </button>
                   </td>
                 </tr>
               ))}
 
-              {sessions.length === 0 && (
+              {visibleSessions.length === 0 && (
                 <tr>
                   <td colSpan={8}>Không có buổi dạy nào phù hợp.</td>
                 </tr>

@@ -43,6 +43,7 @@ import {
   centerTimestamp,
   centerToday,
   describeCapacityConflict,
+  isCoachSuitableForSport,
   minutesOfDay,
   timeRangesOverlap,
 } from "../utils/classSchedule";
@@ -991,6 +992,23 @@ export const classMockServer = {
       );
 
     assertNoResourceConflict(input, sessionId);
+
+    const ownerSport = data.sports.find((item) => item.id === owner.sportId);
+    if (
+      existing?.coachId !== input.coachId &&
+      !isCoachSuitableForSport(coach, ownerSport?.name)
+    ) {
+      fail(
+        "COACH_DISCIPLINE_MISMATCH",
+        `${coach.fullName} không phụ trách bộ môn ${ownerSport?.name ?? "của lớp này"}.`,
+        409,
+        {
+          coachId: [
+            `Huấn luyện viên không phụ trách bộ môn ${ownerSport?.name ?? "của lớp này"}.`,
+          ],
+        },
+      );
+    }
 
     if (existing) {
       const timeChanged =
