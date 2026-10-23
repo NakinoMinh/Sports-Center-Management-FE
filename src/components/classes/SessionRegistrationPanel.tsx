@@ -69,7 +69,7 @@ export function SessionRegistrationPanel({
   const activeRegistration =
     registration && registration.status === "BOOKED" ? registration : null;
   const availability = activeRegistration
-    ? canCancelRegistration(activeRegistration)
+    ? canCancelRegistration(activeRegistration, new Date(), channel)
     : canRegisterSession(session);
   const seatsLeft = remainingSeats(session);
 
@@ -102,6 +102,11 @@ export function SessionRegistrationPanel({
 
   async function handleCancel() {
     if (!currentUser || !activeRegistration) return;
+    const currentAvailability = canCancelRegistration(activeRegistration, new Date(), channel);
+    if (!currentAvailability.isAllowed) {
+      setDialogError(currentAvailability.reason);
+      return;
+    }
     const trimmed = reason.trim();
     // Lễ tân hủy thay thì lý do là bắt buộc để audit nói được vì sao; thành
     // viên tự hủy thì lý do là tùy chọn.
@@ -224,6 +229,7 @@ export function SessionRegistrationPanel({
           }
         >
           <p>
+            {!isCounter && "Chỉ được hủy trước giờ học ít nhất 7 tiếng. "}
             Chỗ sẽ được trả lại cho buổi học và lịch sử đăng ký của{" "}
             {subjectName} vẫn được giữ.
           </p>

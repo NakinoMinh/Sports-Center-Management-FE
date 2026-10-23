@@ -13,16 +13,20 @@ import {
 import { Dialog } from "../../components/common/Dialog";
 import { SessionForm } from "../../components/classes/SessionForm";
 import { CancelScopeDialog } from "../../components/classes/CancelScopeDialog";
+import { SlotFilterBar } from "../../components/classes/SlotFilterBar";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { classApi } from "../../services/classApi";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import {
+  CENTER_TIME_SLOTS,
   addCalendarDays,
   centerToday,
   classStatusLabels,
+  formatSlotLabel,
   formatTimeRange,
   hasSessionStarted,
+  matchesTimeSlot,
   remainingSeats,
   sessionStatusLabels,
   weekRangeOf,
@@ -49,11 +53,10 @@ const SESSION_CHIP: Record<ClassSessionStatus, string> = {
 };
 
 /**
- * Lập và sửa lịch học, hủy buổi hoặc cả lớp — UC21 và UC30.
+ * Lập và sửa lịch học theo Khung giờ (Slot) cố định, hủy buổi hoặc cả lớp — UC21 và UC30.
  *
- * Trang xem lịch theo tuần. Mọi quy tắc chống trùng Coach/phòng và kiểm tra
- * học viên đang đăng ký do server quyết định; ở đây lỗi được gắn vào đúng ô
- * của form để quản lý biết phải sửa gì.
+ * Trang xem lịch theo tuần và theo Khung giờ (Slot) có sẵn. Mọi buổi tập đều có
+ * Huấn luyện viên đúng chuyên môn phụ trách tại phòng tập chỉ định, không có giờ tự do.
  */
 export function ClassSchedulePage() {
   const { currentUser } = useAuth();
@@ -70,6 +73,7 @@ export function ClassSchedulePage() {
   );
   const [coachFilter, setCoachFilter] = useState("ALL");
   const [roomFilter, setRoomFilter] = useState("ALL");
+  const [slotFilter, setSlotFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
 
   const [editing, setEditing] = useState<ClassSession | "new" | null>(null);
@@ -136,27 +140,35 @@ export function ClassSchedulePage() {
     return () => window.clearTimeout(timer);
   }, [refresh]);
 
-  /** Bảy ngày của tuần, mỗi ngày kèm buổi học đã sắp theo giờ. */
+  const filteredSessions = useMemo(
+    () => sessions.filter((item) => matchesTimeSlot(item, slotFilter)),
+    [sessions, slotFilter],
+  );
+
+  /** Bảy ngày của tuần, mỗi ngày kèm buổi học đã lọc theo slot và sắp theo giờ. */
   const days = useMemo(
     () =>
       Array.from({ length: 7 }, (_, offset) => {
         const date = addCalendarDays(week.from, offset);
         return {
           date,
-          items: sessions.filter((item) => item.date === date),
+          items: filteredSessions.filter((item) => item.date === date),
         };
       }),
-    [sessions, week.from],
+    [filteredSessions, week.from],
   );
 
   const selectedClass =
     classFilter === "ALL"
       ? undefined
       : classes.find((item) => item.id === classFilter);
-  const scheduledCount = sessions.filter(
+  const scheduledCount = filteredSessions.filter(
     (item) => item.status === "SCHEDULED",
   ).length;
-  const bookedCount = sessions.reduce((total, item) => total + item.bookedCount, 0);
+  const bookedCount = filteredSessions.reduce(
+    (total, item) => total + item.bookedCount,
+    0,
+  );
 
   function updateClassFilter(value: string) {
     setClassFilter(value);
@@ -234,10 +246,10 @@ export function ClassSchedulePage() {
       <div className="page-heading">
         <div>
           <p className="eyebrow">QUẢN LÝ TRUNG TÂM</p>
-          <h1>Lịch học</h1>
+          <h1>Lịch học theo Khung giờ (Slot)</h1>
           <p>
-            Lập buổi học cho từng lớp, phân công huấn luyện viên và phòng, hủy
-            khi có thay đổi.
+            Lập buổi học theo các khung giờ (Slot) có sẵn, chọn phòng tập và
+            huấn luyện viên đúng chuyên môn phụ trách — không có giờ tập tự do.
           </p>
         </div>
         <div className="page-actions">
@@ -254,7 +266,7 @@ export function ClassSchedulePage() {
             }}
           >
             <Plus size={18} aria-hidden="true" />
-            Thêm buổi học
+            Thêm buổi học theo Slot
           </button>
         </div>
       </div>
@@ -266,7 +278,7 @@ export function ClassSchedulePage() {
           </div>
           <div>
             <p>Buổi học trong tuần</p>
-            <strong>{String(sessions.length).padStart(2, "0")}</strong>
+            <strong>{String(filteredSessions.length).padStart(2, "0")}</strong>
             <small>
               {formatDate(week.from)} – {formatDate(week.to)}
             </small>
@@ -310,10 +322,10 @@ export function ClassSchedulePage() {
       <section className="panel" aria-labelledby="schedule-title">
         <div className="panel-heading">
           <div>
-            <h2 id="schedule-title">Lịch theo tuần</h2>
+            <h2 id="schedule-title">Lịch theo tuần & Khung giờ (Slot)</h2>
             <p>
-              Khoảng giờ tính theo [bắt đầu, kết thúc): hai buổi liền kề không
-              bị coi là trùng.
+              Khoảng giờ tính theo [bắt đầu, kết thúc): mọi buổi học đều mở theo
+              Slot cố định có HLV quản lý tại phòng tập.
             </p>
           </div>
           <div className="week-switcher">
@@ -343,7 +355,25 @@ export function ClassSchedulePage() {
           </div>
         </div>
 
+        <SlotFilterBar
+          sessions={sessions}
+          selectedSlotId={slotFilter}
+          onSelectSlot={setSlotFilter}
+        />
+
         <div className="toolbar">
+          <select
+            aria-label="Lọc theo khung giờ"
+            value={slotFilter}
+            onChange={(event) => setSlotFilter(event.target.value)}
+          >
+            <option value="ALL">Tất cả khung giờ (Slot)</option>
+            {CENTER_TIME_SLOTS.map((slot) => (
+              <option key={slot.id} value={slot.id}>
+                {slot.name} · {slot.startTime} – {slot.endTime}
+              </option>
+            ))}
+          </select>
           <select
             aria-label="Lọc theo lớp"
             value={classFilter}
@@ -396,7 +426,8 @@ export function ClassSchedulePage() {
 
         {selectedClass && (
           <p className="info-note">
-            Lớp “{selectedClass.name}” · sức chứa {selectedClass.capacity} ·{" "}
+            Lớp “{selectedClass.name}” · Bộ môn {selectedClass.sportName} · sức
+            chứa {selectedClass.capacity} ·{" "}
             {classStatusLabels[selectedClass.status]} ·{" "}
             {selectedClass.upcomingSessionCount} buổi sắp tới
           </p>
@@ -423,7 +454,7 @@ export function ClassSchedulePage() {
                     return (
                       <li key={session.id} className="week-session">
                         <p className="week-session-time">
-                          {formatTimeRange(session.startTime, session.endTime)}
+                          {formatSlotLabel(session.startTime, session.endTime)}
                           <span
                             className={`status-chip ${SESSION_CHIP[session.status]}`}
                           >
@@ -433,7 +464,8 @@ export function ClassSchedulePage() {
                         <p className="week-session-title">
                           <strong>{session.className}</strong>
                           <small>
-                            {session.coachName} · {session.roomName}
+                            Bộ môn: {session.sportName} · HLV quản lý:{" "}
+                            {session.coachName} · Phòng: {session.roomName}
                           </small>
                         </p>
                         <p className="week-session-seats">
@@ -503,7 +535,7 @@ export function ClassSchedulePage() {
 
         <div className="table-footer">
           <span>
-            {sessions.length} buổi trong tuần {formatDate(week.from)} –{" "}
+            {filteredSessions.length} buổi trong tuần {formatDate(week.from)} –{" "}
             {formatDate(week.to)}
           </span>
           <span>Buổi đã bắt đầu hoặc đã hủy không nhận thao tác nữa.</span>
@@ -512,8 +544,12 @@ export function ClassSchedulePage() {
 
       {editing && (
         <Dialog
-          title={editing === "new" ? "Thêm buổi học" : "Sửa buổi học"}
-          description="Server sẽ kiểm tra lại trùng huấn luyện viên, trùng phòng và quyền tham gia của học viên đang đăng ký."
+          title={
+            editing === "new"
+              ? "Thêm buổi học theo Slot"
+              : "Sửa buổi học theo Slot"
+          }
+          description="Chọn khung giờ (Slot) có sẵn, phòng tập còn trống và huấn luyện viên đúng chuyên môn bộ môn của lớp."
           onClose={() => setEditing(null)}
         >
           <SessionForm
@@ -534,6 +570,8 @@ export function ClassSchedulePage() {
             classes={classes}
             coaches={coaches}
             rooms={rooms}
+            existingSessions={sessions}
+            editingSessionId={editing === "new" ? undefined : editing.id}
             lockedClassId={
               editing === "new" && classFilter !== "ALL" ? classFilter : undefined
             }

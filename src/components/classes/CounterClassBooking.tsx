@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
+  Clock3,
   RefreshCw,
   Users,
 } from "lucide-react";
 import { SessionRegistrationPanel } from "./SessionRegistrationPanel";
+import { SlotFilterBar } from "./SlotFilterBar";
 import { classApi } from "../../services/classApi";
 import { describeError } from "../../services/apiErrors";
 import {
+  CENTER_TIME_SLOTS,
   addCalendarDays,
   centerToday,
   classStatusLabels,
+  formatSlotLabel,
   isClassBookable,
-  formatTimeRange,
+  matchesTimeSlot,
   remainingSeats,
   sessionStatusLabels,
 } from "../../utils/classSchedule";
@@ -30,17 +34,14 @@ interface CounterClassBookingProps {
 }
 
 /**
- * Đăng ký và hủy lớp tại quầy — UC29.
+ * Đăng ký và hủy lớp theo Khung giờ (Slot) tại quầy — UC29.
  *
- * Trước đây nhánh này của màn hình quầy đọc buổi học và booking từ
- * LocalStorage, nên hai máy ở quầy thấy hai tập dữ liệu khác nhau và không có
- * quy tắc gói nào được kiểm tra. Nay mọi thao tác đi qua `classApi`, dùng đúng
- * component đăng ký của thành viên (`SessionRegistrationPanel`) để luật UC24
- * và UC25 chỉ tồn tại ở một chỗ, chỉ khác ở chỗ lưu người thao tác và bắt buộc
- * lý do hủy.
+ * Mọi thao tác đi qua `classApi`, dùng đúng component đăng ký của thành viên
+ * (`SessionRegistrationPanel`) để luật UC24 và UC25 chỉ tồn tại ở một chỗ.
  */
 export function CounterClassBooking({ member }: CounterClassBookingProps) {
   const [date, setDate] = useState(centerToday());
+  const [slotFilter, setSlotFilter] = useState("ALL");
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [registrations, setRegistrations] = useState<ClassRegistration[]>([]);
   const [classes, setClasses] = useState<TrainingClass[]>([]);
@@ -48,9 +49,6 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
 
-  // Thành viên được hỗ trợ luôn do trang quầy chọn qua API Member. Trước đây
-  // component còn một ô "thành viên mẫu" cho chế độ dữ liệu mẫu; bỏ đi để
-  // không còn đường nào đặt chỗ cho một ID không có trên server.
   const effectiveMember = member;
 
   const refresh = useCallback(async () => {
@@ -85,6 +83,11 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
     return () => window.clearTimeout(timer);
   }, [refresh]);
 
+  const filteredSessions = useMemo(
+    () => sessions.filter((item) => matchesTimeSlot(item, slotFilter)),
+    [sessions, slotFilter],
+  );
+
   /** Đăng ký còn hiệu lực của thành viên này, tra theo buổi học. */
   const activeBySession = useMemo(() => {
     const map = new Map<string, ClassRegistration>();
@@ -98,10 +101,13 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
       <section className="panel" aria-labelledby="counter-class-title">
         <div className="panel-heading">
           <div>
-            <h2 id="counter-class-title">Lịch lớp học</h2>
+            <h2 id="counter-class-title">
+              Lịch lớp học theo Khung giờ (Slot)
+            </h2>
             <p>
-              Gói tập phải còn hiệu lực vào ngày diễn ra buổi học. Server kiểm
-              tra lại quyền tham gia và số chỗ khi bấm đăng ký.
+              Các lớp tổ chức theo khung giờ (Slot) cố định có Huấn luyện viên
+              quản lý tại phòng tập (không có giờ tự do). Gói tập phải còn hiệu
+              lực vào ngày diễn ra buổi học.
             </p>
           </div>
           <div className="counter-class-toolbar">
@@ -116,6 +122,21 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
                 onChange={(event) => setDate(event.target.value)}
               />
             </label>
+            <label className="field" htmlFor="counter-class-slot">
+              <span>Khung giờ (Slot)</span>
+              <select
+                id="counter-class-slot"
+                value={slotFilter}
+                onChange={(event) => setSlotFilter(event.target.value)}
+              >
+                <option value="ALL">Tất cả khung giờ</option>
+                {CENTER_TIME_SLOTS.map((slot) => (
+                  <option key={slot.id} value={slot.id}>
+                    {slot.name} · {slot.startTime} – {slot.endTime}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               className="button secondary"
@@ -125,6 +146,12 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
             </button>
           </div>
         </div>
+
+        <SlotFilterBar
+          sessions={sessions}
+          selectedSlotId={slotFilter}
+          onSelectSlot={setSlotFilter}
+        />
 
         {error && (
           <div className="error-notice" role="alert">
@@ -149,25 +176,24 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
           <div className="empty-state" role="status">
             Đang tải lịch lớp học…
           </div>
-        ) : sessions.length ? (
+        ) : filteredSessions.length ? (
           <div className="reception-class-grid">
-            {sessions.map((session) => {
+            {filteredSessions.map((session) => {
               const registration = activeBySession.get(session.id) ?? null;
-              // Lớp ngừng nhận đăng ký vẫn có buổi trong lịch; nói thẳng ở đây
-              // thay vì để lễ tân bấm rồi mới nhận lỗi từ server.
               const owner = classes.find((item) => item.id === session.classId);
               const isBookable = !owner || isClassBookable(owner.status);
               return (
                 <article className="reception-class-card" key={session.id}>
                   <span className="eyebrow">
-                    {session.sportName} · {session.roomName}
+                    {session.sportName} · Phòng: {session.roomName}
                   </span>
                   <h3>{session.className}</h3>
                   <p>
+                    <Clock3 size={14} aria-hidden="true" />{" "}
                     {formatDate(session.date)} ·{" "}
-                    {formatTimeRange(session.startTime, session.endTime)}
+                    {formatSlotLabel(session.startTime, session.endTime)}
                   </p>
-                  <p>HLV: {session.coachName}</p>
+                  <p>HLV quản lý: {session.coachName}</p>
                   <span
                     className={`status-chip ${remainingSeats(session) > 0 ? "active" : "expired"}`}
                   >
@@ -196,13 +222,16 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
         ) : (
           <div className="empty-state">
             <CalendarDays size={36} aria-hidden="true" />
-            <h3>Chưa có buổi học trong ngày này</h3>
-            <p>Chọn ngày khác để tra cứu lịch lớp.</p>
+            <h3>Chưa có buổi học trong ngày/khung giờ này</h3>
+            <p>Chọn ngày hoặc khung giờ (Slot) khác để tra cứu lịch lớp.</p>
           </div>
         )}
       </section>
 
-      <section className="panel reception-history" aria-labelledby="counter-class-history">
+      <section
+        className="panel reception-history"
+        aria-labelledby="counter-class-history"
+      >
         <div className="panel-heading">
           <div>
             <h2 id="counter-class-history">
@@ -219,7 +248,7 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th scope="col">Buổi học</th>
+                  <th scope="col">Buổi học & Khung giờ (Slot)</th>
                   <th scope="col">Nguồn đăng ký</th>
                   <th scope="col">Trạng thái</th>
                   <th scope="col">Thao tác</th>
@@ -232,11 +261,12 @@ export function CounterClassBooking({ member }: CounterClassBookingProps) {
                       <strong>{item.session.className}</strong>
                       <small className="cell-caption">
                         {formatDate(item.session.date)} ·{" "}
-                        {formatTimeRange(
+                        {formatSlotLabel(
                           item.session.startTime,
                           item.session.endTime,
                         )}{" "}
-                        · {item.session.roomName}
+                        · Phòng: {item.session.roomName} · HLV:{" "}
+                        {item.session.coachName}
                       </small>
                       {item.session.status !== "SCHEDULED" && (
                         <small className="cell-caption">

@@ -5,13 +5,22 @@ import {
   MapPin,
   RefreshCw,
   Search,
+  ShieldCheck,
   UserRoundCheck,
 } from "lucide-react";
 import { Dialog } from "../../components/common/Dialog";
 import { describeError } from "../../services/apiErrors";
 import { assignCoachApi } from "../../services/assignCoachApi";
 import type { ClassSession, CoachOption } from "../../types/assignCoach";
+import {
+  CENTER_TIME_SLOTS,
+  formatSlotLabel,
+  isCoachSuitableForSport,
+  matchesTimeSlot,
+  timeRangesOverlap,
+} from "../../utils/classSchedule";
 import "../../styles/assign-coach.css";
+
 const hasSessionStarted = (startsAt: string): boolean => {
   const startTime = Date.parse(startsAt);
 
@@ -22,6 +31,7 @@ const hasSessionStarted = (startsAt: string): boolean => {
 
   return Date.now() >= startTime;
 };
+
 const statusLabels: Record<string, string> = {
   SCHEDULED: "Đã lên lịch",
   COMPLETED: "Đã hoàn thành",
@@ -52,6 +62,7 @@ export function AssignCoachPage() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [slotFilter, setSlotFilter] = useState("ALL");
 
   const [selectedSession, setSelectedSession] = useState<ClassSession | null>(
     null,
@@ -88,15 +99,18 @@ export function AssignCoachPage() {
       const matchesSearch =
         !keyword ||
         session.className.toLowerCase().includes(keyword) ||
+        session.sportName.toLowerCase().includes(keyword) ||
         session.coachName.toLowerCase().includes(keyword) ||
         session.roomName.toLowerCase().includes(keyword);
 
       const matchesStatus =
         statusFilter === "ALL" || session.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      const matchesSlot = matchesTimeSlot(session, slotFilter);
+
+      return matchesSearch && matchesStatus && matchesSlot;
     });
-  }, [sessions, search, statusFilter]);
+  }, [sessions, search, statusFilter, slotFilter]);
 
   const openAssignDialog = (session: ClassSession) => {
     setSelectedSession(session);
@@ -143,6 +157,34 @@ export function AssignCoachPage() {
       );
       return;
     }
+
+    if (
+      !isCoachSuitableForSport(
+        { disciplines: selectedCoach.disciplines },
+        selectedSession.sportName,
+      )
+    ) {
+      setFormError(
+        `Huấn luyện viên ${selectedCoach.fullName} không phụ trách bộ môn ${selectedSession.sportName}. Hãy chọn huấn luyện viên phù hợp.`,
+      );
+      return;
+    }
+
+    const conflictingSession = sessions.find(
+      (item) =>
+        item.id !== selectedSession.id &&
+        item.status === "SCHEDULED" &&
+        item.coachId === selectedCoachId &&
+        item.date.slice(0, 10) === selectedSession.date.slice(0, 10) &&
+        timeRangesOverlap(item, selectedSession),
+    );
+    if (conflictingSession) {
+      setFormError(
+        `Huấn luyện viên ${selectedCoach.fullName} đã có lịch dạy lớp ${conflictingSession.className} (${conflictingSession.startTime} - ${conflictingSession.endTime}) trùng khung giờ này.`,
+      );
+      return;
+    }
+
     setSaving(true);
     setFormError("");
 
@@ -169,8 +211,8 @@ export function AssignCoachPage() {
           <span className="eyebrow">QUẢN LÝ TRUNG TÂM</span>
           <h1>Phân công huấn luyện viên</h1>
           <p>
-            Quản lý và thay đổi huấn luyện viên phụ trách các buổi học tại trung
-            tâm.
+            Quản lý và phân công huấn luyện viên đúng chuyên môn phụ trách các
+            buổi học theo khung giờ (Slot) cố định tại phòng tập.
           </p>
         </div>
 
@@ -202,9 +244,11 @@ export function AssignCoachPage() {
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <h2>Danh sách buổi học</h2>
+            <h2>Danh sách buổi học theo Khung giờ (Slot)</h2>
             <p>
-              Hiển thị {filteredSessions.length}/{sessions.length} buổi học
+              Hiển thị {filteredSessions.length}/{sessions.length} buổi học ·
+              Mọi buổi học đều do HLV quản lý theo slot cố định (không có giờ
+              tập tự do).
             </p>
           </div>
         </div>
@@ -215,11 +259,24 @@ export function AssignCoachPage() {
             <input
               type="search"
               value={search}
-              placeholder="Tìm lớp, huấn luyện viên, phòng..."
+              placeholder="Tìm lớp, bộ môn, huấn luyện viên, phòng..."
               aria-label="Tìm kiếm buổi học"
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
+
+          <select
+            value={slotFilter}
+            aria-label="Lọc theo khung giờ"
+            onChange={(event) => setSlotFilter(event.target.value)}
+          >
+            <option value="ALL">Tất cả khung giờ (Slot)</option>
+            {CENTER_TIME_SLOTS.map((slot) => (
+              <option key={slot.id} value={slot.id}>
+                {slot.name} · {slot.startTime} – {slot.endTime}
+              </option>
+            ))}
+          </select>
 
           <select
             value={statusFilter}
@@ -253,11 +310,11 @@ export function AssignCoachPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Buổi học</th>
+                  <th>Buổi học & Bộ môn</th>
                   <th>Ngày học</th>
-                  <th>Giờ học</th>
+                  <th>Khung giờ (Slot)</th>
                   <th>Phòng tập</th>
-                  <th>HLV phụ trách</th>
+                  <th>HLV quản lý</th>
                   <th>Trạng thái</th>
                   <th>Thao tác</th>
                 </tr>
@@ -271,7 +328,7 @@ export function AssignCoachPage() {
                         {session.className || `Buổi học #${session.id}`}
                       </strong>{" "}
                       <div>
-                        <small>{session.sportName}</small>
+                        <small>Bộ môn: {session.sportName}</small>
                       </div>
                     </td>
 
@@ -282,7 +339,7 @@ export function AssignCoachPage() {
 
                     <td>
                       <Clock3 size={15} aria-hidden="true" />{" "}
-                      {session.startTime} - {session.endTime}
+                      {formatSlotLabel(session.startTime, session.endTime)}
                     </td>
 
                     <td>
@@ -317,8 +374,8 @@ export function AssignCoachPage() {
 
       {selectedSession && (
         <Dialog
-          title="Phân công huấn luyện viên"
-          description={`Buổi học: ${selectedSession.className}`}
+          title="Phân công huấn luyện viên phù hợp"
+          description={`Buổi học: ${selectedSession.className} · Bộ môn: ${selectedSession.sportName}`}
           onClose={closeAssignDialog}
           footer={
             <>
@@ -344,7 +401,9 @@ export function AssignCoachPage() {
         >
           <div className="assign-coach-form">
             <div className="assign-coach-info">
-              <span className="assign-coach-label">Buổi học</span>
+              <span className="assign-coach-label">
+                Buổi học · Bộ môn {selectedSession.sportName}
+              </span>
               <strong>
                 {selectedSession.className || `Buổi học #${selectedSession.id}`}
               </strong>
@@ -353,13 +412,27 @@ export function AssignCoachPage() {
                 <CalendarDays size={15} aria-hidden="true" />
                 {formatDate(selectedSession.date)}
                 <Clock3 size={15} aria-hidden="true" />
-                {selectedSession.startTime} - {selectedSession.endTime}
+                {formatSlotLabel(
+                  selectedSession.startTime,
+                  selectedSession.endTime,
+                )}
+                <MapPin size={15} aria-hidden="true" />
+                {selectedSession.roomName}
               </span>
             </div>
 
+            <p className="info-note">
+              <ShieldCheck size={16} aria-hidden="true" />
+              <span>
+                Chỉ những huấn luyện viên đang hoạt động, có chuyên môn{" "}
+                <strong>{selectedSession.sportName}</strong> và không trùng lịch
+                ở khung giờ này mới được phép phân công.
+              </span>
+            </p>
+
             <div className="assign-coach-field">
               <label htmlFor="assigned-coach">
-                Huấn luyện viên phụ trách *
+                Huấn luyện viên phụ trách (chuyên môn {selectedSession.sportName}) *
               </label>
 
               <select
@@ -371,7 +444,7 @@ export function AssignCoachPage() {
                 }}
                 disabled={saving}
               >
-                <option value="">-- Chọn huấn luyện viên --</option>
+                <option value="">-- Chọn huấn luyện viên phù hợp --</option>
 
                 {coaches.map((coach) => {
                   const expertise = (coach.disciplines ?? [])
@@ -379,16 +452,45 @@ export function AssignCoachPage() {
                     .map((item) => item.disciplineName)
                     .join(", ");
                   const isInactive = coach.status.toLowerCase() !== "active";
+                  const isSportMatched = isCoachSuitableForSport(
+                    { disciplines: coach.disciplines },
+                    selectedSession.sportName,
+                  );
+                  const conflictingSession = sessions.find(
+                    (item) =>
+                      item.id !== selectedSession.id &&
+                      item.status === "SCHEDULED" &&
+                      item.coachId === coach.accountId &&
+                      item.date.slice(0, 10) ===
+                        selectedSession.date.slice(0, 10) &&
+                      timeRangesOverlap(item, selectedSession),
+                  );
+                  const isCurrentCoach =
+                    coach.accountId === selectedSession.coachId;
+                  const isDisabled =
+                    !isCurrentCoach &&
+                    (isInactive || !isSportMatched || Boolean(conflictingSession));
+
+                  let statusSuffix = " — Phù hợp · Rảnh khung giờ này";
+                  if (isCurrentCoach) {
+                    statusSuffix = " — Đang phụ trách buổi này";
+                  } else if (isInactive) {
+                    statusSuffix = " — Ngừng hoạt động";
+                  } else if (!isSportMatched) {
+                    statusSuffix = ` — Khác bộ môn (${selectedSession.sportName})`;
+                  } else if (conflictingSession) {
+                    statusSuffix = ` — Trùng lịch lớp ${conflictingSession.className} (${conflictingSession.startTime}-${conflictingSession.endTime})`;
+                  }
 
                   return (
                     <option
                       key={coach.accountId}
                       value={coach.accountId}
-                      disabled={isInactive}
+                      disabled={isDisabled}
                     >
                       {coach.fullName}
-                      {expertise ? ` — ${expertise}` : ""}
-                      {isInactive ? " (Ngừng hoạt động)" : ""}
+                      {expertise ? ` [${expertise}]` : ""}
+                      {statusSuffix}
                     </option>
                   );
                 })}

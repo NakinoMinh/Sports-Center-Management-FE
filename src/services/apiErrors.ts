@@ -101,6 +101,8 @@ const MESSAGES: Record<string, string> = {
     "Không tìm thấy huấn luyện viên đã chọn. Hãy tải lại danh sách.",
   COACH_INACTIVE:
     "Huấn luyện viên này đang ngừng hoạt động nên không thể phân công.",
+  COACH_DISCIPLINE_MISMATCH:
+    "Huấn luyện viên không phụ trách bộ môn của lớp học này. Hãy chọn huấn luyện viên phù hợp.",
   COACH_SCHEDULE_CONFLICT:
     "Huấn luyện viên đã có buổi khác trùng giờ. Hãy chọn giờ khác hoặc người khác.",
   ROOM_SCHEDULE_CONFLICT:
@@ -123,6 +125,8 @@ const MESSAGES: Record<string, string> = {
     "Không tìm thấy đăng ký này. Có thể đăng ký vừa được hủy ở nơi khác.",
   REGISTRATION_ALREADY_CANCELED:
     "Đăng ký này đã được hủy trước đó. Chỗ chỉ được trả lại một lần.",
+  REGISTRATION_CANCELLATION_TOO_LATE:
+    "Chỉ được hủy trước giờ học ít nhất 7 tiếng. Vui lòng liên hệ lễ tân để được hỗ trợ.",
   MEMBERSHIP_NOT_VALID_FOR_SESSION:
     "Gói tập không còn hiệu lực vào ngày diễn ra buổi học. Hãy gia hạn trước khi đăng ký.",
   PACKAGE_NOT_FOUND: "Không tìm thấy gói tập. Hãy tải lại danh sách.",

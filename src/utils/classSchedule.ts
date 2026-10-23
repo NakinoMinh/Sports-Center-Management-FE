@@ -10,12 +10,254 @@ import type {
   ClassRegistration,
   ClassSession,
   ClassSessionStatus,
+  CoachOption,
+  Room,
 } from "../types/classes";
 
 /** Giờ trung tâm. Timestamp gửi/nhận luôn kèm offset để khỏi lệch múi giờ. */
 export const CENTER_UTC_OFFSET = "+07:00";
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** Khung giờ (Slot) cố định do trung tâm quy định; không có giờ tập tự do. */
+export interface CenterTimeSlot {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+}
+
+export const CENTER_TIME_SLOTS: readonly CenterTimeSlot[] = [
+  {
+    id: "SLOT_1",
+    name: "Ca 1 (Sáng sớm)",
+    startTime: "06:30",
+    endTime: "07:30",
+  },
+  {
+    id: "SLOT_2",
+    name: "Ca 2 (Sáng)",
+    startTime: "08:00",
+    endTime: "09:00",
+  },
+  {
+    id: "SLOT_3",
+    name: "Ca 3 (Sáng muộn)",
+    startTime: "09:00",
+    endTime: "10:00",
+  },
+  {
+    id: "SLOT_4",
+    name: "Ca 4 (Trưa - Chiều)",
+    startTime: "14:00",
+    endTime: "15:30",
+  },
+  {
+    id: "SLOT_5",
+    name: "Ca 5 (Chiều muộn)",
+    startTime: "16:00",
+    endTime: "17:00",
+  },
+  {
+    id: "SLOT_6",
+    name: "Ca 6 (Tối)",
+    startTime: "18:00",
+    endTime: "19:30",
+  },
+  {
+    id: "SLOT_7",
+    name: "Ca 7 (Tối muộn)",
+    startTime: "19:30",
+    endTime: "21:00",
+  },
+];
+
+/** Tra khung giờ cố định khớp với giờ bắt đầu và kết thúc của buổi học. */
+export const findTimeSlot = (
+  startTime: string,
+  endTime: string,
+): CenterTimeSlot | null =>
+  CENTER_TIME_SLOTS.find(
+    (slot) =>
+      slot.startTime === startTime.trim() && slot.endTime === endTime.trim(),
+  ) ?? null;
+
+/** Nhãn hiển thị kèm tên Ca/Slot và khoảng giờ. */
+export const formatSlotLabel = (startTime: string, endTime: string): string => {
+  const matched = findTimeSlot(startTime, endTime);
+  const range = formatTimeRange(startTime, endTime);
+  return matched ? `${matched.name} · ${range}` : `Khung giờ · ${range}`;
+};
+
+/** Kiểm tra buổi học có thuộc khung giờ (Slot) đang lọc không. */
+export const matchesTimeSlot = (
+  session: Pick<ClassSession, "startTime" | "endTime">,
+  slotId: string,
+): boolean => {
+  if (!slotId || slotId === "ALL") return true;
+  const matched = findTimeSlot(session.startTime, session.endTime);
+  if (matched) return matched.id === slotId;
+  const slot = CENTER_TIME_SLOTS.find((item) => item.id === slotId);
+  return slot ? timeRangesOverlap(session, slot) : true;
+};
+
+const normalizeDiscipline = (value: string): string =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+/**
+ * Kiểm tra huấn luyện viên có phụ trách bộ môn của lớp học hay không.
+ * Nếu HLV chưa được cấu hình danh sách chuyên môn thì không chặn ở client.
+ */
+export const isCoachSuitableForSport = (
+  coach: {
+    specializations?: readonly string[];
+    disciplines?: readonly { disciplineName: string; isActive: boolean }[];
+  },
+  sportName?: string,
+): boolean => {
+  if (!sportName || !sportName.trim()) return true;
+  const target = normalizeDiscipline(sportName);
+  if (!target || target === "—") return true;
+
+  const list =
+    coach.specializations && coach.specializations.length > 0
+      ? coach.specializations
+      : (coach.disciplines ?? [])
+          .filter((item) => item.isActive)
+          .map((item) => item.disciplineName);
+
+  if (list.length === 0) return true;
+  return list.some((item) => normalizeDiscipline(item) === target);
+};
+
+export interface CoachSlotAvailability {
+  isAvailable: boolean;
+  isSportMatched: boolean;
+  isTimeFree: boolean;
+  conflictingSession?: ClassSession;
+  reason: string;
+}
+
+/** Đánh giá mức độ phù hợp và rảnh lịch của HLV cho một ngày + khung giờ. */
+export const getCoachSlotAvailability = (
+  coach: Pick<CoachOption, "id" | "fullName" | "isActive" | "specializations">,
+  context: {
+    sportName?: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    sessions: readonly ClassSession[];
+    excludeSessionId?: string;
+  },
+): CoachSlotAvailability => {
+  const isSportMatched = isCoachSuitableForSport(coach, context.sportName);
+  const conflictingSession = context.sessions.find(
+    (session) =>
+      session.id !== context.excludeSessionId &&
+      session.status === "SCHEDULED" &&
+      session.coachId === coach.id &&
+      session.date === context.date &&
+      timeRangesOverlap(session, {
+        startTime: context.startTime,
+        endTime: context.endTime,
+      }),
+  );
+  const isTimeFree = !conflictingSession;
+
+  if (!coach.isActive) {
+    return {
+      isAvailable: false,
+      isSportMatched,
+      isTimeFree,
+      conflictingSession,
+      reason: "Đã ngừng hoạt động",
+    };
+  }
+  if (!isSportMatched) {
+    return {
+      isAvailable: false,
+      isSportMatched: false,
+      isTimeFree,
+      conflictingSession,
+      reason: `Khác chuyên môn (${context.sportName})`,
+    };
+  }
+  if (conflictingSession) {
+    return {
+      isAvailable: false,
+      isSportMatched: true,
+      isTimeFree: false,
+      conflictingSession,
+      reason: `Trùng lịch lớp ${conflictingSession.className} (${conflictingSession.startTime}–${conflictingSession.endTime})`,
+    };
+  }
+  return {
+    isAvailable: true,
+    isSportMatched: true,
+    isTimeFree: true,
+    reason: "Phù hợp · Rảnh khung giờ này",
+  };
+};
+
+export interface RoomSlotAvailability {
+  isAvailable: boolean;
+  isTimeFree: boolean;
+  conflictingSession?: ClassSession;
+  reason: string;
+}
+
+/** Đánh giá tình trạng trống của phòng tập cho một ngày + khung giờ. */
+export const getRoomSlotAvailability = (
+  room: Pick<Room, "id" | "name" | "isActive">,
+  context: {
+    date: string;
+    startTime: string;
+    endTime: string;
+    sessions: readonly ClassSession[];
+    excludeSessionId?: string;
+  },
+): RoomSlotAvailability => {
+  const conflictingSession = context.sessions.find(
+    (session) =>
+      session.id !== context.excludeSessionId &&
+      session.status === "SCHEDULED" &&
+      session.roomId === room.id &&
+      session.date === context.date &&
+      timeRangesOverlap(session, {
+        startTime: context.startTime,
+        endTime: context.endTime,
+      }),
+  );
+  const isTimeFree = !conflictingSession;
+
+  if (!room.isActive) {
+    return {
+      isAvailable: false,
+      isTimeFree,
+      conflictingSession,
+      reason: "Đã ngừng hoạt động",
+    };
+  }
+  if (conflictingSession) {
+    return {
+      isAvailable: false,
+      isTimeFree: false,
+      conflictingSession,
+      reason: `Đang dùng cho lớp ${conflictingSession.className} (${conflictingSession.startTime}–${conflictingSession.endTime})`,
+    };
+  }
+  return {
+    isAvailable: true,
+    isTimeFree: true,
+    reason: "Phòng trống khung giờ này",
+  };
+};
 
 /** Số phút từ 00:00, hoặc null khi chuỗi không đúng dạng `HH:mm`. */
 export const minutesOfDay = (time: string): number | null => {
@@ -164,6 +406,7 @@ export const canRegisterSession = (
 export const canCancelRegistration = (
   registration: Pick<ClassRegistration, "status" | "session">,
   now: Date = new Date(),
+  channel: "MEMBER" | "RECEPTIONIST" = "MEMBER",
 ): ActionAvailability => {
   if (registration.status === "CANCELED")
     return { isAllowed: false, reason: "Đăng ký này đã được hủy." };
@@ -177,6 +420,14 @@ export const canCancelRegistration = (
       isAllowed: false,
       reason: "Buổi học đã bắt đầu nên không thể hủy đăng ký.",
     };
+  if (channel === "MEMBER") {
+    const remainingMs = new Date(registration.session.startsAt).getTime() - now.getTime();
+    if (!Number.isFinite(remainingMs) || remainingMs < 7 * 60 * 60 * 1000)
+      return {
+        isAllowed: false,
+        reason: "Chỉ được hủy trước giờ học ít nhất 7 tiếng. Vui lòng liên hệ lễ tân để được hỗ trợ.",
+      };
+  }
   return allowed;
 };
 
@@ -206,3 +457,48 @@ export const byStartTime = (first: ClassSession, second: ClassSession): number =
   first.date === second.date
     ? first.startTime.localeCompare(second.startTime)
     : first.date.localeCompare(second.date);
+
+/**
+ * Tổng hợp danh sách huấn luyện viên để lọc trên giao diện Thành viên / Lễ tân
+ * khi tài khoản không có quyền gọi trực tiếp `/api/Coach` (chỉ dành cho Quản lý).
+ */
+export const deriveCoachOptionsFromSessions = (
+  sessions: readonly Pick<ClassSession, "coachId" | "coachName" | "sportName">[],
+  fallbackCoaches: readonly CoachOption[] = [],
+): CoachOption[] => {
+  if (fallbackCoaches.length > 0) {
+    return [...fallbackCoaches];
+  }
+
+  const byId = new Map<
+    string,
+    { id: string; fullName: string; sports: Set<string> }
+  >();
+  for (const item of sessions) {
+    if (!item.coachId || !item.coachName) continue;
+    let entry = byId.get(item.coachId);
+    if (!entry) {
+      entry = {
+        id: item.coachId,
+        fullName: item.coachName,
+        sports: new Set<string>(),
+      };
+      byId.set(item.coachId, entry);
+    }
+    if (item.sportName && item.sportName !== "—") {
+      entry.sports.add(item.sportName);
+    }
+  }
+
+  return Array.from(byId.values())
+    .sort((first, second) =>
+      first.fullName.localeCompare(second.fullName, "vi"),
+    )
+    .map((entry) => ({
+      id: entry.id,
+      fullName: entry.fullName,
+      email: "",
+      specializations: Array.from(entry.sports),
+      isActive: true,
+    }));
+};

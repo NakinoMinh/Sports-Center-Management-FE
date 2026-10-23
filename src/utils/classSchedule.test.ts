@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { ClassRegistration, ClassSession } from "../types/classes";
 import {
+  CENTER_TIME_SLOTS,
   addCalendarDays,
   canCancelRegistration,
   canRegisterSession,
   centerTimestamp,
+  deriveCoachOptionsFromSessions,
   describeCapacityConflict,
+  findTimeSlot,
+  formatSlotLabel,
+  getCoachSlotAvailability,
+  getRoomSlotAvailability,
+  isCoachSuitableForSport,
+  matchesTimeSlot,
   minutesOfDay,
   remainingSeats,
   sessionsOverlap,
@@ -162,6 +170,25 @@ describe("cancellation availability", () => {
     );
   });
 
+  it.each([
+    ["2026-10-20T00:59:59.999+07:00", true],
+    ["2026-10-20T01:00:00+07:00", true],
+    ["2026-10-20T01:00:00.001+07:00", false],
+    ["2026-10-19T18:00:00Z", true],
+  ])("checks the seven-hour boundary at %s", (now, isAllowed) => {
+    expect(canCancelRegistration(registration(), new Date(now)).isAllowed).toBe(isAllowed);
+  });
+
+  it("preserves counter cancellations inside seven hours", () => {
+    const now = new Date("2026-10-20T07:00:00+07:00");
+    expect(canCancelRegistration(registration(), now, "RECEPTIONIST").isAllowed).toBe(true);
+    expect(canCancelRegistration(registration(), now).reason).toContain("7 tiếng");
+  });
+
+  it("blocks member cancellation when the start time is invalid", () => {
+    expect(canCancelRegistration(registration({ session: session({ startsAt: "" }) }), beforeSession).isAllowed).toBe(false);
+  });
+
   it("blocks a second cancellation and a started session", () => {
     expect(
       canCancelRegistration(registration({ status: "CANCELED" }), beforeSession)
@@ -202,5 +229,142 @@ describe("capacity rules for a session", () => {
     expect(describeCapacityConflict({ ...base, capacity: 7.5 })).toBe(
       "Sức chứa phải là số nguyên dương.",
     );
+  });
+});
+
+describe("predefined center time slots and coach/room suitability", () => {
+  it("lists predefined time slots and resolves slot labels", () => {
+    expect(CENTER_TIME_SLOTS.length).toBeGreaterThanOrEqual(6);
+    const morningSlot = findTimeSlot("08:00", "09:00");
+    expect(morningSlot).not.toBeNull();
+    expect(morningSlot?.id).toBe("SLOT_2");
+    expect(formatSlotLabel("08:00", "09:00")).toContain("08:00 – 09:00");
+    expect(findTimeSlot("11:15", "12:15")).toBeNull();
+    expect(
+      matchesTimeSlot(
+        session({ startTime: "08:00", endTime: "09:00" }),
+        "SLOT_2",
+      ),
+    ).toBe(true);
+    expect(
+      matchesTimeSlot(
+        session({ startTime: "08:00", endTime: "09:00" }),
+        "SLOT_6",
+      ),
+    ).toBe(false);
+    expect(
+      matchesTimeSlot(
+        session({ startTime: "08:00", endTime: "09:00" }),
+        "ALL",
+      ),
+    ).toBe(true);
+  });
+
+  it("checks whether a coach specialization matches the class sport", () => {
+    expect(
+      isCoachSuitableForSport(
+        { specializations: ["Yoga", "Pilates"] },
+        "Yoga",
+      ),
+    ).toBe(true);
+    expect(
+      isCoachSuitableForSport(
+        { specializations: ["Boxing", "Thể lực"] },
+        "Yoga",
+      ),
+    ).toBe(false);
+  });
+
+  it("reports coach and room availability for a chosen date and slot", () => {
+    const existing = [
+      session({
+        id: "session-busy",
+        coachId: "coach-1",
+        coachName: "Trần Thu Hà",
+        roomId: "room-1",
+        roomName: "Studio A",
+        date: "2026-10-20",
+        startTime: "08:00",
+        endTime: "09:00",
+        status: "SCHEDULED",
+      }),
+    ];
+
+    const busyCoach = getCoachSlotAvailability(
+      {
+        id: "coach-1",
+        fullName: "Trần Thu Hà",
+        isActive: true,
+        specializations: ["Yoga"],
+      },
+      {
+        sportName: "Yoga",
+        date: "2026-10-20",
+        startTime: "08:00",
+        endTime: "09:00",
+        sessions: existing,
+      },
+    );
+    expect(busyCoach.isAvailable).toBe(false);
+    expect(busyCoach.isTimeFree).toBe(false);
+
+    const mismatchedCoach = getCoachSlotAvailability(
+      {
+        id: "coach-2",
+        fullName: "Lê Hoàng Nam",
+        isActive: true,
+        specializations: ["Boxing"],
+      },
+      {
+        sportName: "Yoga",
+        date: "2026-10-20",
+        startTime: "08:00",
+        endTime: "09:00",
+        sessions: existing,
+      },
+    );
+    expect(mismatchedCoach.isAvailable).toBe(false);
+    expect(mismatchedCoach.isSportMatched).toBe(false);
+
+    const busyRoom = getRoomSlotAvailability(
+      {
+        id: "room-1",
+        name: "Studio A",
+        isActive: true,
+      },
+      {
+        date: "2026-10-20",
+        startTime: "08:00",
+        endTime: "09:00",
+        sessions: existing,
+      },
+    );
+    expect(busyRoom.isAvailable).toBe(false);
+    expect(busyRoom.isTimeFree).toBe(false);
+  });
+
+  it("derives unique coach filter options from sessions when /api/Coach is restricted for Member or Receptionist", () => {
+    const derived = deriveCoachOptionsFromSessions([
+      session({ coachId: "coach-2", coachName: "Võ Minh Quân", sportName: "Bơi lội" }),
+      session({ coachId: "coach-1", coachName: "Trần Thu Hà", sportName: "Yoga" }),
+      session({ coachId: "coach-1", coachName: "Trần Thu Hà", sportName: "Pilates" }),
+    ]);
+
+    expect(derived).toEqual([
+      {
+        id: "coach-1",
+        fullName: "Trần Thu Hà",
+        email: "",
+        specializations: ["Yoga", "Pilates"],
+        isActive: true,
+      },
+      {
+        id: "coach-2",
+        fullName: "Võ Minh Quân",
+        email: "",
+        specializations: ["Bơi lội"],
+        isActive: true,
+      },
+    ]);
   });
 });

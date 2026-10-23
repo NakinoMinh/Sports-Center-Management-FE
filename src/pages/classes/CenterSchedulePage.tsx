@@ -9,6 +9,7 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
+import { SlotFilterBar } from "../../components/classes/SlotFilterBar";
 import { useAuth } from "../../hooks/useAuth";
 import { describeError } from "../../services/apiErrors";
 import { classApi } from "../../services/classApi";
@@ -20,10 +21,13 @@ import type {
   Sport,
 } from "../../types/classes";
 import {
+  CENTER_TIME_SLOTS,
   addCalendarDays,
   byStartTime,
   centerToday,
-  formatTimeRange,
+  deriveCoachOptionsFromSessions,
+  formatSlotLabel,
+  matchesTimeSlot,
   remainingSeats,
   sessionStatusLabels,
   weekRangeOf,
@@ -52,6 +56,7 @@ export function CenterSchedulePage() {
   const [sportId, setSportId] = useState("ALL");
   const [coachId, setCoachId] = useState("ALL");
   const [roomId, setRoomId] = useState("ALL");
+  const [slotFilter, setSlotFilter] = useState("ALL");
   const [status, setStatus] = useState<StatusFilter>("ALL");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -67,6 +72,7 @@ export function CenterSchedulePage() {
   const refresh = useCallback(async () => {
     setIsLoading(true);
     try {
+      const canReadCoaches = currentUser?.role === "CENTER_MANAGER";
       const [sessionList, sportList, coachList, roomList] = await Promise.all([
         classApi.listSessions({
           from: range.from,
@@ -77,12 +83,15 @@ export function CenterSchedulePage() {
           status,
         }),
         classApi.listSports(),
-        classApi.listCoaches(),
+        canReadCoaches
+          ? classApi.listCoaches().catch(() => [])
+          : Promise.resolve([]),
         classApi.listRooms(),
       ]);
-      setSessions(sessionList.sort(byStartTime));
+      const sortedSessions = sessionList.sort(byStartTime);
+      setSessions(sortedSessions);
       setSports(sportList);
-      setCoaches(coachList);
+      setCoaches(deriveCoachOptionsFromSessions(sortedSessions, coachList));
       setRooms(roomList);
       setError("");
     } catch (caught) {
@@ -90,20 +99,28 @@ export function CenterSchedulePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [coachId, range.from, range.to, roomId, sportId, status]);
+  }, [coachId, currentUser, range.from, range.to, roomId, sportId, status]);
 
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect
     void refresh();
   }, [refresh]);
 
+  const filteredSessions = useMemo(
+    () => sessions.filter((item) => matchesTimeSlot(item, slotFilter)),
+    [sessions, slotFilter],
+  );
+
   const days = useMemo(() => {
     const count = viewMode === "DAY" ? 1 : 7;
     return Array.from({ length: count }, (_, index) => {
       const date = addCalendarDays(range.from, index);
-      return { date, items: sessions.filter((item) => item.date === date) };
+      return {
+        date,
+        items: filteredSessions.filter((item) => item.date === date),
+      };
     });
-  }, [range.from, sessions, viewMode]);
+  }, [filteredSessions, range.from, viewMode]);
 
   const shift = viewMode === "DAY" ? 1 : 7;
   const audience =
@@ -114,10 +131,10 @@ export function CenterSchedulePage() {
       <div className="page-heading">
         <div>
           <span className="eyebrow">UC22 · {audience}</span>
-          <h1>Lịch hoạt động trung tâm</h1>
+          <h1>Lịch hoạt động trung tâm theo Khung giờ (Slot)</h1>
           <p>
-            Tra cứu buổi học theo ngày hoặc tuần, bộ môn, huấn luyện viên,
-            phòng và trạng thái.
+            Tra cứu các lớp học theo ngày hoặc tuần, khung giờ (Slot) có sẵn,
+            bộ môn, huấn luyện viên quản lý và phòng tập (không có giờ tự do).
           </p>
         </div>
         <span className="page-icon">
@@ -190,7 +207,25 @@ export function CenterSchedulePage() {
           </div>
         </div>
 
+        <SlotFilterBar
+          sessions={sessions}
+          selectedSlotId={slotFilter}
+          onSelectSlot={setSlotFilter}
+        />
+
         <div className="toolbar">
+          <select
+            aria-label="Lọc theo khung giờ"
+            value={slotFilter}
+            onChange={(event) => setSlotFilter(event.target.value)}
+          >
+            <option value="ALL">Tất cả khung giờ (Slot)</option>
+            {CENTER_TIME_SLOTS.map((slot) => (
+              <option key={slot.id} value={slot.id}>
+                {slot.name} · {slot.startTime} – {slot.endTime}
+              </option>
+            ))}
+          </select>
           <select
             aria-label="Lọc theo bộ môn"
             value={sportId}
@@ -252,7 +287,7 @@ export function CenterSchedulePage() {
           <div className="empty-state" role="status">
             <p>Đang tải lịch trung tâm...</p>
           </div>
-        ) : sessions.length ? (
+        ) : filteredSessions.length ? (
           <div className="week-grid">
             {days.map((day) => (
               <section
@@ -269,24 +304,29 @@ export function CenterSchedulePage() {
                       <li className="week-session" key={session.id}>
                         <div className="week-session-time">
                           <Clock3 size={14} aria-hidden="true" />
-                          {formatTimeRange(session.startTime, session.endTime)}
+                          {formatSlotLabel(session.startTime, session.endTime)}
                         </div>
                         <div className="week-session-title">
                           <strong>{session.className}</strong>
-                          <span>{session.sportName}</span>
+                          <span>Bộ môn: {session.sportName}</span>
                         </div>
                         <span>
-                          <UserRound size={14} aria-hidden="true" /> {session.coachName}
+                          <UserRound size={14} aria-hidden="true" /> HLV quản lý:{" "}
+                          {session.coachName}
                         </span>
                         <span>
-                          <MapPin size={14} aria-hidden="true" /> {session.roomName}
+                          <MapPin size={14} aria-hidden="true" /> Phòng:{" "}
+                          {session.roomName}
                         </span>
                         <div className="week-session-seats">
                           <span>
-                            <Users size={14} aria-hidden="true" /> {remainingSeats(session)}
-                            /{session.capacity} chỗ trống
+                            <Users size={14} aria-hidden="true" />{" "}
+                            {remainingSeats(session)}/{session.capacity} chỗ
+                            trống
                           </span>
-                          <span className={`status-chip ${chipFor(session.status)}`}>
+                          <span
+                            className={`status-chip ${chipFor(session.status)}`}
+                          >
                             {sessionStatusLabels[session.status]}
                           </span>
                         </div>
