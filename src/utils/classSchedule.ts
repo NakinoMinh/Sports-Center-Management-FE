@@ -406,6 +406,7 @@ export const canRegisterSession = (
 export const canCancelRegistration = (
   registration: Pick<ClassRegistration, "status" | "session">,
   now: Date = new Date(),
+  channel: "MEMBER" | "RECEPTIONIST" = "MEMBER",
 ): ActionAvailability => {
   if (registration.status === "CANCELED")
     return { isAllowed: false, reason: "Đăng ký này đã được hủy." };
@@ -419,6 +420,14 @@ export const canCancelRegistration = (
       isAllowed: false,
       reason: "Buổi học đã bắt đầu nên không thể hủy đăng ký.",
     };
+  if (channel === "MEMBER") {
+    const remainingMs = new Date(registration.session.startsAt).getTime() - now.getTime();
+    if (!Number.isFinite(remainingMs) || remainingMs < 7 * 60 * 60 * 1000)
+      return {
+        isAllowed: false,
+        reason: "Chỉ được hủy trước giờ học ít nhất 7 tiếng. Vui lòng liên hệ lễ tân để được hỗ trợ.",
+      };
+  }
   return allowed;
 };
 

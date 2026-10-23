@@ -170,6 +170,25 @@ describe("cancellation availability", () => {
     );
   });
 
+  it.each([
+    ["2026-10-20T00:59:59.999+07:00", true],
+    ["2026-10-20T01:00:00+07:00", true],
+    ["2026-10-20T01:00:00.001+07:00", false],
+    ["2026-10-19T18:00:00Z", true],
+  ])("checks the seven-hour boundary at %s", (now, isAllowed) => {
+    expect(canCancelRegistration(registration(), new Date(now)).isAllowed).toBe(isAllowed);
+  });
+
+  it("preserves counter cancellations inside seven hours", () => {
+    const now = new Date("2026-10-20T07:00:00+07:00");
+    expect(canCancelRegistration(registration(), now, "RECEPTIONIST").isAllowed).toBe(true);
+    expect(canCancelRegistration(registration(), now).reason).toContain("7 tiếng");
+  });
+
+  it("blocks member cancellation when the start time is invalid", () => {
+    expect(canCancelRegistration(registration({ session: session({ startsAt: "" }) }), beforeSession).isAllowed).toBe(false);
+  });
+
   it("blocks a second cancellation and a started session", () => {
     expect(
       canCancelRegistration(registration({ status: "CANCELED" }), beforeSession)

@@ -9,6 +9,10 @@ import {
 } from "./apiErrors";
 
 describe("describeError", () => {
+  it("explains the member cancellation deadline", () => {
+    expect(describeError(new ApiError("Cancellation deadline passed.", 409, "REGISTRATION_CANCELLATION_TOO_LATE")))
+      .toBe("Chỉ được hủy trước giờ học ít nhất 7 tiếng. Vui lòng liên hệ lễ tân để được hỗ trợ.");
+  });
   it("translates a known backend code instead of showing its English text", () => {
     const error = new ApiError(
       "Authentication is required or the access token is invalid.",
