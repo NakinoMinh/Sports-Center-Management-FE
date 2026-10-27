@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { Plus, Trash2, Clock } from "lucide-react";
 import {
   CENTER_TIME_SLOTS,
   WEEKDAY_NAMES,
@@ -7,15 +8,19 @@ import {
   centerToday,
   countRecurrenceSessions,
   isCoachSuitableForSport,
+  timeRangesOverlap,
 } from "../../utils/classSchedule";
-import type { ScheduleDraft } from "./scheduleDraft";
+import {
+  createEmptySessionItem,
+  type ScheduleDraft,
+  type ScheduleSessionItem,
+} from "./scheduleDraft";
 import type { CoachOption, Room, WeekDay } from "../../types/classes";
 
 /**
- * Khối lịch học dùng chung cho hai chỗ: tạo lớp (UC19) và gán thêm đợt lịch cho
- * lớp đã có (UC21). Một lớp luôn có giáo viên đứng lớp, phòng, ngày bắt đầu,
- * ngày kết thúc, các thứ trong tuần và một ca học — nên hai luồng dùng đúng một
- * bộ trường, không nơi nào thiếu trường so với nơi kia.
+ * Khối lịch học: tạo lớp (UC19) và gán thêm đợt lịch cho lớp đã có (UC21).
+ * Hỗ trợ tạo nhiều buổi học với ca học và các thứ trong tuần khác nhau.
+ * Sức chứa mỗi buổi tự động dựa theo sức chứa lớp nên đã bỏ ô sức chứa buổi.
  */
 
 interface ScheduleFieldsProps {
@@ -25,7 +30,7 @@ interface ScheduleFieldsProps {
   rooms: readonly Room[];
   /** Tên bộ môn của lớp, để đánh dấu HLV khác chuyên môn. */
   sportName?: string;
-  /** Sức chứa lớp — trần cho sức chứa từng buổi. */
+  /** Sức chứa lớp */
   classCapacity?: number;
   messageFor: (field: string) => string | undefined;
 }
@@ -36,30 +41,117 @@ export function ScheduleFields({
   coaches,
   rooms,
   sportName,
-  classCapacity,
+  classCapacity: _classCapacity,
   messageFor,
 }: ScheduleFieldsProps) {
   const prefix = useId();
   const today = centerToday();
   const selectedRoom = rooms.find((room) => room.id === value.roomId);
-  const sessionCount = countRecurrenceSessions(
-    value.startDate,
-    value.endDate,
-    value.daysOfWeek,
-  );
+
+  const sessions: ScheduleSessionItem[] =
+    value.sessions && value.sessions.length > 0
+      ? value.sessions
+      : [createEmptySessionItem()];
+
+  const totalSessionCount = sessions.reduce((acc, sess) => {
+    return (
+      acc +
+      countRecurrenceSessions(value.startDate, value.endDate, sess.daysOfWeek)
+    );
+  }, 0);
 
   const patch = (changes: Partial<ScheduleDraft>) =>
     onChange({ ...value, ...changes });
 
-  const toggleDay = (day: WeekDay) =>
+  const patchSessions = (nextSessions: ScheduleSessionItem[]) => {
     patch({
-      daysOfWeek: value.daysOfWeek.includes(day)
-        ? value.daysOfWeek.filter((item) => item !== day)
-        : [...value.daysOfWeek, day],
+      sessions: nextSessions,
+      slotId: nextSessions[0]?.slotId ?? "",
+      daysOfWeek: nextSessions[0]?.daysOfWeek ?? [],
     });
+  };
 
-  // HLV đã ngừng hoạt động không nhận lớp mới; HLV khác chuyên môn vẫn hiện
-  // nhưng được đánh dấu, vì server mới là nơi chốt theo dữ liệu chuyên môn.
+  /**
+   * Kiểm tra xem thứ `day` có bị trùng khung giờ với bất kỳ buổi học nào khác không.
+   */
+  const checkConflict = (
+    day: WeekDay,
+    currentSlotId: string,
+    sessionIndex: number,
+  ) => {
+    if (!currentSlotId) return { conflict: false };
+    const currentSlot = CENTER_TIME_SLOTS.find((s) => s.id === currentSlotId);
+    if (!currentSlot) return { conflict: false };
+
+    for (let i = 0; i < sessions.length; i++) {
+      if (i === sessionIndex) continue;
+      const other = sessions[i];
+      if (!other.slotId || !other.daysOfWeek.includes(day)) continue;
+
+      const otherSlot = CENTER_TIME_SLOTS.find((s) => s.id === other.slotId);
+      if (!otherSlot) continue;
+
+      if (
+        currentSlot.id === otherSlot.id ||
+        timeRangesOverlap(currentSlot, otherSlot)
+      ) {
+        return {
+          conflict: true,
+          conflictingSessionIndex: i + 1,
+          conflictingSlotName: otherSlot.name,
+        };
+      }
+    }
+    return { conflict: false };
+  };
+
+  const updateSessionSlot = (index: number, nextSlotId: string) => {
+    const nextSessions = sessions.map((sess, i) => {
+      if (i !== index) return sess;
+      // Khi chọn ca học mới, tự động bỏ chọn các thứ bị trùng khung giờ với buổi khác
+      const validDays = sess.daysOfWeek.filter((day) => {
+        const conflict = checkConflict(day, nextSlotId, index);
+        return !conflict.conflict;
+      });
+      return {
+        ...sess,
+        slotId: nextSlotId,
+        daysOfWeek: validDays,
+      };
+    });
+    patchSessions(nextSessions);
+  };
+
+  const toggleDayInSession = (index: number, day: WeekDay) => {
+    const nextSessions = sessions.map((sess, i) => {
+      if (i !== index) return sess;
+      const isChecked = sess.daysOfWeek.includes(day);
+      return {
+        ...sess,
+        daysOfWeek: isChecked
+          ? sess.daysOfWeek.filter((item) => item !== day)
+          : [...sess.daysOfWeek, day],
+      };
+    });
+    patchSessions(nextSessions);
+  };
+
+  const addSession = () => {
+    patchSessions([...sessions, createEmptySessionItem()]);
+  };
+
+  const removeSession = (index: number) => {
+    if (sessions.length <= 1) return;
+    patchSessions(sessions.filter((_, i) => i !== index));
+  };
+
+  const getSessionError = (index: number, field: string) => {
+    return (
+      messageFor(`sessions[${index}].${field}`) ||
+      (sessions.length === 1 ? messageFor(field) : undefined)
+    );
+  };
+
   const selectableCoaches = coaches.filter((coach) => coach.isActive);
   const selectableRooms = rooms.filter((room) => room.isActive);
 
@@ -91,7 +183,9 @@ export function ScheduleFields({
               return (
                 <option key={coach.id} value={coach.id}>
                   {coach.fullName}
-                  {matched ? "" : ` (khác chuyên môn${sportName ? ` ${sportName}` : ""})`}
+                  {matched
+                    ? ""
+                    : ` (khác chuyên môn${sportName ? ` ${sportName}` : ""})`}
                 </option>
               );
             })}
@@ -173,102 +267,142 @@ export function ScheduleFields({
             </small>
           )}
         </div>
+      </div>
 
-        <div className="field field-full">
-          <span className="field-label">
-            Các thứ trong tuần <span aria-hidden="true">*</span>
-          </span>
-          <div
-            className="checkbox-row"
-            role="group"
-            aria-label="Các thứ trong tuần có buổi học"
-            aria-describedby={
-              messageFor("daysOfWeek") ? `${prefix}-days-error` : undefined
-            }
-          >
-            {WEEKDAY_ORDER.map((day) => (
-              <label key={day} className="checkbox-chip">
-                <input
-                  type="checkbox"
-                  checked={value.daysOfWeek.includes(day)}
-                  onChange={() => toggleDay(day)}
-                />
-                <span title={WEEKDAY_NAMES[day]}>
-                  {WEEKDAY_SHORT_NAMES[day]}
-                </span>
-              </label>
-            ))}
-          </div>
-          {messageFor("daysOfWeek") && (
-            <small className="form-error" id={`${prefix}-days-error`}>
-              {messageFor("daysOfWeek")}
-            </small>
-          )}
+      <div className="field-full" style={{ marginTop: "8px" }}>
+        <div className="field-label" style={{ fontWeight: 600, marginBottom: "8px" }}>
+          Các buổi học trong tuần <span aria-hidden="true">*</span>
         </div>
 
-        <div className="field">
-          <label htmlFor={`${prefix}-slot`}>
-            Ca học <span aria-hidden="true">*</span>
-          </label>
-          <select
-            id={`${prefix}-slot`}
-            value={value.slotId}
-            onChange={(event) => patch({ slotId: event.target.value })}
-            aria-invalid={Boolean(messageFor("slotId"))}
-            aria-describedby={
-              messageFor("slotId") ? `${prefix}-slot-error` : undefined
-            }
+        <div className="schedule-sessions-container">
+          {sessions.map((session, index) => {
+            const sessionCount = countRecurrenceSessions(
+              value.startDate,
+              value.endDate,
+              session.daysOfWeek,
+            );
+
+            return (
+              <div key={session.id || index} className="schedule-session-card">
+                <div className="schedule-session-header">
+                  <div className="schedule-session-title">
+                    <Clock size={15} aria-hidden="true" />
+                    <span>Buổi học #{index + 1}</span>
+                    {sessionCount > 0 && (
+                      <span className="schedule-session-badge">
+                        {sessionCount} buổi
+                      </span>
+                    )}
+                  </div>
+                  {sessions.length > 1 && (
+                    <button
+                      type="button"
+                      className="btn-remove-session"
+                      onClick={() => removeSession(index)}
+                      title={`Xóa buổi học #${index + 1}`}
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                      <span>Xóa</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="field-grid">
+                  <div className="field">
+                    <label htmlFor={`${prefix}-slot-${index}`}>
+                      Ca học <span aria-hidden="true">*</span>
+                    </label>
+                    <select
+                      id={`${prefix}-slot-${index}`}
+                      value={session.slotId}
+                      onChange={(event) =>
+                        updateSessionSlot(index, event.target.value)
+                      }
+                      aria-invalid={Boolean(getSessionError(index, "slotId"))}
+                    >
+                      <option value="">— Chọn ca học —</option>
+                      {CENTER_TIME_SLOTS.map((slot) => (
+                        <option key={slot.id} value={slot.id}>
+                          {slot.name} · {slot.startTime}–{slot.endTime}
+                        </option>
+                      ))}
+                    </select>
+                    {getSessionError(index, "slotId") && (
+                      <small className="form-error">
+                        {getSessionError(index, "slotId")}
+                      </small>
+                    )}
+                  </div>
+
+                  <div className="field field-full">
+                    <span className="field-label">
+                      Các thứ trong tuần <span aria-hidden="true">*</span>
+                    </span>
+                    <div
+                      className="checkbox-row"
+                      role="group"
+                      aria-label={`Các thứ trong tuần cho buổi học ${index + 1}`}
+                    >
+                      {WEEKDAY_ORDER.map((day) => {
+                        const conflict = checkConflict(day, session.slotId, index);
+                        const isChecked = session.daysOfWeek.includes(day);
+                        const isDisabled = conflict.conflict;
+
+                        return (
+                          <label
+                            key={day}
+                            className={`checkbox-chip${isDisabled ? " is-disabled" : ""}`}
+                            title={
+                              isDisabled
+                                ? `Thứ này đã có ở Buổi ${conflict.conflictingSessionIndex} (${conflict.conflictingSlotName}) cùng khung giờ`
+                                : WEEKDAY_NAMES[day]
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              disabled={isDisabled}
+                              onChange={() => toggleDayInSession(index, day)}
+                            />
+                            <span>{WEEKDAY_SHORT_NAMES[day]}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {getSessionError(index, "daysOfWeek") && (
+                      <small className="form-error">
+                        {getSessionError(index, "daysOfWeek")}
+                      </small>
+                    )}
+                    {getSessionError(index, "conflict") && (
+                      <small className="form-error">
+                        {getSessionError(index, "conflict")}
+                      </small>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          <button
+            type="button"
+            className="btn-add-session"
+            onClick={addSession}
           >
-            <option value="">— Chọn ca học —</option>
-            {CENTER_TIME_SLOTS.map((slot) => (
-              <option key={slot.id} value={slot.id}>
-                {slot.name} · {slot.startTime}–{slot.endTime}
-              </option>
-            ))}
-          </select>
-          {messageFor("slotId") && (
-            <small className="form-error" id={`${prefix}-slot-error`}>
-              {messageFor("slotId")}
-            </small>
-          )}
+            <Plus size={16} aria-hidden="true" />
+            <span>Thêm buổi học</span>
+          </button>
         </div>
 
-        <div className="field">
-          <label htmlFor={`${prefix}-session-capacity`}>Sức chứa mỗi buổi</label>
-          <input
-            id={`${prefix}-session-capacity`}
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={Math.min(
-              classCapacity || 200,
-              selectedRoom?.capacity ?? 200,
-            )}
-            step={1}
-            value={value.sessionCapacity}
-            onChange={(event) => patch({ sessionCapacity: event.target.value })}
-            placeholder={classCapacity ? String(classCapacity) : "Theo sức chứa lớp"}
-            aria-invalid={Boolean(messageFor("sessionCapacity"))}
-            aria-describedby={`${prefix}-session-capacity-help${
-              messageFor("sessionCapacity")
-                ? ` ${prefix}-session-capacity-error`
-                : ""
-            }`}
-          />
-          <small id={`${prefix}-session-capacity-help`}>
-            Bỏ trống để dùng sức chứa lớp
-            {selectedRoom ? `; phòng ${selectedRoom.name} chứa tối đa ${selectedRoom.capacity} chỗ.` : "."}
+        {messageFor("scheduleConflict") && (
+          <small className="form-error" style={{ display: "block", marginTop: "4px" }}>
+            {messageFor("scheduleConflict")}
           </small>
-          {messageFor("sessionCapacity") && (
-            <small
-              className="form-error"
-              id={`${prefix}-session-capacity-error`}
-            >
-              {messageFor("sessionCapacity")}
-            </small>
-          )}
-        </div>
+        )}
+      </div>
 
+      <div className="field-grid" style={{ marginTop: "8px" }}>
         <div className="field field-full">
           <label htmlFor={`${prefix}-notes`}>Ghi chú cho buổi học</label>
           <input
@@ -281,10 +415,13 @@ export function ScheduleFields({
         </div>
       </div>
 
-      <p className="form-hint" aria-live="polite">
-        {sessionCount > 0
-          ? `Lịch này sinh ra ${sessionCount} buổi học.`
-          : "Chọn khoảng ngày và các thứ để xem số buổi sẽ được tạo."}
+      <p className="form-hint" aria-live="polite" style={{ marginTop: "12px" }}>
+        {totalSessionCount > 0
+          ? `Lịch này sinh ra tổng cộng ${totalSessionCount} buổi học trên lịch trung tâm.`
+          : "Chọn khoảng ngày, ca học và các thứ để xem số buổi sẽ được tạo."}
+        {selectedRoom
+          ? ` Phòng tập: ${selectedRoom.name} (${selectedRoom.capacity} chỗ).`
+          : ""}
       </p>
     </fieldset>
   );

@@ -5,7 +5,7 @@ import { classStatusLabels } from "../../utils/classSchedule";
 import { ScheduleFields } from "./ScheduleFields";
 import {
   emptyScheduleDraft,
-  toScheduleInput,
+  toScheduleInputs,
   validateScheduleDraft,
   type ScheduleDraft,
 } from "./scheduleDraft";
@@ -80,8 +80,28 @@ export function ClassForm({
   const [schedule, setSchedule] = useState<ScheduleDraft>(emptyScheduleDraft);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const selectedRoom = rooms.find((room) => room.id === schedule.roomId);
+
   const messageFor = (field: string): string | undefined =>
     errors[field] ?? fieldErrors?.[field];
+
+  // Khi chọn phòng tập ở khối lịch, cập nhật sức chứa lớp theo sức chứa phòng
+  const handleScheduleChange = (next: ScheduleDraft) => {
+    if (isCreating && next.roomId !== schedule.roomId) {
+      const room = rooms.find((r) => r.id === next.roomId);
+      if (room) {
+        if (!capacity || Number(capacity) > room.capacity) {
+          setCapacity(String(room.capacity));
+          setErrors((prev) => {
+            const copy = { ...prev };
+            delete copy.capacity;
+            return copy;
+          });
+        }
+      }
+    }
+    setSchedule(next);
+  };
 
   // Bộ môn đã ngừng hoạt động không dùng cho lớp mới, nhưng lớp cũ đang trỏ
   // vào nó vẫn phải chọn lại được chính nó, nếu không form sẽ không lưu nổi.
@@ -97,6 +117,9 @@ export function ClassForm({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const maxCapacity =
+      isCreating && selectedRoom ? selectedRoom.capacity : 200;
+
     const nextErrors = v.validateForm(
       { sportId, name, description, capacity },
       {
@@ -112,18 +135,21 @@ export function ClassForm({
         description: v.text("Mô tả", 500),
         capacity: v.positiveInteger("Sức chứa", {
           min: Math.max(1, activeRegistrationCount),
-          max: 200,
+          max: maxCapacity,
         }),
       },
     ) as Record<string, string>;
+
+    if (isCreating && selectedRoom && Number(capacity) > selectedRoom.capacity) {
+      nextErrors.capacity = `Sức chứa lớp không được vượt quá sức chứa phòng ${selectedRoom.name} (${selectedRoom.capacity} chỗ).`;
+    }
 
     if (isCreating) {
       Object.assign(
         nextErrors,
         validateScheduleDraft(schedule, {
           classCapacity: Number(capacity),
-          roomCapacity: rooms.find((room) => room.id === schedule.roomId)
-            ?.capacity,
+          roomCapacity: selectedRoom?.capacity,
         }),
       );
     } else if (status === "OPEN" && upcomingSessionCount === 0) {
@@ -147,12 +173,20 @@ export function ClassForm({
       return;
     }
 
-    const scheduleInput = toScheduleInput(schedule);
-    if (!scheduleInput) {
-      setErrors({ ...nextErrors, slotId: "Chọn ca học." });
+    const scheduleInputs = toScheduleInputs(schedule, Number(capacity));
+    if (scheduleInputs.length === 0) {
+      setErrors({
+        ...nextErrors,
+        slotId: "Chọn ca học và thứ cho ít nhất một buổi học.",
+      });
       return;
     }
-    onSubmit({ ...base, schedule: scheduleInput });
+
+    onSubmit({
+      ...base,
+      schedule: scheduleInputs[0],
+      additionalSchedules: scheduleInputs.slice(1),
+    });
   }
 
   return (
@@ -200,20 +234,24 @@ export function ClassForm({
             type="number"
             inputMode="numeric"
             min={Math.max(1, activeRegistrationCount)}
-            max={200}
+            max={isCreating && selectedRoom ? selectedRoom.capacity : 200}
             step={1}
             value={capacity}
             onChange={(event) => setCapacity(event.target.value)}
-            placeholder="15"
+            placeholder={selectedRoom ? String(selectedRoom.capacity) : "15"}
             aria-invalid={Boolean(messageFor("capacity"))}
             aria-describedby={`${prefix}-capacity-help${
               messageFor("capacity") ? ` ${prefix}-capacity-error` : ""
             }`}
           />
           <small id={`${prefix}-capacity-help`}>
-            {activeRegistrationCount > 0
-              ? `Đang có ${activeRegistrationCount} đăng ký còn hiệu lực nên không hạ xuống dưới mức này.`
-              : "Giới hạn trên cho sức chứa của từng buổi học."}
+            {selectedRoom
+              ? `Tối đa ${selectedRoom.capacity} chỗ theo phòng ${selectedRoom.name}.`
+              : activeRegistrationCount > 0
+                ? `Đang có ${activeRegistrationCount} đăng ký còn hiệu lực nên không hạ xuống dưới mức này.`
+                : isCreating
+                  ? "Sức chứa tối đa phụ thuộc vào phòng học được chọn ở mục Lịch học."
+                  : "Giới hạn trên cho sức chứa của lớp."}
           </small>
           {messageFor("capacity") && (
             <small className="form-error" id={`${prefix}-capacity-error`}>
@@ -308,7 +346,7 @@ export function ClassForm({
       {isCreating && (
         <ScheduleFields
           value={schedule}
-          onChange={setSchedule}
+          onChange={handleScheduleChange}
           coaches={coaches}
           rooms={rooms}
           sportName={sportName}
