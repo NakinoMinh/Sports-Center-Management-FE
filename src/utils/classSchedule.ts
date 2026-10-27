@@ -12,6 +12,7 @@ import type {
   ClassSessionStatus,
   CoachOption,
   Room,
+  WeekDay,
 } from "../types/classes";
 
 /** Giờ trung tâm. Timestamp gửi/nhận luôn kèm offset để khỏi lệch múi giờ. */
@@ -297,19 +298,83 @@ export const weekRangeOf = (date: string): { from: string; to: string } => {
   return { from, to: addCalendarDays(from, 6) };
 };
 
+/**
+ * Thứ trong tuần theo chỉ số 0 = Chủ nhật, khớp `Date.getDay()` và `daysOfWeek`
+ * của backend. Dùng chung cho nhãn một ngày cụ thể và cho bộ chọn thứ của lịch
+ * lớp, để hai chỗ không lệch nhau khi thêm/bớt nhãn.
+ */
+export const WEEKDAY_NAMES: readonly string[] = [
+  "Chủ nhật",
+  "Thứ hai",
+  "Thứ ba",
+  "Thứ tư",
+  "Thứ năm",
+  "Thứ sáu",
+  "Thứ bảy",
+];
+
+/** Nhãn ngắn cho ô chọn thứ: "CN", "T2"… */
+export const WEEKDAY_SHORT_NAMES: readonly string[] = [
+  "CN",
+  "T2",
+  "T3",
+  "T4",
+  "T5",
+  "T6",
+  "T7",
+];
+
+/** Thứ hai đến chủ nhật — thứ tự hiển thị quen mắt hơn 0..6. */
+export const WEEKDAY_ORDER: readonly WeekDay[] = [1, 2, 3, 4, 5, 6, 0];
+
 /** Nhãn tiếng Việt cho ngày trong tuần, ví dụ "Thứ ba". */
 export const weekdayLabel = (date: string): string => {
   const value = new Date(`${date}T00:00:00Z`);
   if (Number.isNaN(value.getTime())) return "—";
-  return [
-    "Chủ nhật",
-    "Thứ hai",
-    "Thứ ba",
-    "Thứ tư",
-    "Thứ năm",
-    "Thứ sáu",
-    "Thứ bảy",
-  ][value.getUTCDay()];
+  return WEEKDAY_NAMES[value.getUTCDay()];
+};
+
+/** Mô tả lịch lặp của lớp thành một dòng, ví dụ "T2, T4 · 18:00–19:30". */
+export const describeRecurrence = (
+  daysOfWeek: readonly WeekDay[],
+  startTime: string,
+  endTime: string,
+): string => {
+  const days = WEEKDAY_ORDER.filter((day) => daysOfWeek.includes(day))
+    .map((day) => WEEKDAY_SHORT_NAMES[day])
+    .join(", ");
+  const range = formatTimeRange(startTime, endTime);
+  return days ? `${days} · ${range}` : range;
+};
+
+/**
+ * Số buổi một lịch lặp sinh ra. Chỉ để form báo trước cho người dùng; server
+ * vẫn là nơi sinh buổi thật và có thể từ chối vì trùng lịch.
+ */
+export const countRecurrenceSessions = (
+  startDate: string,
+  endDate: string,
+  daysOfWeek: readonly WeekDay[],
+): number => {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    end < start ||
+    daysOfWeek.length === 0
+  )
+    return 0;
+
+  let count = 0;
+  for (
+    const cursor = new Date(start);
+    cursor <= end;
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  ) {
+    if (daysOfWeek.includes(cursor.getUTCDay() as WeekDay)) count += 1;
+  }
+  return count;
 };
 
 /**

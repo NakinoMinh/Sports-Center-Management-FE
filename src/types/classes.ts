@@ -51,12 +51,61 @@ export interface CoachOption {
  */
 export type ClassStatus = "DRAFT" | "OPEN" | "CLOSED" | "ARCHIVED";
 
+/**
+ * Thứ trong tuần theo quy ước của `Date.getDay()`: 0 là Chủ nhật, 6 là Thứ bảy.
+ * Backend dùng đúng quy ước này cho `daysOfWeek`.
+ */
+export type WeekDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+/**
+ * Lịch học của lớp — giáo viên đứng lớp, phòng, khoảng ngày, các thứ trong tuần
+ * và khung giờ. Tạo lớp phải kèm khối này: lớp sinh ra là đã có đủ buổi học
+ * trên lịch trung tâm, chứ không phải một vỏ rỗng chờ thêm từng buổi một.
+ */
+export interface ClassScheduleInput {
+  coachId: string;
+  roomId: string;
+  startDate: string;
+  endDate: string;
+  daysOfWeek: WeekDay[];
+  startTime: string;
+  endTime: string;
+  /** Bỏ trống thì mỗi buổi lấy luôn sức chứa của lớp. */
+  sessionCapacity?: number;
+  notes?: string;
+}
+
+/**
+ * Một đợt lịch của lớp, server suy ra từ các buổi đã lập: cùng giáo viên, cùng
+ * phòng và cùng ca học thì là một đợt. Lớp dạy tối T2/T4 và sáng T6 có hai đợt
+ * — hiện riêng từng đợt, vì gộp một dòng thì mọi ca đều bị hiển thị theo giờ
+ * của đợt sớm nhất.
+ */
+export interface ClassScheduleBlock {
+  coachId: string;
+  coachName: string;
+  roomId: string;
+  roomName: string;
+  /** Ngày của buổi đầu và buổi cuối trong đợt này. */
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  daysOfWeek: WeekDay[];
+  sessionCount: number;
+}
+
 export interface ClassInput {
   sportId: string;
   name: string;
   description: string;
   capacity: number;
   status: ClassStatus;
+}
+
+/** Tạo lớp: thông tin lớp cộng lịch học bắt buộc. */
+export interface CreateClassInput extends ClassInput {
+  schedule: ClassScheduleInput;
 }
 
 export interface TrainingClass extends ClassInput {
@@ -67,6 +116,8 @@ export interface TrainingClass extends ClassInput {
   totalSessionCount: number;
   /** Số đăng ký còn hiệu lực trên toàn bộ buổi của lớp. */
   activeRegistrationCount: number;
+  /** Rỗng khi lớp chưa có buổi nào còn hiệu lực. */
+  scheduleBlocks: ClassScheduleBlock[];
   createdAt: string;
   updatedAt: string;
 }
@@ -137,6 +188,33 @@ export interface ClassRegistration {
   cancelReason?: string;
   /** Snapshot buổi học, để danh sách đăng ký hiển thị không cần gọi thêm. */
   session: ClassSession;
+}
+
+/**
+ * Một lượt đăng ký lớp học. Thành viên đăng ký cả lớp: server giữ chỗ cho mọi
+ * buổi còn ở tương lai của lớp, `sessions` là các buổi đã giữ chỗ (vẫn cần cho
+ * lịch cá nhân và điểm danh).
+ */
+export interface ClassEnrollment {
+  classId: string;
+  className: string;
+  sportId: string;
+  sportName: string;
+  memberId: string;
+  memberName: string;
+  memberCode: string;
+  /** BOOKED khi còn ít nhất một buổi đang giữ chỗ, ngược lại CANCELED. */
+  status: ClassRegistrationStatus;
+  registeredAt: string;
+  registeredVia: RegistrationChannel;
+  registeredByName: string;
+  canceledAt?: string;
+  canceledByName?: string;
+  cancelReason?: string;
+  bookedSessionCount: number;
+  upcomingSessionCount: number;
+  scheduleBlocks: ClassScheduleBlock[];
+  sessions: ClassRegistration[];
 }
 
 /** Phạm vi hủy của UC30 — một buổi, hay mọi buổi tương lai của lớp. */

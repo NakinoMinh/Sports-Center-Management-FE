@@ -12,15 +12,16 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { SessionRegistrationPanel } from "../../components/classes/SessionRegistrationPanel";
+import { ClassRegistrationPanel } from "../../components/classes/ClassRegistrationPanel";
+import { ScheduleBlockList } from "../../components/classes/ScheduleBlockList";
 import { SlotFilterBar } from "../../components/classes/SlotFilterBar";
 import { useAuth } from "../../hooks/useAuth";
 import { describeError } from "../../services/apiErrors";
 import { classApi } from "../../services/classApi";
 import type {
+  ClassEnrollment,
   ClassRegistration,
   ClassSession,
-  CoachOption,
   Sport,
   TrainingClass,
 } from "../../types/classes";
@@ -47,13 +48,12 @@ type Props = {
   view: MemberClassView;
 };
 
-const registrationFor = (
-  registrations: readonly ClassRegistration[],
-  sessionId: string,
-): ClassRegistration | null =>
-  registrations.find(
-    (item) => item.sessionId === sessionId && item.status === "BOOKED",
-  ) ?? null;
+/** Lượt đăng ký lớp của thành viên trên một lớp, nếu còn giữ chỗ. */
+const enrollmentFor = (
+  enrollments: readonly ClassEnrollment[],
+  classId: string,
+): ClassEnrollment | null =>
+  enrollments.find((item) => item.classId === classId) ?? null;
 
 const byRegistrationStart = (
   first: ClassRegistration,
@@ -65,8 +65,9 @@ export function MemberClassesPage({ view }: Props) {
   const [classes, setClasses] = useState<TrainingClass[]>([]);
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [registrations, setRegistrations] = useState<ClassRegistration[]>([]);
+  // Thành viên đăng ký cả lớp: màn hình khám phá làm việc trên lượt đăng ký lớp.
+  const [enrollments, setEnrollments] = useState<ClassEnrollment[]>([]);
   const [sports, setSports] = useState<Sport[]>([]);
-  const [coaches, setCoaches] = useState<CoachOption[]>([]);
   const [search, setSearch] = useState("");
   const [sportId, setSportId] = useState("ALL");
   const [coachId, setCoachId] = useState("ALL");
@@ -81,14 +82,14 @@ export function MemberClassesPage({ view }: Props) {
     setIsLoading(true);
     try {
       if (view === "DISCOVER") {
-        const [classList, sessionList, registrationList, sportList] =
+        const [classList, sessionList, enrollmentList, sportList] =
           await Promise.all([
             classApi.listClasses({ status: "OPEN" }),
             classApi.listSessions({
               from: centerToday(),
               status: "SCHEDULED",
             }),
-            classApi.listMyRegistrations(true),
+            classApi.listMyClasses(true),
             classApi.listSports(),
           ]);
         const upcomingSessions = sessionList
@@ -98,15 +99,21 @@ export function MemberClassesPage({ view }: Props) {
           .sort(byStartTime);
         setClasses(classList.filter((item) => item.status === "OPEN"));
         setSessions(upcomingSessions);
-        setRegistrations(registrationList);
+        setEnrollments(enrollmentList);
         setSports(sportList.filter((item) => item.isActive));
-        setCoaches(deriveCoachOptionsFromSessions(upcomingSessions));
       } else {
-        setRegistrations(
-          (await classApi.listMyRegistrations(true)).sort(
-            byRegistrationStart,
-          ),
+        // Lịch cá nhân vẫn hiển thị theo buổi (đó là thứ nằm trên lịch), nhưng
+        // thao tác hủy là theo lớp, nên cần cả lớp và lượt đăng ký lớp.
+        const [registrationList, enrollmentList, classList] = await Promise.all(
+          [
+            classApi.listMyRegistrations(true),
+            classApi.listMyClasses(true),
+            classApi.listClasses(),
+          ],
         );
+        setRegistrations([...registrationList].sort(byRegistrationStart));
+        setEnrollments(enrollmentList);
+        setClasses(classList);
       }
       setError("");
     } catch (caught) {
@@ -120,6 +127,12 @@ export function MemberClassesPage({ view }: Props) {
     // oxlint-disable-next-line react/set-state-in-effect
     void refresh();
   }, [refresh]);
+
+  // The coach directory is manager-only; members filter coaches from visible sessions.
+  const coaches = useMemo(
+    () => deriveCoachOptionsFromSessions(sessions),
+    [sessions],
+  );
 
   const visibleClasses = useMemo(() => {
     const keyword = search.trim().toLocaleLowerCase("vi");
@@ -311,6 +324,23 @@ export function MemberClassesPage({ view }: Props) {
                         {classSessions.length} buổi sắp tới
                       </span>
                     </div>
+
+                    {/* Từng đợt lịch một dòng, kèm giáo viên và phòng của chính
+                        đợt đó — lớp có thể dạy nhiều ca khác giờ nhau. */}
+                    <ScheduleBlockList
+                      blocks={item.scheduleBlocks}
+                      variant="detailed"
+                      emptyLabel="Lớp chưa có lịch cụ thể."
+                    />
+
+                    {/* Đăng ký là theo lớp: một lượt giữ chỗ cho mọi buổi còn
+                        ở tương lai, nên nút nằm ở thẻ lớp chứ không ở từng buổi. */}
+                    <ClassRegistrationPanel
+                      trainingClass={item}
+                      enrollment={enrollmentFor(enrollments, item.id)}
+                      onChanged={refresh}
+                    />
+
                     <div className="member-session-stack">
                       {classSessions.map((session) => (
                         <section
@@ -341,14 +371,6 @@ export function MemberClassesPage({ view }: Props) {
                               trống
                             </span>
                           </div>
-                          <SessionRegistrationPanel
-                            session={session}
-                            registration={registrationFor(
-                              registrations,
-                              session.id,
-                            )}
-                            onChanged={refresh}
-                          />
                         </section>
                       ))}
                     </div>
@@ -521,14 +543,23 @@ export function MemberClassesPage({ view }: Props) {
                         Lý do hủy: {registration.cancelReason}
                       </p>
                     )}
-                    {registration.status === "BOOKED" && (
-                      <SessionRegistrationPanel
-                        session={registration.session}
-                        registration={registration}
-                        onChanged={refresh}
-                        layout="inline"
-                      />
-                    )}
+                    {registration.status === "BOOKED" &&
+                      (() => {
+                        // Hủy là hủy cả lớp: thành viên đăng ký lớp chứ không
+                        // đăng ký lẻ từng buổi.
+                        const owning = classes.find(
+                          (item) => item.id === registration.session.classId,
+                        );
+                        if (!owning) return null;
+                        return (
+                          <ClassRegistrationPanel
+                            trainingClass={owning}
+                            enrollment={enrollmentFor(enrollments, owning.id)}
+                            onChanged={refresh}
+                            layout="inline"
+                          />
+                        );
+                      })()}
                   </article>
                 ))}
               </div>

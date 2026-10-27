@@ -26,6 +26,7 @@ import type {
   CancelScope,
   ClassInput,
   ClassRegistration,
+  ClassScheduleBlock,
   ClassSession,
   ClassSessionFilter,
   ClassSessionInput,
@@ -37,6 +38,7 @@ import type {
   Sport,
   SportInput,
   TrainingClass,
+  WeekDay,
 } from "../types/classes";
 import {
   addCalendarDays,
@@ -507,6 +509,57 @@ function projectSession(record: MockSessionRecord): ClassSession {
   };
 }
 
+/**
+ * Gộp các buổi thành từng đợt lịch giống `ClassService.BuildScheduleBlocks` của
+ * server: cùng giáo viên, cùng phòng, cùng ca là một đợt. Dữ liệu mẫu phải mô
+ * tả lớp y như API thật, nếu không màn hình chạy trên mock sẽ khác thật.
+ */
+function scheduleBlocksOf(
+  sessions: readonly MockSessionRecord[],
+): ClassScheduleBlock[] {
+  const data = store();
+  const groups = new Map<string, MockSessionRecord[]>();
+  for (const session of sessions) {
+    if (session.status === "CANCELED") continue;
+    const key = `${session.coachId}|${session.roomId}|${session.startTime}|${session.endTime}`;
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(session);
+    else groups.set(key, [session]);
+  }
+
+  return [...groups.values()]
+    .map((group) => {
+      const dates = group.map((item) => item.date).sort();
+      const [first] = group;
+      return {
+        coachId: first.coachId,
+        coachName:
+          data.coaches.find((item) => item.id === first.coachId)?.fullName ??
+          "Chưa phân công",
+        roomId: first.roomId,
+        roomName:
+          data.rooms.find((item) => item.id === first.roomId)?.name ?? "—",
+        startDate: dates[0],
+        endDate: dates[dates.length - 1],
+        startTime: first.startTime,
+        endTime: first.endTime,
+        daysOfWeek: [
+          ...new Set(
+            group.map(
+              (item) => new Date(`${item.date}T00:00:00Z`).getUTCDay() as WeekDay,
+            ),
+          ),
+        ].sort((left, right) => left - right),
+        sessionCount: group.length,
+      };
+    })
+    .sort(
+      (left, right) =>
+        left.startDate.localeCompare(right.startDate) ||
+        left.startTime.localeCompare(right.startTime),
+    );
+}
+
 function projectClass(record: MockClassRecord): TrainingClass {
   const data = store();
   const sport = data.sports.find((item) => item.id === record.sportId);
@@ -523,6 +576,7 @@ function projectClass(record: MockClassRecord): TrainingClass {
       (total, item) => total + activeRegistrationsOf(item.id).length,
       0,
     ),
+    scheduleBlocks: scheduleBlocksOf(sessions),
   };
 }
 

@@ -21,20 +21,25 @@ import { memberApi } from "./memberApi";
 import type {
   CancelImpact,
   CancelScope,
+  ClassEnrollment,
   ClassInput,
   ClassListFilter,
   ClassRegistration,
+  ClassScheduleInput,
+  ClassScheduleBlock,
   ClassSession,
   ClassSessionFilter,
   ClassSessionInput,
   ClassStatus,
   CoachOption,
+  CreateClassInput,
   Room,
   SessionMemberOption,
   Sport,
   SportInput,
   SessionRosterMember,
   TrainingClass,
+  WeekDay,
 } from "../types/classes";
 
 // --- DTO ------------------------------------------------------------------
@@ -71,6 +76,19 @@ interface CoachOptionDto {
   specializations?: string[] | string | null;
 }
 
+interface ClassScheduleBlockDto {
+  coachId?: string | null;
+  coachName?: string | null;
+  roomId?: number | string | null;
+  roomName?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  daysOfWeek?: number[] | null;
+  sessionCount?: number;
+}
+
 interface ClassDto {
   id: number | string;
   sportId: number | string;
@@ -82,8 +100,36 @@ interface ClassDto {
   upcomingSessionCount?: number;
   totalSessionCount?: number;
   activeRegistrationCount?: number;
+  scheduleBlocks?: ClassScheduleBlockDto[] | null;
   createdAt?: string;
   updatedAt?: string | null;
+}
+
+interface ClassEnrollmentDto {
+  classId: number | string;
+  className?: string | null;
+  sportId?: number | string | null;
+  sportName?: string | null;
+  memberAccountId?: string | null;
+  memberName?: string | null;
+  memberCode?: string | null;
+  status?: string;
+  registeredAt?: string;
+  registeredVia?: string;
+  registeredByName?: string | null;
+  canceledAt?: string | null;
+  canceledByName?: string | null;
+  cancelReason?: string | null;
+  bookedSessionCount?: number;
+  upcomingSessionCount?: number;
+  scheduleBlocks?: ClassScheduleBlockDto[] | null;
+  sessions?: RegistrationDto[] | null;
+}
+
+interface AddScheduleResultDto {
+  classId: number | string;
+  createdSessionCount?: number;
+  scheduleBlocks?: ClassScheduleBlockDto[] | null;
 }
 
 interface SessionDto {
@@ -219,6 +265,34 @@ const classStatusOf = (value: string | undefined): ClassStatus => {
   return CLASS_STATUSES.includes(normalized) ? normalized : "DRAFT";
 };
 
+/** Lọc ra các thứ hợp lệ: DTO lạ không được làm hỏng bộ chọn thứ của form. */
+const weekDaysOf = (value: number[] | null | undefined): WeekDay[] =>
+  (value ?? [])
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    .sort((left, right) => left - right) as WeekDay[];
+
+/**
+ * Mỗi đợt lịch một phần tử. Đợt thiếu mốc ngày bị bỏ: màn hình thà hiện "chưa
+ * có lịch" còn hơn hiện một dòng rỗng.
+ */
+const mapScheduleBlocks = (
+  dtos: ClassScheduleBlockDto[] | null | undefined,
+): ClassScheduleBlock[] =>
+  (dtos ?? [])
+    .filter((dto) => Boolean(dto.startDate && dto.endDate))
+    .map((dto) => ({
+      coachId: dto.coachId ?? "",
+      coachName: dto.coachName ?? "Chưa phân công",
+      roomId: id(dto.roomId),
+      roomName: dto.roomName ?? "—",
+      startDate: (dto.startDate ?? "").slice(0, 10),
+      endDate: (dto.endDate ?? "").slice(0, 10),
+      startTime: (dto.startTime ?? "").slice(0, 5),
+      endTime: (dto.endTime ?? "").slice(0, 5),
+      daysOfWeek: weekDaysOf(dto.daysOfWeek),
+      sessionCount: dto.sessionCount ?? 0,
+    }));
+
 export const mapClass = (dto: ClassDto): TrainingClass => ({
   id: id(dto.id),
   sportId: id(dto.sportId),
@@ -230,6 +304,7 @@ export const mapClass = (dto: ClassDto): TrainingClass => ({
   upcomingSessionCount: dto.upcomingSessionCount ?? 0,
   totalSessionCount: dto.totalSessionCount ?? 0,
   activeRegistrationCount: dto.activeRegistrationCount ?? 0,
+  scheduleBlocks: mapScheduleBlocks(dto.scheduleBlocks),
   createdAt: dto.createdAt ?? new Date().toISOString(),
   updatedAt: dto.updatedAt ?? dto.createdAt ?? new Date().toISOString(),
 });
@@ -294,6 +369,31 @@ export const mapRegistration = (dto: RegistrationDto): ClassRegistration => ({
   session: mapSession(dto.session),
 });
 
+export const mapEnrollment = (dto: ClassEnrollmentDto): ClassEnrollment => ({
+  classId: id(dto.classId),
+  className: dto.className ?? "—",
+  sportId: id(dto.sportId),
+  sportName: dto.sportName ?? "—",
+  memberId: dto.memberAccountId ?? "",
+  memberName: dto.memberName ?? "—",
+  memberCode: dto.memberCode ?? "—",
+  status:
+    (dto.status ?? "").toUpperCase() === "CANCELED" ? "CANCELED" : "BOOKED",
+  registeredAt: dto.registeredAt ?? new Date().toISOString(),
+  registeredVia:
+    (dto.registeredVia ?? "").toUpperCase() === "RECEPTIONIST"
+      ? "RECEPTIONIST"
+      : "MEMBER",
+  registeredByName: dto.registeredByName ?? dto.memberName ?? "—",
+  canceledAt: dto.canceledAt ?? undefined,
+  canceledByName: dto.canceledByName ?? undefined,
+  cancelReason: dto.cancelReason ?? undefined,
+  bookedSessionCount: dto.bookedSessionCount ?? 0,
+  upcomingSessionCount: dto.upcomingSessionCount ?? 0,
+  scheduleBlocks: mapScheduleBlocks(dto.scheduleBlocks),
+  sessions: (dto.sessions ?? []).map(mapRegistration),
+});
+
 export const mapCancelImpact = (
   dto: CancelImpactDto,
   fallbackScope: CancelScope,
@@ -325,14 +425,28 @@ const sportPayload = (input: SportInput) => ({
   description: input.description.trim(),
 });
 
+const numeric = (value: string): number | string =>
+  Number.isNaN(Number(value)) ? value : Number(value);
+
 const classPayload = (input: ClassInput) => ({
-  sportId: Number.isNaN(Number(input.sportId))
-    ? input.sportId
-    : Number(input.sportId),
+  sportId: numeric(input.sportId),
   name: input.name.trim(),
   description: input.description.trim(),
   capacity: input.capacity,
   status: input.status,
+});
+
+/** Khối lịch dùng chung cho `POST /Class` và `POST /Class/{id}/schedule`. */
+const schedulePayload = (input: ClassScheduleInput) => ({
+  coachId: input.coachId,
+  roomId: numeric(input.roomId),
+  startDate: input.startDate,
+  endDate: input.endDate,
+  daysOfWeek: input.daysOfWeek,
+  startTime: input.startTime,
+  endTime: input.endTime,
+  sessionCapacity: input.sessionCapacity,
+  notes: input.notes?.trim() || undefined,
 });
 
 const sessionPayload = (input: ClassSessionInput) => ({
@@ -430,15 +544,46 @@ export const classApi = {
     return items.map(mapClass);
   },
 
-  async saveClass(input: ClassInput, classId?: string): Promise<TrainingClass> {
-    const result = await apiRequest<ClassDto>(
-      classId ? `/Class/${classId}` : "/Class",
-      {
-        method: classId ? "PUT" : "POST",
-        body: JSON.stringify(classPayload(input)),
-      },
-    );
+  /**
+   * Tạo lớp kèm lịch học: server sinh ra toàn bộ buổi của lớp trong cùng một
+   * giao dịch, nên lớp vừa tạo đã có mặt trên lịch trung tâm.
+   */
+  async createClass(input: CreateClassInput): Promise<TrainingClass> {
+    const result = await apiRequest<ClassDto>("/Class", {
+      method: "POST",
+      body: JSON.stringify({
+        ...classPayload(input),
+        schedule: schedulePayload(input.schedule),
+      }),
+    });
     return mapClass(result);
+  },
+
+  /** Sửa thông tin lớp. Lịch học đổi qua `addSchedule` hoặc màn hình buổi học. */
+  async updateClass(input: ClassInput, classId: string): Promise<TrainingClass> {
+    const result = await apiRequest<ClassDto>(`/Class/${classId}`, {
+      method: "PUT",
+      body: JSON.stringify(classPayload(input)),
+    });
+    return mapClass(result);
+  },
+
+  /** Gán thêm một đợt lịch cho lớp đã có; trả về số buổi vừa tạo. */
+  async addSchedule(
+    classId: string,
+    input: ClassScheduleInput,
+  ): Promise<{
+    createdSessionCount: number;
+    scheduleBlocks: ClassScheduleBlock[];
+  }> {
+    const result = await apiRequest<AddScheduleResultDto>(
+      `/Class/${classId}/schedule`,
+      { method: "POST", body: JSON.stringify(schedulePayload(input)) },
+    );
+    return {
+      createdSessionCount: result.createdSessionCount ?? 0,
+      scheduleBlocks: mapScheduleBlocks(result.scheduleBlocks),
+    };
   },
 
   async setClassStatus(
@@ -539,6 +684,69 @@ export const classApi = {
       `/ClassRegistration?memberAccountId=${encodeURIComponent(memberId)}&includeCanceled=${includeCanceled}`,
     );
     return items.map(mapRegistration);
+  },
+
+  // --- Đăng ký theo lớp ---------------------------------------------------
+  // Thành viên đăng ký cả lớp, không chọn từng buổi: một lượt giữ chỗ cho mọi
+  // buổi còn ở tương lai của lớp.
+
+  async listMyClasses(includeCanceled = false): Promise<ClassEnrollment[]> {
+    const items = await listAllPages<ClassEnrollmentDto>(
+      `/ClassRegistration/me/classes?includeCanceled=${includeCanceled}`,
+    );
+    return items.map(mapEnrollment);
+  },
+
+  async registerClass(classId: string): Promise<ClassEnrollment> {
+    const result = await apiRequest<ClassEnrollmentDto>(
+      "/ClassRegistration/register-class",
+      { method: "POST", body: JSON.stringify({ classId: Number(classId) }) },
+    );
+    return mapEnrollment(result);
+  },
+
+  async registerClassAtCounter(
+    classId: string,
+    memberId: string,
+  ): Promise<ClassEnrollment> {
+    const result = await apiRequest<ClassEnrollmentDto>(
+      "/ClassRegistration/counter-register-class",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          classId: Number(classId),
+          memberAccountId: memberId,
+        }),
+      },
+    );
+    return mapEnrollment(result);
+  },
+
+  async cancelMyClass(
+    classId: string,
+    reason: string,
+  ): Promise<ClassEnrollment> {
+    const result = await apiRequest<ClassEnrollmentDto>(
+      `/ClassRegistration/classes/${classId}/cancel`,
+      {
+        method: "POST",
+        body: JSON.stringify(reason.trim() ? { reason: reason.trim() } : {}),
+      },
+    );
+    return mapEnrollment(result);
+  },
+
+  /** Lễ tân hủy cả lớp thay thành viên; lý do là bắt buộc. */
+  async cancelClassAtCounter(
+    classId: string,
+    memberId: string,
+    reason: string,
+  ): Promise<ClassEnrollment> {
+    const result = await apiRequest<ClassEnrollmentDto>(
+      `/ClassRegistration/classes/${classId}/counter-cancel?memberAccountId=${encodeURIComponent(memberId)}`,
+      { method: "POST", body: JSON.stringify({ reason: reason.trim() }) },
+    );
+    return mapEnrollment(result);
   },
 
   async registerMyself(sessionId: string): Promise<ClassRegistration> {

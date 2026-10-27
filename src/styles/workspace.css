@@ -998,6 +998,120 @@ textarea {
 .field-full {
   grid-column: 1 / -1;
 }
+
+/* Khối lịch học của lớp (UC19/UC21): nhóm các trường lịch tách khỏi phần
+   thông tin lớp, để form tạo lớp đọc được thành hai phần rõ ràng. */
+.field-group {
+  margin-top: var(--space-5);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle, #fcfdfb);
+}
+.field-group > legend {
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--fg-default);
+}
+.field-group .field-grid {
+  margin-top: var(--space-3);
+}
+.form-hint {
+  margin: 0;
+  font-size: var(--text-xs, 12px);
+  font-weight: 500;
+  color: var(--fg-muted, #6b7f74);
+  line-height: 1.5;
+}
+.field > .field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #42574c;
+}
+
+/* Các đợt lịch của một lớp: mỗi đợt một dòng, vì lớp có thể dạy nhiều ca
+   khác giờ nhau và một dòng gộp sẽ hiện sai giờ của các ca còn lại. */
+.schedule-block-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.schedule-block-list > li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.schedule-block-list > li + li {
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--border-default);
+}
+.schedule-block-list.is-detailed > li + li {
+  border-top-style: solid;
+}
+.schedule-block-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+.schedule-block-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1, 4px) var(--space-3);
+  font-size: var(--text-xs, 12px);
+  color: var(--fg-muted, #6b7f74);
+}
+.schedule-block-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Bộ chọn thứ trong tuần: ô vuông nhỏ bấm được, trạng thái chọn thấy rõ. */
+.checkbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.checkbox-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+  min-height: var(--control-height-md, 36px);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-colors);
+}
+.checkbox-chip:hover {
+  border-color: var(--border-strong, #9fb3a7);
+}
+.checkbox-chip input {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--accent-default, #2f6f4f);
+}
+.checkbox-chip:has(input:checked) {
+  border-color: var(--accent-default, #2f6f4f);
+  background: var(--accent-subtle, #eaf4ee);
+  color: var(--accent-strong, #1f5338);
+}
+.checkbox-chip:focus-within {
+  outline: 2px solid var(--accent-default, #2f6f4f);
+  outline-offset: 2px;
+}
 .membership-hero {
   display: flex;
   justify-content: space-between;

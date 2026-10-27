@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Dialog } from "../../components/common/Dialog";
 import { SessionForm } from "../../components/classes/SessionForm";
+import { AssignClassForm } from "../../components/classes/AssignClassForm";
 import { CancelScopeDialog } from "../../components/classes/CancelScopeDialog";
 import { SlotFilterBar } from "../../components/classes/SlotFilterBar";
 import { useAuth } from "../../hooks/useAuth";
@@ -36,6 +37,7 @@ import { formatDate } from "../../utils/format";
 import type {
   CancelScope,
   SessionRosterMember,
+  ClassScheduleInput,
   ClassSession,
   ClassSessionInput,
   ClassSessionStatus,
@@ -76,7 +78,9 @@ export function ClassSchedulePage() {
   const [slotFilter, setSlotFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
 
-  const [editing, setEditing] = useState<ClassSession | "new" | null>(null);
+  const [editing, setEditing] = useState<ClassSession | null>(null);
+  // Gán cả đợt lịch cho một lớp, thay cho việc lập từng buổi một.
+  const [isAssigning, setIsAssigning] = useState(false);
   const [canceling, setCanceling] = useState<ClassSession | null>(null);
   const [roster, setRoster] = useState<{
     session: ClassSession;
@@ -179,17 +183,36 @@ export function ClassSchedulePage() {
     setSearchParams(next, { replace: true });
   }
 
+  /** Gán cả đợt lịch cho một lớp; buổi học hiện ngay trên lịch tuần. */
+  async function assignClassToSchedule(
+    classId: string,
+    schedule: ClassScheduleInput,
+  ) {
+    setIsSaving(true);
+    try {
+      const result = await classApi.addSchedule(classId, schedule);
+      const assigned = classes.find((item) => item.id === classId);
+      toast.success(
+        `Đã gán ${result.createdSessionCount} buổi cho lớp “${assigned?.name ?? classId}”.`,
+      );
+      setIsAssigning(false);
+      setFormError("");
+      setFormFieldErrors({});
+      await refresh();
+    } catch (caught) {
+      setFormError(describeError(caught));
+      setFormFieldErrors(fieldErrorsOf(caught));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function saveSession(values: ClassSessionInput) {
     if (!editing) return;
     setIsSaving(true);
     try {
-      const sessionId = editing === "new" ? undefined : editing.id;
-      const saved = await classApi.saveSession(values, sessionId);
-      toast.success(
-        editing === "new"
-          ? `Đã thêm buổi ${saved.startTime}–${saved.endTime} ngày ${formatDate(saved.date)}.`
-          : `Đã cập nhật buổi học ngày ${formatDate(saved.date)}.`,
-      );
+      const saved = await classApi.saveSession(values, editing.id);
+      toast.success(`Đã cập nhật buổi học ngày ${formatDate(saved.date)}.`);
       setEditing(null);
       setFormError("");
       setFormFieldErrors({});
@@ -248,8 +271,9 @@ export function ClassSchedulePage() {
           <p className="eyebrow">QUẢN LÝ TRUNG TÂM</p>
           <h1>Lịch học theo Khung giờ (Slot)</h1>
           <p>
-            Lập buổi học theo các khung giờ (Slot) có sẵn, chọn phòng tập và
-            huấn luyện viên đúng chuyên môn phụ trách — không có giờ tập tự do.
+            Lớp học đã có lịch ngay từ lúc tạo. Ở đây gán thêm đợt lịch cho một
+            lớp theo khung giờ (Slot) có sẵn, hoặc sửa lẻ một buổi khi cần đổi
+            giáo viên, phòng hay ngày.
           </p>
         </div>
         <div className="page-actions">
@@ -260,13 +284,13 @@ export function ClassSchedulePage() {
             type="button"
             className="button primary"
             onClick={() => {
-              setEditing("new");
+              setIsAssigning(true);
               setFormError("");
               setFormFieldErrors({});
             }}
           >
             <Plus size={18} aria-hidden="true" />
-            Thêm buổi học theo Slot
+            Gán lớp vào lịch
           </button>
         </div>
       </div>
@@ -542,40 +566,49 @@ export function ClassSchedulePage() {
         </div>
       </section>
 
+      {isAssigning && (
+        <Dialog
+          title="Gán lớp vào lịch học"
+          description="Chọn lớp, giáo viên đứng lớp, phòng, khoảng ngày, các thứ trong tuần và ca học — cả đợt buổi học được tạo trong một lượt."
+          onClose={() => setIsAssigning(false)}
+        >
+          <AssignClassForm
+            classes={classes}
+            coaches={coaches}
+            rooms={rooms}
+            lockedClassId={classFilter !== "ALL" ? classFilter : undefined}
+            onSubmit={assignClassToSchedule}
+            onCancel={() => setIsAssigning(false)}
+            error={formError}
+            fieldErrors={formFieldErrors}
+            isSaving={isSaving}
+          />
+        </Dialog>
+      )}
+
       {editing && (
         <Dialog
-          title={
-            editing === "new"
-              ? "Thêm buổi học theo Slot"
-              : "Sửa buổi học theo Slot"
-          }
-          description="Chọn khung giờ (Slot) có sẵn, phòng tập còn trống và huấn luyện viên đúng chuyên môn bộ môn của lớp."
+          title="Sửa buổi học theo Slot"
+          description="Đổi giáo viên, phòng, ngày hoặc ca học của riêng buổi này. Các buổi khác của lớp không thay đổi."
           onClose={() => setEditing(null)}
         >
           <SessionForm
-            initialValues={
-              editing === "new"
-                ? undefined
-                : {
-                    classId: editing.classId,
-                    coachId: editing.coachId,
-                    roomId: editing.roomId,
-                    date: editing.date,
-                    startTime: editing.startTime,
-                    endTime: editing.endTime,
-                    capacity: editing.capacity,
-                    notes: editing.notes,
-                  }
-            }
+            initialValues={{
+              classId: editing.classId,
+              coachId: editing.coachId,
+              roomId: editing.roomId,
+              date: editing.date,
+              startTime: editing.startTime,
+              endTime: editing.endTime,
+              capacity: editing.capacity,
+              notes: editing.notes,
+            }}
             classes={classes}
             coaches={coaches}
             rooms={rooms}
             existingSessions={sessions}
-            editingSessionId={editing === "new" ? undefined : editing.id}
-            lockedClassId={
-              editing === "new" && classFilter !== "ALL" ? classFilter : undefined
-            }
-            bookedCount={editing === "new" ? 0 : editing.bookedCount}
+            editingSessionId={editing.id}
+            bookedCount={editing.bookedCount}
             onSubmit={saveSession}
             onCancel={() => setEditing(null)}
             error={formError}

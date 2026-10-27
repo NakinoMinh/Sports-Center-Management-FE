@@ -42,9 +42,29 @@ describe("Sprint 2 backend master contracts", () => {
     const dto={id:2,sportId:1,sportName:"Yoga",name:"Lớp A",capacity:10,status:"DRAFT"};
     request.mockResolvedValue(dto);
     const input={sportId:"1",name:"Lớp A",description:"",capacity:10,status:"DRAFT" as const};
-    expect((await classApi.saveClass(input)).sportId).toBe("1");
-    await classApi.saveClass(input,"2");await classApi.setClassStatus("2","OPEN");
+    // Tạo lớp luôn kèm lịch học: giáo viên đứng lớp, phòng, khoảng ngày, các
+    // thứ trong tuần và ca học đi cùng một payload.
+    const schedule={coachId:"coach",roomId:"3",startDate:"2026-11-02",endDate:"2026-11-30",daysOfWeek:[1,3] as (1|3)[],startTime:"18:00",endTime:"19:30"};
+    expect((await classApi.createClass({...input,schedule})).sportId).toBe("1");
+    expect(JSON.parse(request.mock.calls[0][1]?.body as string)).toMatchObject({sportId:1,schedule:{coachId:"coach",roomId:3,daysOfWeek:[1,3],startTime:"18:00",endTime:"19:30"}});
+    await classApi.updateClass(input,"2");await classApi.setClassStatus("2","OPEN");
     expect(request.mock.calls.map(c=>[c[0],c[1]?.method])).toEqual([["/Class","POST"],["/Class/2","PUT"],["/Class/2/status","PATCH"]]);
+  });
+  it("assigns a whole schedule block to an existing class",async () => {
+    request.mockResolvedValue({classId:2,createdSessionCount:9});
+    const result=await classApi.addSchedule("2",{coachId:"coach",roomId:"3",startDate:"2026-11-02",endDate:"2026-11-30",daysOfWeek:[1,3],startTime:"18:00",endTime:"19:30"});
+    expect(result.createdSessionCount).toBe(9);
+    expect(request.mock.calls[0][0]).toBe("/Class/2/schedule");
+  });
+  it("registers and cancels at class level, not per session",async () => {
+    const enrollment={classId:2,className:"Lớp A",sportId:1,sportName:"Yoga",memberAccountId:"member",status:"BOOKED",bookedSessionCount:9,upcomingSessionCount:9,sessions:[]};
+    request.mockResolvedValue(enrollment);
+    expect((await classApi.registerClass("2")).bookedSessionCount).toBe(9);
+    await classApi.registerClassAtCounter("2","member");
+    await classApi.cancelMyClass("2","");
+    await classApi.cancelClassAtCounter("2","member","Xin hủy");
+    expect(request.mock.calls.map(c=>c[0])).toEqual(["/ClassRegistration/register-class","/ClassRegistration/counter-register-class","/ClassRegistration/classes/2/cancel","/ClassRegistration/classes/2/counter-cancel?memberAccountId=member"]);
+    expect(JSON.parse(request.mock.calls[0][1]?.body as string)).toEqual({classId:2});
   });
   it("sends numeric class/room IDs and keeps server timestamps and seats",async () => {
     request.mockResolvedValue(session);

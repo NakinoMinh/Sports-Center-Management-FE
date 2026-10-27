@@ -64,6 +64,14 @@ describe("describeError", () => {
 });
 
 describe("fieldErrorsOf", () => {
+  it("maps legacy duplicate email and phone responses to their inputs", () => {
+    expect(fieldErrorsOf(new ApiError("Email already exists.", 409)).email).toMatch(/Email/);
+    expect(describeError(new ApiError("Email already exists.", 409))).toMatch(/Email/);
+    expect(fieldErrorsOf(new ApiError("Phone number already exists.", 409)).phone).toMatch(/Số điện thoại/);
+  });
+  it("translates discipline validation details", () => {
+    expect(fieldErrorsOf(new ApiError("Invalid", 400, "VALIDATION_ERROR", { DisciplineIds: ["Minimum length is 1"] })).disciplineIds).toMatch(/ít nhất một bộ môn/);
+  });
   it("maps a duplicate phone response to the phone input", () => {
     const error = new ApiError("Phone number already exists.", 409, "PHONE_ALREADY_EXISTS");
     expect(fieldErrorsOf(error)).toEqual({

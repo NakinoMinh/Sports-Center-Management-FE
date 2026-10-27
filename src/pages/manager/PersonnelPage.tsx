@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
+import { classApi } from "../../services/classApi";
+import type { Sport } from "../../types/classes";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import * as v from "../../utils/validation";
 import { Dialog } from "../../components/common/Dialog";
@@ -27,15 +29,16 @@ import {
   personnelApi,
   type PersonnelInput,
   type PersonnelRole,
+  type PersonnelPerson,
 } from "../../services/personnelApi";
-import type { User } from "../../types/auth";
 
-type Person = Omit<User, "passwordHash">;
+type Person = PersonnelPerson;
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
 type SortKey = "fullName" | "status";
 type SortDirection = "asc" | "desc";
 
 const blankInput: PersonnelInput = {
+  disciplineIds: [],
   fullName: "",
   phone: "",
   specialization: "",
@@ -81,7 +84,6 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
   const [confirming, setConfirming] = useState<Person | null>(null);
   const [form, setForm] = useState<PersonnelInput>(blankInput);
   const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("fullName");
@@ -90,6 +92,9 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
   const [credential, setCredential] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<v.FieldErrors>({});
+  const [sports, setSports] = useState<Sport[]>([]);
+  const [isLoadingSports, setIsLoadingSports] = useState(false);
+  const [sportsError, setSportsError] = useState("");
 
   const isCoach = role === "COACH";
   const title = isCoach ? "Huấn luyện viên" : "Nhân viên lễ tân";
@@ -114,24 +119,35 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
     void refresh();
   }, [refresh]);
 
-  const handleOpenEdit = (item: Person | "new") => {
+  const handleOpenEdit = async (item: Person | "new") => {
     setEditing(item);
     setError("");
     setFieldErrors({});
     if (item === "new") {
       setEmail("");
-      setUsername("");
       setForm(blankInput);
     } else {
       setEmail(item.email);
-      setUsername(item.username);
       setForm({
+        disciplineIds: item.disciplineIds ?? [],
         fullName: item.fullName,
         phone: item.phone ?? "",
         specialization: item.specialization ?? "",
         workSchedule: item.workSchedule ?? "",
         isActive: isActive(item),
       });
+    }
+    if (isCoach) {
+      setSports([]);
+      setSportsError("");
+      setIsLoadingSports(true);
+      try {
+        setSports((await classApi.listSports()).filter((sport) => sport.isActive));
+      } catch (err) {
+        setSportsError(describeError(err));
+      } finally {
+        setIsLoadingSports(false);
+      }
     }
   };
 
@@ -152,7 +168,7 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!currentUser) return;
+    if (!currentUser || isSubmitting || (isCoach && (isLoadingSports || sportsError))) return;
 
     setError("");
 
@@ -162,22 +178,20 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
       {
         fullName: form.fullName,
         email,
-        username,
         phone: form.phone,
-        specialization: form.specialization,
+        disciplineIds: (form.disciplineIds ?? []).join(","),
         workSchedule: form.workSchedule,
       },
       {
         fullName: v.fullName,
         phone: v.phone,
-        specialization: v.text("Chuyên môn", 200),
-        workSchedule: v.text("Lịch làm việc / Ca làm việc", 300),
-        ...(editing === "new" ? { email: v.email, username: v.username } : {}),
+        disciplineIds: isCoach ? v.selected("ít nhất một bộ môn huấn luyện") : () => null,
+        workSchedule: isCoach ? () => null : v.text("Ca làm việc", 300),
+        ...(editing === "new" ? { email: v.email } : {}),
       },
     );
     if (v.hasErrors(errors)) {
       setFieldErrors(errors);
-      setError(v.firstError(errors) ?? "");
       return;
     }
     setFieldErrors({});
@@ -185,7 +199,10 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
     setIsSubmitting(true);
     try {
       if (editing === "new") {
-        const result = await personnelApi.create(role, email, form);
+        const result = await personnelApi.create(role, email, {
+          ...form,
+          workSchedule: isCoach ? "" : form.workSchedule,
+        });
         setCredential(
           `Tài khoản: ${result.user.email}\nMật khẩu khởi tạo: ${result.initialPassword}`,
         );
@@ -195,12 +212,16 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
           form.fullName.trim() !== editing.fullName.trim() ||
           form.phone.trim() !== (editing.phone ?? "").trim() ||
           (isCoach &&
-            (form.specialization ?? "").trim() !==
-              (editing.specialization ?? "").trim()) ||
-          (form.workSchedule ?? "").trim() !==
-            (editing.workSchedule ?? "").trim();
+            [...(form.disciplineIds ?? [])].sort().join(",") !==
+              [...(editing.disciplineIds ?? [])].sort().join(",")) ||
+          (!isCoach &&
+            (form.workSchedule ?? "").trim() !==
+              (editing.workSchedule ?? "").trim());
         if (hasProfileChanges) {
-          await personnelApi.update(role, editing.id, form);
+          await personnelApi.update(role, editing.id, {
+            ...form,
+            workSchedule: isCoach ? (editing.workSchedule ?? "") : form.workSchedule,
+          });
         }
         toast.success(`Đã cập nhật hồ sơ cho ${form.fullName}.`);
       }
@@ -208,7 +229,7 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
       void refresh();
     } catch (err) {
       setFieldErrors(fieldErrorsOf(err));
-      setError(describeError(err));
+      toast.error(describeError(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -275,7 +296,7 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
           <h1>Quản lý {lowerTitle}</h1>
           <p>
             {isCoach
-              ? "Theo dõi chuyên môn giảng dạy, thông tin liên lạc và lịch làm việc của từng huấn luyện viên."
+              ? "Theo dõi chuyên môn giảng dạy và thông tin liên lạc của từng huấn luyện viên."
               : "Quản lý hồ sơ nhân viên lễ tân trực quầy, ca làm việc và phân công nhiệm vụ."}
           </p>
         </div>
@@ -434,7 +455,7 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
                   </th>
                   <th scope="col">Liên hệ</th>
                   <th scope="col">{isCoach ? "Chuyên môn" : "Vai trò"}</th>
-                  <th scope="col">Lịch làm việc / Ca làm</th>
+                  {!isCoach && <th scope="col">Ca làm việc</th>}
                   <th scope="col" aria-sort={sortState("status")}>
                     <SortButton
                       label="Trạng thái"
@@ -516,17 +537,19 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
                         )}
                       </td>
 
-                      <td>
-                        <div className="schedule-cell">
-                          {item.workSchedule ? (
-                            <span title={item.workSchedule}>
-                              {item.workSchedule}
-                            </span>
-                          ) : (
-                            <span className="text-muted">Chưa cập nhật</span>
-                          )}
-                        </div>
-                      </td>
+                      {!isCoach && (
+                        <td>
+                          <div className="schedule-cell">
+                            {item.workSchedule ? (
+                              <span title={item.workSchedule}>
+                                {item.workSchedule}
+                              </span>
+                            ) : (
+                              <span className="text-muted">Chưa cập nhật</span>
+                            )}
+                          </div>
+                        </td>
+                      )}
 
                       <td>
                         <span
@@ -654,35 +677,19 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
               </label>
 
               {editing === "new" ? (
-                <>
-                  <label className="field">
-                    <span>Email liên hệ & đăng nhập *</span>
-                    <input
-                      type="email"
-                      value={email}
-                      aria-invalid={Boolean(fieldErrors.email)}
-                      onChange={(event) => setEmail(event.target.value)}
-                      placeholder="email@sportscenter.com"
-                    />
-                    {fieldErrors.email && (
-                      <small className="field-error">{fieldErrors.email}</small>
-                    )}
-                  </label>
-                  <label className="field">
-                    <span>Tên đăng nhập *</span>
-                    <input
-                      value={username}
-                      aria-invalid={Boolean(fieldErrors.username)}
-                      onChange={(event) => setUsername(event.target.value)}
-                      placeholder="VD: coach_nguyen"
-                    />
-                    {fieldErrors.username && (
-                      <small className="field-error">
-                        {fieldErrors.username}
-                      </small>
-                    )}
-                  </label>
-                </>
+                <label className="field field-full">
+                  <span>Email liên hệ & đăng nhập *</span>
+                  <input
+                    type="email"
+                    value={email}
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="email@sportscenter.com"
+                  />
+                  {fieldErrors.email && (
+                    <small className="field-error">{fieldErrors.email}</small>
+                  )}
+                </label>
               ) : (
                 <label className="field field-full field-disabled">
                   <span>Email (Định danh cố định)</span>
@@ -711,47 +718,69 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
               </label>
 
               {isCoach && (
+                <div className="field field-full" role="group" aria-labelledby="coach-disciplines-label" aria-invalid={Boolean(fieldErrors.disciplineIds)} aria-describedby="coach-disciplines-help">
+                  <span id="coach-disciplines-label">Chuyên môn & Bộ môn huấn luyện *</span>
+                  {isLoadingSports ? <small role="status">Đang tải bộ môn...</small> : sportsError ? (
+                    <><small className="field-error">{sportsError}</small><button type="button" className="button secondary" onClick={() => handleOpenEdit(editing)}>Tải lại bộ môn</button></>
+                  ) : sports.length === 0 ? <small>Chưa có bộ môn đang hoạt động. Hãy tạo hoặc kích hoạt bộ môn trước.</small> : (
+                    <>
+                      <select
+                        aria-labelledby="coach-disciplines-label"
+                        aria-describedby="coach-disciplines-help"
+                        aria-invalid={Boolean(fieldErrors.disciplineIds)}
+                        value=""
+                        disabled={isSubmitting}
+                        onChange={(event) => {
+                          if (!event.target.value) return;
+                          const id = Number(event.target.value);
+                          setForm((previous) => ({ ...previous, disciplineIds: [...new Set([...(previous.disciplineIds ?? []), id])] }));
+                          setFieldErrors((previous) => ({ ...previous, disciplineIds: undefined }));
+                        }}
+                      >
+                        <option value="">Chọn bộ môn huấn luyện...</option>
+                        {sports.filter((sport) => !(form.disciplineIds ?? []).includes(Number(sport.id))).map((sport) => (
+                          <option key={sport.id} value={sport.id}>{sport.name}</option>
+                        ))}
+                      </select>
+                      {sports.filter((sport) => (form.disciplineIds ?? []).includes(Number(sport.id))).map((sport) => (
+                        <button
+                          key={sport.id}
+                          type="button"
+                          className="button secondary"
+                          aria-label={`Bỏ bộ môn ${sport.name}`}
+                          disabled={isSubmitting}
+                          onClick={() => setForm((previous) => ({ ...previous, disciplineIds: (previous.disciplineIds ?? []).filter((id) => id !== Number(sport.id)) }))}
+                        >
+                          {sport.name} <X size={14} aria-hidden="true" />
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  <small id="coach-disciplines-help" className={fieldErrors.disciplineIds ? "field-error" : undefined}>{fieldErrors.disciplineIds || "Chọn một hoặc nhiều bộ môn HLV phụ trách giảng dạy."}</small>
+                </div>
+              )}
+
+              {!isCoach && (
                 <label className="field field-full">
-                  <span>Chuyên môn & Bộ môn huấn luyện</span>
-                  <input
-                    maxLength={200}
-                    value={form.specialization}
-                    aria-invalid={Boolean(fieldErrors.specialization)}
+                  <span>Ca làm việc</span>
+                  <textarea
+                    maxLength={300}
+                    rows={3}
+                    value={form.workSchedule}
+                    aria-invalid={Boolean(fieldErrors.workSchedule)}
                     onChange={(event) =>
-                      setForm({ ...form, specialization: event.target.value })
+                      setForm({ ...form, workSchedule: event.target.value })
                     }
-                    placeholder="Ví dụ: Gym, Fitness, Yoga, Bơi lội, Pilates..."
+                    placeholder="Ví dụ: Ca sáng: Thứ 2 - Thứ 7 (06:00 - 14:00)..."
                   />
 
-                  {fieldErrors.specialization ? (
+                  {fieldErrors.workSchedule && (
                     <small className="field-error">
-                      {fieldErrors.specialization}
+                      {fieldErrors.workSchedule}
                     </small>
-                  ) : (
-                    <small>Các bộ môn chính HLV phụ trách giảng dạy</small>
                   )}
                 </label>
               )}
-
-              <label className="field field-full">
-                <span>Lịch làm việc / Ca làm việc</span>
-                <textarea
-                  maxLength={300}
-                  rows={3}
-                  value={form.workSchedule}
-                  aria-invalid={Boolean(fieldErrors.workSchedule)}
-                  onChange={(event) =>
-                    setForm({ ...form, workSchedule: event.target.value })
-                  }
-                  placeholder="Ví dụ: Ca sáng: Thứ 2 - Thứ 7 (06:00 - 14:00)..."
-                />
-
-                {fieldErrors.workSchedule && (
-                  <small className="field-error">
-                    {fieldErrors.workSchedule}
-                  </small>
-                )}
-              </label>
             </div>
 
             <div className="modal-actions-bar">
@@ -765,7 +794,7 @@ export function PersonnelPage({ role }: { role: PersonnelRole }) {
               <button
                 type="submit"
                 className="button primary"
-                disabled={isSubmitting}
+                disabled={isSubmitting || (isCoach && (isLoadingSports || Boolean(sportsError) || sports.length === 0))}
               >
                 {isSubmitting ? "Đang lưu..." : "Lưu hồ sơ"}
               </button>
