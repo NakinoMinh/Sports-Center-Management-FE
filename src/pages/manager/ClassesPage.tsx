@@ -12,12 +12,20 @@ import {
 } from "lucide-react";
 import { Dialog } from "../../components/common/Dialog";
 import { ClassForm } from "../../components/classes/ClassForm";
+import { ScheduleBlockList } from "../../components/classes/ScheduleBlockList";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { classApi } from "../../services/classApi";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import { classStatusLabels } from "../../utils/classSchedule";
-import type { ClassInput, Sport, TrainingClass } from "../../types/classes";
+import type {
+  ClassInput,
+  CoachOption,
+  CreateClassInput,
+  Room,
+  Sport,
+  TrainingClass,
+} from "../../types/classes";
 
 type StatusFilter = "ALL" | TrainingClass["status"];
 
@@ -46,6 +54,9 @@ export function ClassesPage() {
   const toast = useToast();
   const [classes, setClasses] = useState<TrainingClass[]>([]);
   const [sports, setSports] = useState<Sport[]>([]);
+  // Tạo lớp cần cả HLV và phòng: lớp mới luôn đi kèm lịch học.
+  const [coaches, setCoaches] = useState<CoachOption[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [search, setSearch] = useState("");
   const [sportFilter, setSportFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
@@ -65,12 +76,16 @@ export function ClassesPage() {
     if (!currentUser) return;
     setIsLoading(true);
     try {
-      const [classList, sportList] = await Promise.all([
+      const [classList, sportList, coachList, roomList] = await Promise.all([
         classApi.listClasses(),
         classApi.listSports(),
+        classApi.listCoaches(),
+        classApi.listRooms(),
       ]);
       setClasses(classList);
       setSports(sportList);
+      setCoaches(coachList);
+      setRooms(roomList);
       setError("");
     } catch (caught) {
       setError(describeError(caught));
@@ -113,15 +128,17 @@ export function ClassesPage() {
   const hasFilters =
     search.trim() !== "" || sportFilter !== "ALL" || statusFilter !== "ALL";
 
-  async function saveClass(values: ClassInput) {
+  async function saveClass(values: ClassInput | CreateClassInput) {
     if (!editing) return;
     setIsSaving(true);
     try {
-      const classId = editing === "new" ? undefined : editing.id;
-      const saved = await classApi.saveClass(values, classId);
+      const isCreating = editing === "new";
+      const saved = isCreating
+        ? await classApi.createClass(values as CreateClassInput)
+        : await classApi.updateClass(values, editing.id);
       toast.success(
-        editing === "new"
-          ? `Đã tạo lớp “${saved.name}”. Lập lịch để mở đăng ký.`
+        isCreating
+          ? `Đã tạo lớp “${saved.name}” với ${saved.totalSessionCount} buổi học trên lịch trung tâm.`
           : `Đã cập nhật lớp “${saved.name}”. Lịch sử đăng ký được giữ nguyên.`,
       );
       setEditing(null);
@@ -307,6 +324,7 @@ export function ClassesPage() {
                 <tr>
                   <th scope="col">Lớp & bộ môn</th>
                   <th scope="col">Sức chứa</th>
+                  <th scope="col">Lịch học</th>
                   <th scope="col">Buổi học</th>
                   <th scope="col">Đăng ký</th>
                   <th scope="col">Trạng thái</th>
@@ -338,6 +356,11 @@ export function ClassesPage() {
                     <td>
                       <strong>{item.capacity}</strong>
                       <small className="cell-caption">người / buổi</small>
+                    </td>
+                    <td>
+                      {/* Mỗi đợt lịch một dòng: lớp dạy nhiều ca thì giờ của
+                          từng ca phải hiện đúng ca đó. */}
+                      <ScheduleBlockList blocks={item.scheduleBlocks} />
                     </td>
                     <td>
                       <strong>{item.upcomingSessionCount}</strong>
@@ -475,6 +498,8 @@ export function ClassesPage() {
                   }
             }
             sports={sports}
+            coaches={coaches}
+            rooms={rooms}
             activeRegistrationCount={
               editing === "new" ? 0 : editing.activeRegistrationCount
             }

@@ -195,8 +195,14 @@ export const isRetryable = (error: unknown): boolean =>
  */
 export function fieldErrorsOf(error: unknown): Record<string, string> {
   if (!(error instanceof ApiError)) return {};
-  if (error.code === "PHONE_ALREADY_EXISTS") {
+  if (error.code === "EMAIL_ALREADY_EXISTS" || (error.status === 409 && /^Email already exists\.?$/i.test(error.message.trim()))) {
+    return { email: MESSAGES.EMAIL_ALREADY_EXISTS };
+  }
+  if (error.code === "PHONE_ALREADY_EXISTS" || (error.status === 409 && /^Phone number already exists\.?$/i.test(error.message.trim()))) {
     return { phone: MESSAGES.PHONE_ALREADY_EXISTS };
+  }
+  if (error.status === 400 && error.message === "A discipline was not found or is inactive.") {
+    return { disciplineIds: "Bộ môn đã ngừng hoạt động hoặc không còn tồn tại. Hãy tải lại danh sách và chọn lại." };
   }
   if (!error.details) return {};
   const details = error.details as Record<string, unknown>;
@@ -204,6 +210,10 @@ export function fieldErrorsOf(error: unknown): Record<string, string> {
   for (const [field, messages] of Object.entries(details)) {
     const first = Array.isArray(messages) ? messages[0] : messages;
     if (typeof first === "string" && first.trim()) {
+      if (field.toLowerCase() === "disciplineids") {
+        result.disciplineIds = "Vui lòng chọn ít nhất một bộ môn đang hoạt động trong danh sách.";
+        continue;
+      }
       // The server keys fields in PascalCase; forms use camelCase.
       result[field.charAt(0).toLowerCase() + field.slice(1)] = first;
     }

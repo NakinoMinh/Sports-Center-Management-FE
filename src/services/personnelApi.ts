@@ -7,6 +7,7 @@ export interface CoachDto {
   fullName: string;
   phone: string | null;
   specialization: string | null;
+  disciplines?: { disciplineId: number; disciplineName: string; isActive: boolean }[];
   workSchedule: string | null;
   status: string;
   createdAt: string;
@@ -39,6 +40,7 @@ export interface PagedReceptionistResultDto {
 }
 
 export interface PersonnelInput {
+  disciplineIds?: number[];
   fullName: string;
   phone: string;
   specialization: string;
@@ -47,15 +49,17 @@ export interface PersonnelInput {
 }
 
 export type PersonnelRole = "COACH" | "RECEPTIONIST";
+export type PersonnelPerson = Omit<User, "passwordHash"> & { disciplineIds?: number[] };
 
-const mapCoachToUser = (coach: CoachDto): Omit<User, "passwordHash"> => ({
+const mapCoachToUser = (coach: CoachDto): PersonnelPerson => ({
   id: coach.accountId,
   username: coach.email.split("@")[0],
   email: coach.email,
   role: "COACH" as UserRole,
   fullName: coach.fullName,
   phone: coach.phone ?? undefined,
-  specialization: coach.specialization ?? undefined,
+  specialization: coach.disciplines?.filter((item) => item.isActive).map((item) => item.disciplineName).join(", ") ?? coach.specialization ?? undefined,
+  disciplineIds: coach.disciplines?.filter((item) => item.isActive).map((item) => item.disciplineId) ?? [],
   workSchedule: coach.workSchedule ?? undefined,
   createdAt: coach.createdAt,
   failedAttempts: 0,
@@ -78,7 +82,7 @@ const mapReceptionistToUser = (recept: ReceptionistDto): Omit<User, "passwordHas
 });
 
 export const personnelApi = {
-  async list(role: PersonnelRole, search = "", status = ""): Promise<Omit<User, "passwordHash">[]> {
+  async list(role: PersonnelRole, search = "", status = ""): Promise<PersonnelPerson[]> {
     const params: URLSearchParams = new URLSearchParams({ page: "1", pageSize: "50" });
     if (search.trim()) params.set("search", search.trim());
     if (status && status !== "ALL") {
@@ -103,17 +107,18 @@ export const personnelApi = {
     const initialPassword: string = password || "Test@12345";
 
     if (role === "COACH") {
-      await apiRequest<string>("/Account/Create_coach", {
+      const coach = await apiRequest<CoachDto>("/Account/Create_coach", {
         method: "POST",
         body: JSON.stringify({
           email: email.trim(),
           password: initialPassword,
           fullName: form.fullName.trim(),
           phone: form.phone.trim(),
-          specialization: form.specialization.trim() || null,
+          disciplineIds: form.disciplineIds ?? [],
           workSchedule: form.workSchedule.trim() || null,
         }),
       });
+      return { user: mapCoachToUser(coach), initialPassword };
     } else {
       await apiRequest<string>("/Account/Create_receptionist", {
         method: "POST",
@@ -134,7 +139,7 @@ export const personnelApi = {
       role,
       fullName: form.fullName.trim(),
       phone: form.phone.trim(),
-      specialization: role === "COACH" ? form.specialization.trim() : undefined,
+      specialization: undefined,
       workSchedule: form.workSchedule.trim() || undefined,
       createdAt: new Date().toISOString(),
       failedAttempts: 0,
@@ -152,7 +157,7 @@ export const personnelApi = {
         body: JSON.stringify({
           fullName: form.fullName.trim(),
           phone: form.phone.trim(),
-          specialization: form.specialization.trim() || null,
+          disciplineIds: form.disciplineIds ?? [],
           workSchedule: form.workSchedule.trim() || null,
         }),
       });

@@ -2,16 +2,37 @@ import { useId, useState, type FormEvent } from "react";
 import { Save } from "lucide-react";
 import * as v from "../../utils/validation";
 import { classStatusLabels } from "../../utils/classSchedule";
-import type { ClassInput, ClassStatus, Sport } from "../../types/classes";
+import { ScheduleFields } from "./ScheduleFields";
+import {
+  emptyScheduleDraft,
+  toScheduleInput,
+  validateScheduleDraft,
+  type ScheduleDraft,
+} from "./scheduleDraft";
+import type {
+  ClassInput,
+  ClassStatus,
+  CoachOption,
+  CreateClassInput,
+  Room,
+  Sport,
+} from "../../types/classes";
 
 interface ClassFormProps {
   initialValues?: ClassInput;
   sports: readonly Sport[];
+  /** Chỉ cần khi tạo lớp: lớp mới luôn phải có lịch học. */
+  coaches?: readonly CoachOption[];
+  rooms?: readonly Room[];
   /** Số đăng ký còn hiệu lực, dùng làm sàn cho sức chứa khi sửa lớp. */
   activeRegistrationCount?: number;
   /** Lớp chỉ được mở đăng ký khi đã có buổi học hợp lệ ở tương lai (UC19). */
   upcomingSessionCount?: number;
-  onSubmit: (values: ClassInput) => void;
+  /**
+   * Khi sửa lớp chỉ nhận `ClassInput`; khi tạo lớp luôn kèm `schedule`, vì lớp
+   * mới phải có giáo viên đứng lớp và các buổi học cụ thể.
+   */
+  onSubmit: (values: ClassInput | CreateClassInput) => void;
   onCancel: () => void;
   error?: string;
   /** Lỗi theo từng ô do server trả về, hiển thị ngay dưới ô tương ứng. */
@@ -26,10 +47,15 @@ const STATUS_ORDER: readonly ClassStatus[] = [
   "ARCHIVED",
 ];
 
+/** Trạng thái lớp mới: lớp vừa tạo đã có buổi nên mở đăng ký được ngay. */
+const CREATE_STATUS_ORDER: readonly ClassStatus[] = ["DRAFT", "OPEN"];
+
 /** Form tạo và sửa lớp học (UC19). */
 export function ClassForm({
   initialValues,
   sports,
+  coaches = [],
+  rooms = [],
   activeRegistrationCount = 0,
   upcomingSessionCount = 0,
   onSubmit,
@@ -39,6 +65,7 @@ export function ClassForm({
   isSaving = false,
 }: ClassFormProps) {
   const prefix = useId();
+  const isCreating = !initialValues;
   const [sportId, setSportId] = useState(initialValues?.sportId ?? "");
   const [name, setName] = useState(initialValues?.name ?? "");
   const [description, setDescription] = useState(
@@ -50,6 +77,7 @@ export function ClassForm({
   const [status, setStatus] = useState<ClassStatus>(
     initialValues?.status ?? "DRAFT",
   );
+  const [schedule, setSchedule] = useState<ScheduleDraft>(emptyScheduleDraft);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const messageFor = (field: string): string | undefined =>
@@ -60,7 +88,12 @@ export function ClassForm({
   const selectableSports = sports.filter(
     (sport) => sport.isActive || sport.id === initialValues?.sportId,
   );
-  const canOpenForBooking = upcomingSessionCount > 0 || status === "OPEN";
+  const sportName = sports.find((sport) => sport.id === sportId)?.name;
+  // Lớp mới sinh ra kèm buổi học nên mở đăng ký được ngay; lớp đang sửa vẫn
+  // phải có buổi ở tương lai mới chuyển sang OPEN được.
+  const canOpenForBooking =
+    isCreating || upcomingSessionCount > 0 || status === "OPEN";
+  const statusOptions = isCreating ? CREATE_STATUS_ORDER : STATUS_ORDER;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,18 +116,43 @@ export function ClassForm({
         }),
       },
     ) as Record<string, string>;
-    if (status === "OPEN" && upcomingSessionCount === 0)
+
+    if (isCreating) {
+      Object.assign(
+        nextErrors,
+        validateScheduleDraft(schedule, {
+          classCapacity: Number(capacity),
+          roomCapacity: rooms.find((room) => room.id === schedule.roomId)
+            ?.capacity,
+        }),
+      );
+    } else if (status === "OPEN" && upcomingSessionCount === 0) {
       nextErrors.status =
         "Lớp chưa có buổi học nào ở tương lai nên chưa thể mở đăng ký.";
+    }
+
     setErrors(nextErrors);
     if (v.hasErrors(nextErrors)) return;
-    onSubmit({
+
+    const base: ClassInput = {
       sportId,
       name: name.trim(),
       description: description.trim(),
       capacity: Number(capacity),
       status,
-    });
+    };
+
+    if (!isCreating) {
+      onSubmit(base);
+      return;
+    }
+
+    const scheduleInput = toScheduleInput(schedule);
+    if (!scheduleInput) {
+      setErrors({ ...nextErrors, slotId: "Chọn ca học." });
+      return;
+    }
+    onSubmit({ ...base, schedule: scheduleInput });
   }
 
   return (
@@ -222,7 +280,7 @@ export function ClassForm({
               messageFor("status") ? ` ${prefix}-status-error` : ""
             }`}
           >
-            {STATUS_ORDER.map((value) => (
+            {statusOptions.map((value) => (
               <option
                 key={value}
                 value={value}
@@ -236,8 +294,8 @@ export function ClassForm({
             ))}
           </select>
           <small id={`${prefix}-status-help`}>
-            Chỉ trạng thái “{classStatusLabels.OPEN}” mới cho thành viên đặt
-            chỗ. Lưu trữ giữ nguyên toàn bộ lịch sử đăng ký.
+            Chỉ trạng thái “{classStatusLabels.OPEN}” mới cho thành viên đăng ký
+            lớp. Lưu trữ giữ nguyên toàn bộ lịch sử đăng ký.
           </small>
           {messageFor("status") && (
             <small className="form-error" id={`${prefix}-status-error`}>
@@ -246,6 +304,18 @@ export function ClassForm({
           )}
         </div>
       </div>
+
+      {isCreating && (
+        <ScheduleFields
+          value={schedule}
+          onChange={setSchedule}
+          coaches={coaches}
+          rooms={rooms}
+          sportName={sportName}
+          classCapacity={Number(capacity) || undefined}
+          messageFor={messageFor}
+        />
+      )}
 
       <div className="modal-actions">
         <button
@@ -262,7 +332,7 @@ export function ClassForm({
             ? "Đang lưu…"
             : initialValues
               ? "Lưu thay đổi"
-              : "Tạo lớp học"}
+              : "Tạo lớp và lịch học"}
         </button>
       </div>
     </form>

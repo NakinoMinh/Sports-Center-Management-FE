@@ -8,6 +8,7 @@ Repository: [NakinoMinh/Sports-Center-Management-FE](https://github.com/NakinoMi
 
 - [PRODUCT.md](PRODUCT.md): yêu cầu toàn dự án, bốn actor, sáu flow, ma trận đối chiếu code FE/BE và phần còn thiếu.
 - [DESIGN.md](DESIGN.md): kiến trúc hiện tại, thiết kế mục tiêu, khác biệt schema/API và lộ trình triển khai.
+- [Sprint3.md](Sprint3.md): kế hoạch đề xuất Flow 3 — thanh toán, hóa đơn và báo cáo.
 
 Đọc mục 0 của hai tài liệu trước khi phát triển. Flow 1–3 (user/membership, class/schedule, payment/report) bắt buộc; Flow 4–6 (training/attendance, AI recommendation, AI assistant) tùy chọn. Tài liệu Sprint 1 và bàn giao API bên dưới có phạm vi hẹp hơn toàn dự án.
 
