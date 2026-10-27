@@ -1112,6 +1112,98 @@ textarea {
   outline: 2px solid var(--accent-default, #2f6f4f);
   outline-offset: 2px;
 }
+.checkbox-chip:has(input:disabled),
+.checkbox-chip.is-disabled {
+  opacity: 0.45;
+  background: var(--bg-muted, #f3f5f4);
+  border-color: var(--border-subtle, #e2e8e4);
+  cursor: not-allowed;
+}
+.checkbox-chip:has(input:disabled):hover {
+  border-color: var(--border-subtle, #e2e8e4);
+}
+
+/* Thẻ buổi học trong khối lịch tạo lớp */
+.schedule-sessions-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+  margin-top: var(--space-2, 8px);
+  margin-bottom: var(--space-2, 8px);
+}
+.schedule-session-card {
+  border: 1px solid var(--border-subtle, #e2e8e4);
+  background: var(--bg-surface-elevated, #fbfdfc);
+  border-radius: var(--radius-md, 8px);
+  padding: 14px 16px;
+  position: relative;
+  transition: border-color 0.15s ease;
+}
+.schedule-session-card:hover {
+  border-color: var(--border-default, #c9d7cf);
+}
+.schedule-session-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border-subtle, #e5ede8);
+}
+.schedule-session-title {
+  font-size: var(--text-sm, 14px);
+  font-weight: 700;
+  color: var(--text-strong, #1f2924);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.schedule-session-badge {
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent-subtle, #eaf4ee);
+  color: var(--accent-strong, #1f5338);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+.btn-remove-session {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-danger, #d32f2f);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs, 12px);
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 4px);
+  transition: all 0.15s ease;
+}
+.btn-remove-session:hover {
+  background: #fde8e8;
+  border-color: #fca5a5;
+}
+.btn-add-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: var(--text-sm, 13px);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px dashed var(--accent-default, #2f6f4f);
+  background: var(--accent-subtle, #f0f7f3);
+  color: var(--accent-strong, #1f5338);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  align-self: flex-start;
+}
+.btn-add-session:hover {
+  background: var(--accent-default, #2f6f4f);
+  color: #fff;
+}
+
 .membership-hero {
   display: flex;
   justify-content: space-between;

@@ -103,9 +103,10 @@ export interface ClassInput {
   status: ClassStatus;
 }
 
-/** Tạo lớp: thông tin lớp cộng lịch học bắt buộc. */
+/** Tạo lớp: thông tin lớp cộng lịch học bắt buộc. Có thể kèm các đợt lịch bổ sung. */
 export interface CreateClassInput extends ClassInput {
   schedule: ClassScheduleInput;
+  additionalSchedules?: ClassScheduleInput[];
 }
 
 export interface TrainingClass extends ClassInput {

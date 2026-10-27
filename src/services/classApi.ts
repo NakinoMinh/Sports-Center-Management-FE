@@ -547,6 +547,8 @@ export const classApi = {
   /**
    * Tạo lớp kèm lịch học: server sinh ra toàn bộ buổi của lớp trong cùng một
    * giao dịch, nên lớp vừa tạo đã có mặt trên lịch trung tâm.
+   * Nếu có thêm các đợt lịch bổ sung (`additionalSchedules`), lần lượt gọi `addSchedule`
+   * để tạo tiếp các buổi học vào lớp.
    */
   async createClass(input: CreateClassInput): Promise<TrainingClass> {
     const result = await apiRequest<ClassDto>("/Class", {
@@ -556,7 +558,22 @@ export const classApi = {
         schedule: schedulePayload(input.schedule),
       }),
     });
-    return mapClass(result);
+    const createdClass = mapClass(result);
+
+    if (input.additionalSchedules && input.additionalSchedules.length > 0) {
+      let totalAddedSessions = 0;
+      let latestBlocks = createdClass.scheduleBlocks;
+      for (const additional of input.additionalSchedules) {
+        const addResult = await this.addSchedule(createdClass.id, additional);
+        totalAddedSessions += addResult.createdSessionCount;
+        latestBlocks = addResult.scheduleBlocks;
+      }
+      createdClass.totalSessionCount += totalAddedSessions;
+      createdClass.upcomingSessionCount += totalAddedSessions;
+      createdClass.scheduleBlocks = latestBlocks;
+    }
+
+    return createdClass;
   },
 
   /** Sửa thông tin lớp. Lịch học đổi qua `addSchedule` hoặc màn hình buổi học. */
