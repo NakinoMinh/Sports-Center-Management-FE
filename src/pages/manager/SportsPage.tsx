@@ -124,7 +124,7 @@ export function SportsPage() {
     <div className="long-page-stack">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">UC17 · QUẢN LÝ TRUNG TÂM</span>
+          <span className="eyebrow">QUẢN LÝ TRUNG TÂM</span>
           <h1>Danh mục bộ môn</h1>
           <p>
             Thêm, chỉnh sửa và ngừng hoạt động bộ môn mà không xóa lịch sử lớp

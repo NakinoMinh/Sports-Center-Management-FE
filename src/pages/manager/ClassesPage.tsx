@@ -191,7 +191,7 @@ export function ClassesPage() {
   }
 
   return (
-    <>
+    <div className="long-page-stack classes-page-stack">
       <div className="page-heading">
         <div>
           <p className="eyebrow">QUẢN LÝ TRUNG TÂM</p>
@@ -229,7 +229,7 @@ export function ClassesPage() {
           <div>
             <p>Tổng số lớp</p>
             <strong>{String(classes.length).padStart(2, "0")}</strong>
-            <small>Gồm cả lớp nháp và lớp đã lưu trữ</small>
+            <small>Gồm cả lớp chờ mở đăng ký và lớp đã lưu trữ</small>
           </div>
         </div>
         <div className="stat-card">
@@ -319,7 +319,16 @@ export function ClassesPage() {
 
         {visibleClasses.length ? (
           <div className="table-wrap">
-            <table className="data-table">
+            <table className="data-table data-table-fixed classes-table">
+              <colgroup>
+                <col style={{ width: "22%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "30%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "8%" }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th scope="col">Lớp & bộ môn</th>
@@ -340,15 +349,20 @@ export function ClassesPage() {
                     <td>
                       <div className="package-table-name">
                         <span className="package-icon">
-                          <GraduationCap size={20} aria-hidden="true" />
+                          <GraduationCap size={18} aria-hidden="true" />
                         </span>
-                        <div>
-                          <strong>{item.name}</strong>
+                        <div className="class-identity-cell">
+                          <strong title={item.name}>{item.name}</strong>
                           <small className="cell-caption">
                             {item.sportName}
                           </small>
                           {item.description && (
-                            <p className="schedule-cell">{item.description}</p>
+                            <p
+                              className="schedule-cell class-desc-cell"
+                              title={item.description}
+                            >
+                              {item.description}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -357,7 +371,7 @@ export function ClassesPage() {
                       <strong>{item.capacity}</strong>
                       <small className="cell-caption">người / buổi</small>
                     </td>
-                    <td>
+                    <td className="schedule-cell-wrap">
                       {/* Mỗi đợt lịch một dòng: lớp dạy nhiều ca thì giờ của
                           từng ca phải hiện đúng ca đó. */}
                       <ScheduleBlockList blocks={item.scheduleBlocks} />
@@ -370,7 +384,7 @@ export function ClassesPage() {
                     </td>
                     <td>
                       <span className="inline-icon">
-                        <Users size={16} aria-hidden="true" />
+                        <Users size={15} aria-hidden="true" />
                         {item.activeRegistrationCount}
                       </span>
                       <small className="cell-caption">còn hiệu lực</small>
@@ -399,7 +413,7 @@ export function ClassesPage() {
                             setFormFieldErrors({});
                           }}
                         >
-                          <Pencil size={17} aria-hidden="true" />
+                          <Pencil size={16} aria-hidden="true" />
                         </button>
                         <Link
                           className="icon-button"
@@ -407,7 +421,7 @@ export function ClassesPage() {
                           aria-label={`Lập lịch cho ${item.name}`}
                           title="Lập lịch buổi học"
                         >
-                          <CalendarClock size={17} aria-hidden="true" />
+                          <CalendarClock size={16} aria-hidden="true" />
                         </Link>
                         {item.status !== "ARCHIVED" && (
                           <button
@@ -420,7 +434,7 @@ export function ClassesPage() {
                               setFormError("");
                             }}
                           >
-                            <Archive size={17} aria-hidden="true" />
+                            <Archive size={16} aria-hidden="true" />
                           </button>
                         )}
                       </div>
@@ -559,6 +573,6 @@ export function ClassesPage() {
           )}
         </Dialog>
       )}
-    </>
+    </div>
   );
 }

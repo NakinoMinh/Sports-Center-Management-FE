@@ -5,16 +5,35 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { DoorOpen, Edit2, Plus, Power, RefreshCw, Search } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  DoorOpen,
+  Edit2,
+  Eye,
+  GraduationCap,
+  Plus,
+  Power,
+  RefreshCw,
+  Search,
+  Users,
+} from "lucide-react";
 import { Dialog } from "../../components/common/Dialog";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { useToast } from "../../hooks/useToast";
 import * as v from "../../utils/validation";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import { roomApi } from "../../services/roomApi";
+import { classApi } from "../../services/classApi";
 import type { Room, RoomInput } from "../../types/room";
+import type { TrainingClass, ClassSession } from "../../types/classes";
+import { classStatusLabels, describeRecurrence } from "../../utils/classSchedule";
+import { formatDate } from "../../utils/format";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
+
+const STANDARD_ROOM_TYPES = ["STUDIO", "GYM", "POOL", "COURT"];
+
 const ROOM_TYPE_LABELS: Record<string, string> = {
   STUDIO: "Studio",
   GYM: "Phòng Gym",
@@ -22,6 +41,20 @@ const ROOM_TYPE_LABELS: Record<string, string> = {
   COURT: "Sân thể thao",
   OTHER: "Khác",
 };
+
+const STATUS_CHIP: Record<string, string> = {
+  DRAFT: "pending",
+  OPEN: "active",
+  CLOSED: "suspended",
+  ARCHIVED: "hidden",
+};
+
+const SESSION_STATUS_LABELS: Record<string, string> = {
+  SCHEDULED: "Đã lên lịch",
+  COMPLETED: "Đã hoàn thành",
+  CANCELED: "Đã hủy",
+};
+
 const emptyForm: RoomInput = {
   name: "",
   location: "",
@@ -41,10 +74,21 @@ export function RoomsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("ALL");
 
+  // Form states
   const [editing, setEditing] = useState<Room | "new" | null>(null);
   const [form, setForm] = useState<RoomInput>({ ...emptyForm });
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [customRoomType, setCustomRoomType] = useState<string>("");
   const [confirming, setConfirming] = useState<Room | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Room details states
+  const [viewingRoom, setViewingRoom] = useState<Room | null>(null);
+  const [roomClasses, setRoomClasses] = useState<TrainingClass[]>([]);
+  const [roomSessions, setRoomSessions] = useState<ClassSession[]>([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState("");
+  const [detailTab, setDetailTab] = useState<"classes" | "sessions">("classes");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -55,7 +99,8 @@ export function RoomsPage() {
     } catch (err) {
       setError(describeError(err));
     } finally {
-      setLoading(false); setHasLoaded(true);
+      setLoading(false);
+      setHasLoaded(true);
     }
   }, []);
 
@@ -87,6 +132,8 @@ export function RoomsPage() {
 
     if (room === "new") {
       setForm({ ...emptyForm });
+      setSelectedCategory("");
+      setCustomRoomType("");
     } else {
       setForm({
         name: room.name,
@@ -95,24 +142,91 @@ export function RoomsPage() {
         roomType: room.roomType ?? null,
         isActive: room.isActive,
       });
+
+      if (!room.roomType) {
+        setSelectedCategory("");
+        setCustomRoomType("");
+      } else if (STANDARD_ROOM_TYPES.includes(room.roomType)) {
+        setSelectedCategory(room.roomType);
+        setCustomRoomType("");
+      } else {
+        setSelectedCategory("OTHER");
+        setCustomRoomType(room.roomType === "OTHER" ? "" : room.roomType);
+      }
     }
   };
+
+  const openRoomDetails = useCallback(async (room: Room) => {
+    setViewingRoom(room);
+    setLoadingDetails(true);
+    setDetailsError("");
+    setRoomClasses([]);
+    setRoomSessions([]);
+    setDetailTab("classes");
+
+    try {
+      const [sessions, allClasses] = await Promise.all([
+        classApi.listSessions({ roomId: room.id }),
+        classApi.listClasses(),
+      ]);
+
+      setRoomSessions(sessions);
+
+      const sessionClassIds = new Set(sessions.map((s) => String(s.classId)));
+      const matchedClasses = allClasses.filter((c) => {
+        const usesInSchedule = c.scheduleBlocks?.some(
+          (b) => String(b.roomId) === String(room.id)
+        );
+        const usesInSessions = sessionClassIds.has(String(c.id));
+        return usesInSchedule || usesInSessions;
+      });
+
+      setRoomClasses(matchedClasses);
+    } catch (err) {
+      setDetailsError(describeError(err));
+    } finally {
+      setLoadingDetails(false);
+    }
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const errors = v.validateForm(form, {name: v.all(v.required("Tên phòng"), v.maxLength("Tên phòng",80)), location: v.text("Vị trí",120), capacity: v.positiveInteger("Sức chứa", {max:500})});
+    const errors = v.validateForm(form, {
+      name: v.all(v.required("Tên phòng"), v.maxLength("Tên phòng", 80)),
+      location: v.text("Vị trí", 120),
+      capacity: v.positiveInteger("Sức chứa", { max: 500 }),
+    });
+
+    let finalRoomType: string | null = null;
+    if (selectedCategory === "OTHER") {
+      if (!customRoomType.trim()) {
+        errors.roomType = "Vui lòng nhập loại phòng.";
+      } else if (customRoomType.trim().length > 50) {
+        errors.roomType = "Loại phòng tối đa 50 ký tự.";
+      } else {
+        finalRoomType = customRoomType.trim();
+      }
+    } else if (selectedCategory) {
+      finalRoomType = selectedCategory;
+    }
+
     setFieldErrors(errors);
     if (v.hasErrors(errors)) return;
+
+    const payload: RoomInput = {
+      ...form,
+      roomType: finalRoomType,
+    };
 
     setSaving(true);
 
     try {
       if (editing === "new") {
-        await roomApi.create(form);
+        await roomApi.create(payload);
         toast.success("Thêm phòng thành công.");
       } else if (editing) {
-        await roomApi.update(editing.id, form);
+        await roomApi.update(editing.id, payload);
         toast.success("Cập nhật phòng thành công.");
       }
 
@@ -218,13 +332,20 @@ export function RoomsPage() {
               {filteredRooms.map((room) => (
                 <tr key={room.id}>
                   <td>
-                    <div className="room-name-cell">
+                    <button
+                      type="button"
+                      className="room-name-btn"
+                      onClick={() => void openRoomDetails(room)}
+                      title={`Xem chi tiết phòng ${room.name}`}
+                    >
                       <DoorOpen size={18} aria-hidden="true" />
                       <span>{room.name}</span>
-                    </div>
+                    </button>
                   </td>
 
-                  <td className="cell-freetext">{room.location || "Chưa cập nhật"}</td>
+                  <td className="cell-freetext">
+                    {room.location || "Chưa cập nhật"}
+                  </td>
                   <td>
                     {room.roomType
                       ? (ROOM_TYPE_LABELS[room.roomType] ?? room.roomType)
@@ -245,6 +366,16 @@ export function RoomsPage() {
 
                   <td>
                     <div className="room-actions">
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => void openRoomDetails(room)}
+                        title="Xem chi tiết phòng và lớp học sử dụng phòng"
+                      >
+                        <Eye size={15} aria-hidden="true" />
+                        Chi tiết
+                      </button>
+
                       <button
                         type="button"
                         className="button secondary"
@@ -277,6 +408,7 @@ export function RoomsPage() {
         </div>
       )}
 
+      {/* Dialog tạo / chỉnh sửa phòng */}
       {editing && (
         <Dialog
           title={editing === "new" ? "Thêm phòng mới" : "Chỉnh sửa phòng"}
@@ -299,7 +431,11 @@ export function RoomsPage() {
                   setForm({ ...form, name: event.target.value })
                 }
               />
-              {fieldErrors.name && <small id="room-name-error" className="form-error">{fieldErrors.name}</small>}
+              {fieldErrors.name && (
+                <small id="room-name-error" className="form-error">
+                  {fieldErrors.name}
+                </small>
+              )}
             </div>
 
             <div className="form-group">
@@ -314,24 +450,35 @@ export function RoomsPage() {
                   setForm({ ...form, location: event.target.value })
                 }
               />
-              {fieldErrors.location && <small id="room-location-error" className="form-error">{fieldErrors.location}</small>}
+              {fieldErrors.location && (
+                <small id="room-location-error" className="form-error">
+                  {fieldErrors.location}
+                </small>
+              )}
             </div>
+
             <div className="form-group">
               <label htmlFor="room-type">Loại phòng</label>
-
               <select
                 id="room-type"
-                value={form.roomType ?? ""}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    roomType: event.target.value
-                      ? (event.target.value as NonNullable<
-                          RoomInput["roomType"]
-                        >)
-                      : null,
-                  })
-                }
+                value={selectedCategory}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  setSelectedCategory(val);
+                  if (val === "OTHER") {
+                    setForm({ ...form, roomType: customRoomType.trim() || null });
+                  } else {
+                    setCustomRoomType("");
+                    setForm({ ...form, roomType: val || null });
+                  }
+                  if (fieldErrors.roomType) {
+                    setFieldErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.roomType;
+                      return next;
+                    });
+                  }
+                }}
               >
                 <option value="">Chưa phân loại</option>
                 <option value="STUDIO">Studio</option>
@@ -341,6 +488,40 @@ export function RoomsPage() {
                 <option value="OTHER">Khác</option>
               </select>
             </div>
+
+            {selectedCategory === "OTHER" && (
+              <div className="form-group">
+                <label htmlFor="custom-room-type">Nhập loại phòng *</label>
+                <input
+                  id="custom-room-type"
+                  placeholder="Nhập loại phòng cụ thể (ví dụ: Boxing, Yoga, Phòng nhảy...)"
+                  maxLength={50}
+                  value={customRoomType}
+                  aria-invalid={Boolean(fieldErrors.roomType)}
+                  aria-describedby={
+                    fieldErrors.roomType ? "custom-room-type-error" : undefined
+                  }
+                  onChange={(event) => {
+                    const val = event.target.value;
+                    setCustomRoomType(val);
+                    setForm({ ...form, roomType: val.trim() || null });
+                    if (fieldErrors.roomType) {
+                      setFieldErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.roomType;
+                        return next;
+                      });
+                    }
+                  }}
+                />
+                {fieldErrors.roomType && (
+                  <small id="custom-room-type-error" className="form-error">
+                    {fieldErrors.roomType}
+                  </small>
+                )}
+              </div>
+            )}
+
             <div className="form-group">
               <label htmlFor="room-capacity">Sức chứa *</label>
               <input
@@ -359,8 +540,13 @@ export function RoomsPage() {
                   })
                 }
               />
-              {fieldErrors.capacity && <small id="room-capacity-error" className="form-error">{fieldErrors.capacity}</small>}
+              {fieldErrors.capacity && (
+                <small id="room-capacity-error" className="form-error">
+                  {fieldErrors.capacity}
+                </small>
+              )}
             </div>
+
             <div className="modal-actions">
               <button
                 type="button"
@@ -380,6 +566,319 @@ export function RoomsPage() {
               </button>
             </div>
           </form>
+        </Dialog>
+      )}
+
+      {/* Dialog xem chi tiết phòng và các lớp đang sử dụng */}
+      {viewingRoom && (
+        <Dialog
+          title={`Chi tiết phòng: ${viewingRoom.name}`}
+          description="Thông tin phòng tập và danh sách các lớp đang sử dụng phòng này."
+          onClose={() => setViewingRoom(null)}
+        >
+          <div className="room-detail-container">
+            <div className="room-info-grid">
+              <div className="room-info-card">
+                <span className="room-info-label">Vị trí</span>
+                <span className="room-info-value">
+                  {viewingRoom.location || "Chưa cập nhật"}
+                </span>
+              </div>
+              <div className="room-info-card">
+                <span className="room-info-label">Loại phòng</span>
+                <span className="room-info-value">
+                  {viewingRoom.roomType
+                    ? (ROOM_TYPE_LABELS[viewingRoom.roomType] ?? viewingRoom.roomType)
+                    : "Chưa phân loại"}
+                </span>
+              </div>
+              <div className="room-info-card">
+                <span className="room-info-label">Sức chứa</span>
+                <span className="room-info-value">{viewingRoom.capacity} người</span>
+              </div>
+              <div className="room-info-card">
+                <span className="room-info-label">Trạng thái</span>
+                <span
+                  className={`room-status ${
+                    viewingRoom.isActive ? "active" : "inactive"
+                  }`}
+                >
+                  <span className="room-status-dot" />
+                  {viewingRoom.isActive ? "Đang hoạt động" : "Ngừng hoạt động"}
+                </span>
+              </div>
+            </div>
+
+            <div className="room-tabs">
+              <button
+                type="button"
+                className={`room-tab-btn ${
+                  detailTab === "classes" ? "active" : ""
+                }`}
+                onClick={() => setDetailTab("classes")}
+              >
+                <GraduationCap size={16} aria-hidden="true" />
+                <span>Lớp học đang dùng phòng</span>
+                {!loadingDetails && (
+                  <span className="room-tab-count">{roomClasses.length}</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                className={`room-tab-btn ${
+                  detailTab === "sessions" ? "active" : ""
+                }`}
+                onClick={() => setDetailTab("sessions")}
+              >
+                <Calendar size={16} aria-hidden="true" />
+                <span>Lịch các buổi học</span>
+                {!loadingDetails && (
+                  <span className="room-tab-count">{roomSessions.length}</span>
+                )}
+              </button>
+            </div>
+
+            {loadingDetails ? (
+              <div className="room-loading-state">
+                <RefreshCw size={24} className="spin" aria-hidden="true" />
+                <p>Đang tải dữ liệu lớp học và buổi học...</p>
+              </div>
+            ) : detailsError ? (
+              <div className="feedback error" role="alert">
+                <p>{detailsError}</p>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => void openRoomDetails(viewingRoom)}
+                >
+                  Thử lại
+                </button>
+              </div>
+            ) : detailTab === "classes" ? (
+              roomClasses.length === 0 ? (
+                <div className="room-empty-state">
+                  <GraduationCap size={40} aria-hidden="true" />
+                  <p>Chưa có lớp học nào sử dụng phòng tập này</p>
+                  <small>
+                    Phòng hiện đang trống và sẵn sàng để xếp lịch cho lớp học mới.
+                  </small>
+                </div>
+              ) : (
+                <div className="room-classes-list">
+                  {roomClasses.map((cls) => {
+                    const roomBlocks = (cls.scheduleBlocks || []).filter(
+                      (b) => String(b.roomId) === String(viewingRoom.id)
+                    );
+                    const clsSessions = roomSessions.filter(
+                      (s) => String(s.classId) === String(cls.id)
+                    );
+                    const upcomingSessions = clsSessions.filter(
+                      (s) => s.status === "SCHEDULED"
+                    );
+
+                    return (
+                      <div key={cls.id} className="room-class-card">
+                        <div className="room-class-header">
+                          <div className="room-class-title">
+                            <GraduationCap size={20} aria-hidden="true" />
+                            <div>
+                              <h4>{cls.name}</h4>
+                              <span className="class-sport-tag">
+                                {cls.sportName}
+                              </span>
+                            </div>
+                          </div>
+                          <span
+                            className={`status-chip ${
+                              STATUS_CHIP[cls.status] || "pending"
+                            }`}
+                          >
+                            {classStatusLabels[cls.status] ?? cls.status}
+                          </span>
+                        </div>
+
+                        <div className="room-class-meta">
+                          <div className="room-class-meta-item">
+                            <Users size={14} aria-hidden="true" />
+                            <span>
+                              Sức chứa lớp: <strong>{cls.capacity} người</strong>
+                            </span>
+                          </div>
+
+                          <div className="room-class-meta-item">
+                            <Calendar size={14} aria-hidden="true" />
+                            <span>
+                              Buổi học tại phòng:{" "}
+                              <strong>{clsSessions.length}</strong> buổi
+                              {upcomingSessions.length > 0 && (
+                                <span
+                                  style={{ color: "#167451", marginLeft: 4 }}
+                                >
+                                  ({upcomingSessions.length} sắp tới)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="room-class-meta-item">
+                            <span>
+                              Đăng ký hiện tại:{" "}
+                              <strong>
+                                {cls.activeRegistrationCount} học viên
+                              </strong>
+                            </span>
+                          </div>
+                        </div>
+
+                        {roomBlocks.length > 0 ? (
+                          <div className="room-class-schedules">
+                            <span className="schedules-title">
+                              Lịch học tại phòng:
+                            </span>
+                            <ul>
+                              {roomBlocks.map((block, idx) => (
+                                <li key={idx}>
+                                  <Clock size={13} aria-hidden="true" />
+                                  <span>
+                                    <strong>
+                                      {describeRecurrence(
+                                        block.daysOfWeek,
+                                        block.startTime,
+                                        block.endTime
+                                      )}
+                                    </strong>
+                                    {block.coachName && (
+                                      <span className="coach-highlight">
+                                        {" "}
+                                        · HLV: {block.coachName}
+                                      </span>
+                                    )}
+                                    {block.startDate && block.endDate && (
+                                      <span
+                                        style={{
+                                          color: "#718078",
+                                          marginLeft: 6,
+                                        }}
+                                      >
+                                        ({formatDate(block.startDate)} -{" "}
+                                        {formatDate(block.endDate)})
+                                      </span>
+                                    )}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : clsSessions.length > 0 ? (
+                          <div className="room-class-schedules">
+                            <span className="schedules-title">
+                              Buổi học được xếp tại phòng:
+                            </span>
+                            <p
+                              style={{
+                                margin: 0,
+                                color: "#51645b",
+                                fontSize: 13,
+                              }}
+                            >
+                              Lớp có {clsSessions.length} buổi học diễn ra tại
+                              phòng này.
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : roomSessions.length === 0 ? (
+              <div className="room-empty-state">
+                <Calendar size={40} aria-hidden="true" />
+                <p>Chưa có buổi học nào được xếp tại phòng này</p>
+                <small>
+                  Các buổi học của các lớp sẽ hiển thị ở đây khi được xếp lịch.
+                </small>
+              </div>
+            ) : (
+              <div className="room-sessions-wrap">
+                <table className="room-sessions-table">
+                  <thead>
+                    <tr>
+                      <th>Ngày học</th>
+                      <th>Khung giờ</th>
+                      <th>Lớp học</th>
+                      <th>Huấn luyện viên</th>
+                      <th>Chỗ đặt</th>
+                      <th>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roomSessions.map((session) => (
+                      <tr key={session.id}>
+                        <td>
+                          <strong>{formatDate(session.date)}</strong>
+                        </td>
+                        <td>
+                          {session.startTime?.slice(0, 5)} -{" "}
+                          {session.endTime?.slice(0, 5)}
+                        </td>
+                        <td>
+                          <strong>{session.className}</strong>
+                          <span
+                            className="class-sport-tag"
+                            style={{ marginLeft: 6 }}
+                          >
+                            {session.sportName}
+                          </span>
+                        </td>
+                        <td>{session.coachName || "Chưa phân công"}</td>
+                        <td>
+                          {session.bookedCount} / {session.capacity}
+                        </td>
+                        <td>
+                          <span
+                            className={`status-chip ${
+                              session.status === "SCHEDULED"
+                                ? "active"
+                                : session.status === "COMPLETED"
+                                  ? "pending"
+                                  : "hidden"
+                            }`}
+                          >
+                            {SESSION_STATUS_LABELS[session.status] ??
+                              session.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  const target = viewingRoom;
+                  setViewingRoom(null);
+                  openForm(target);
+                }}
+              >
+                <Edit2 size={15} aria-hidden="true" />
+                Chỉnh sửa phòng
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => setViewingRoom(null)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
         </Dialog>
       )}
 

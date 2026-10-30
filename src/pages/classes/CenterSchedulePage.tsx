@@ -130,7 +130,7 @@ export function CenterSchedulePage() {
     <div className="long-page-stack">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">UC22 · {audience}</span>
+          <span className="eyebrow">{audience}</span>
           <h1>Lịch hoạt động trung tâm theo Khung giờ (Slot)</h1>
           <p>
             Tra cứu các lớp học theo ngày hoặc tuần, khung giờ (Slot) có sẵn,
