@@ -3840,3 +3840,141 @@ textarea {
     padding: var(--space-4);
   }
 }
+
+/* ==========================================================================
+   Classes management page — Compact layout fitting in one window
+   ========================================================================== */
+.classes-page-stack .page-heading {
+  margin-bottom: var(--space-4);
+}
+
+.classes-page-stack .stats-grid {
+  margin-bottom: var(--space-4);
+  gap: var(--space-3);
+}
+
+.classes-page-stack .stat-card {
+  padding: var(--space-3) var(--space-4);
+}
+
+.classes-page-stack .stat-card strong {
+  font-size: 22px;
+}
+
+.classes-page-stack .table-wrap {
+  overflow-x: auto;
+}
+
+.classes-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.classes-table th,
+.classes-table td {
+  padding: 10px 10px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.classes-table .package-table-name {
+  min-width: 0;
+  gap: 8px;
+}
+
+.classes-table .package-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.classes-table .class-identity-cell {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.classes-table .class-identity-cell strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.classes-table .class-identity-cell .cell-caption {
+  display: block;
+  font-size: 11px;
+}
+
+.classes-table .class-desc-cell {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--fg-muted, #7d8c82);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.classes-table .schedule-cell-wrap {
+  font-size: 12px;
+}
+
+.classes-table .schedule-block-list {
+  gap: 3px;
+}
+
+.classes-table .schedule-block-list > li {
+  gap: 1px;
+}
+
+.classes-table .schedule-block-list > li + li {
+  padding-top: 3px;
+}
+
+.classes-table .schedule-block-list strong {
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--fg-strong, #1f382b);
+}
+
+.classes-table .schedule-block-list .cell-caption {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.classes-table .status-chip {
+  white-space: normal;
+  max-width: 100%;
+  padding: 3px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  justify-content: center;
+}
+
+.classes-table .row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.classes-table .row-actions .icon-button {
+  padding: 5px;
+}
+
+/* Modal body scroll guard so dialog contents never push buttons off screen */
+.modal-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-body {
+  overflow-y: auto;
+  max-height: calc(100dvh - 160px);
+}
+

@@ -415,7 +415,7 @@ export const sessionStatusLabels: Record<ClassSessionStatus, string> = {
 };
 
 export const classStatusLabels: Record<string, string> = {
-  DRAFT: "Nháp",
+  DRAFT: "Chờ mở đăng ký lớp",
   OPEN: "Đang nhận đăng ký",
   CLOSED: "Ngừng nhận đăng ký",
   ARCHIVED: "Đã lưu trữ",

@@ -178,9 +178,7 @@ export function MemberClassesPage({ view }: Props) {
     <div className="long-page-stack">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">
-            {isDiscover ? "UC23 · THÀNH VIÊN" : "UC26 · THÀNH VIÊN"}
-          </span>
+          <span className="eyebrow">THÀNH VIÊN</span>
           <h1>
             {isDiscover
               ? "Khám phá lớp học theo Khung giờ (Slot)"

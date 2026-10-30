@@ -1,4 +1,4 @@
-export type RoomType = "STUDIO" | "GYM" | "POOL" | "COURT" | "OTHER";
+export type RoomType = "STUDIO" | "GYM" | "POOL" | "COURT" | "OTHER" | (string & {});
 
 export interface Room {
   id: string;

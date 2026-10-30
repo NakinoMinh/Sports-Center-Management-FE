@@ -75,7 +75,7 @@ export function NotificationsPage() {
     <div className="long-page-stack">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">UC31 · THÔNG BÁO LỚP HỌC</span>
+          <span className="eyebrow">THÔNG BÁO LỚP HỌC</span>
           <h1>Thông báo của tôi</h1>
           <p>
             Theo dõi đăng ký, đổi lịch, đổi huấn luyện viên và các buổi bị hủy.
