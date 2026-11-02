@@ -67,9 +67,47 @@ const MESSAGES: Record<string, string> = {
   AVATAR_FORMAT_UNSUPPORTED:
     "Định dạng ảnh không được hỗ trợ. Chỉ nhận JPG, PNG hoặc WEBP.",
 
-  // --- Membership ---
+  // --- Membership & Sprint 3 Counter / Invoice / Reports (UC33–UC39) ---
   MEMBER_HAS_MEMBERSHIP_HISTORY:
     "Thành viên này đã có lịch sử đăng ký gói nên không thể xóa. Hãy ngừng hoạt động tài khoản thay vì xóa.",
+  DUPLICATE_EMAIL:
+    "Email này đã được đăng ký cho tài khoản khác. Vui lòng kiểm tra lại hoặc dùng chức năng gia hạn cho hội viên đã có.",
+  DUPLICATE_PHONE:
+    "Số điện thoại này đã tồn tại trên hệ thống. Vui lòng kiểm tra lại số điện thoại của hội viên.",
+  INVALID_MEMBER_DATA:
+    "Thông tin hồ sơ hội viên chưa hợp lệ. Vui lòng kiểm tra lại họ tên, email và số điện thoại.",
+  INVALID_PAYMENT_METHOD:
+    "Phương thức thanh toán không hợp lệ. Vui lòng chọn Tiền mặt, Chuyển khoản hoặc Thẻ.",
+  PACKAGE_INACTIVE:
+    "Gói tập này hiện đã ngừng kinh doanh. Vui lòng tải lại danh sách và chọn gói tập đang hoạt động.",
+  PRICE_CHANGED:
+    "Giá gói tập trên hệ thống vừa được cập nhật. Vui lòng làm mới danh sách gói tập để lấy báo giá mới nhất.",
+  PENDING_ORDER_EXISTS:
+    "Hội viên này đang có một hóa đơn chờ thanh toán. Vui lòng thu tiền hoặc hủy hóa đơn chờ trước khi tạo đơn mới.",
+  STAFF_INACTIVE:
+    "Tài khoản nhân viên đang ngừng hoạt động nên không thể thực hiện giao dịch.",
+  STAFF_NOT_FOUND:
+    "Không tìm thấy thông tin tài khoản nhân viên thực hiện giao dịch.",
+  STAFF_LOCKED:
+    "Tài khoản nhân viên đang bị khóa. Vui lòng liên hệ quản lý trung tâm.",
+  INVALID_INVOICE_FILTER:
+    "Bộ lọc hoặc tham số phân trang hóa đơn không hợp lệ. Vui lòng đặt lại bộ lọc.",
+  RECEIPT_NOT_AVAILABLE:
+    "Biên nhận chỉ khả dụng đối với hóa đơn đã được xác nhận thanh toán (PAID).",
+  INVOICE_NOT_FOUND:
+    "Không tìm thấy hóa đơn yêu cầu hoặc bạn không có quyền truy cập hóa đơn này.",
+  DATA_INTEGRITY_ERROR:
+    "Dữ liệu hóa đơn hoặc gói tập không đồng nhất. Vui lòng liên hệ bộ phận kỹ thuật.",
+  INVALID_REPORT_DATE_RANGE:
+    "Khoảng thời gian báo cáo không hợp lệ (tối đa 366 ngày và ngày bắt đầu không lớn hơn ngày kết thúc).",
+  INVALID_REPORT_GROUPING:
+    "Chu kỳ gom nhóm báo cáo không hợp lệ. Chỉ hỗ trợ theo ngày (DAY) hoặc theo tháng (MONTH).",
+  UNSUPPORTED_REPORT_PAYMENT_METHOD:
+    "Báo cáo doanh thu hiện chỉ hỗ trợ đối soát phương thức Tiền mặt (CASH).",
+  INVALID_CLASS_REPORT_FILTER:
+    "Bộ lọc báo cáo lớp học không hợp lệ. Vui lòng kiểm tra lại lớp, bộ môn hoặc trạng thái đăng ký.",
+  REPORT_EXPORT_TOO_LARGE:
+    "Dữ liệu xuất CSV vượt quá giới hạn 10.000 dòng. Vui lòng thu hẹp khoảng ngày hoặc lọc theo bộ môn/lớp học.",
 
   // --- Lớp học, lịch học và đăng ký buổi học (Flow 2) ---
   CLASS_NOT_FOUND:
@@ -195,11 +233,11 @@ export const isRetryable = (error: unknown): boolean =>
  */
 export function fieldErrorsOf(error: unknown): Record<string, string> {
   if (!(error instanceof ApiError)) return {};
-  if (error.code === "EMAIL_ALREADY_EXISTS" || (error.status === 409 && /^Email already exists\.?$/i.test(error.message.trim()))) {
-    return { email: MESSAGES.EMAIL_ALREADY_EXISTS };
+  if (error.code === "EMAIL_ALREADY_EXISTS" || error.code === "DUPLICATE_EMAIL" || (error.status === 409 && /^Email already exists\.?$/i.test(error.message.trim()))) {
+    return { email: MESSAGES[error.code ?? "EMAIL_ALREADY_EXISTS"] ?? MESSAGES.EMAIL_ALREADY_EXISTS };
   }
-  if (error.code === "PHONE_ALREADY_EXISTS" || (error.status === 409 && /^Phone number already exists\.?$/i.test(error.message.trim()))) {
-    return { phone: MESSAGES.PHONE_ALREADY_EXISTS };
+  if (error.code === "PHONE_ALREADY_EXISTS" || error.code === "DUPLICATE_PHONE" || (error.status === 409 && /^Phone number already exists\.?$/i.test(error.message.trim()))) {
+    return { phone: MESSAGES[error.code ?? "PHONE_ALREADY_EXISTS"] ?? MESSAGES.PHONE_ALREADY_EXISTS };
   }
   if (error.status === 400 && error.message === "A discipline was not found or is inactive.") {
     return { disciplineIds: "Bộ môn đã ngừng hoạt động hoặc không còn tồn tại. Hãy tải lại danh sách và chọn lại." };

@@ -1,9 +1,8 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import * as v from "../../utils/validation";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import { Dialog } from "../common/Dialog";
-
-import { memberApi } from "../../services/memberApi";
 import { membershipApi } from "../../services/membershipApi";
 import type {
   MembershipActor,
@@ -12,12 +11,6 @@ import type {
   PaymentMethod,
 } from "../../types/membership";
 import { durationLabel, formatMoney } from "../../utils/format";
-
-const generateInitialPassword = (): string => {
-  const randomValues = new Uint32Array(1);
-  crypto.getRandomValues(randomValues);
-  return `Pass@${(randomValues[0] % 90000) + 10000}`;
-};
 
 export function CounterRegistrationForm({
   actor: _actor,
@@ -43,7 +36,7 @@ export function CounterRegistrationForm({
   const [created, setCreated] = useState<{
     member: MembershipActor;
     order: MembershipOrder;
-    initialPassword: string;
+    emailDelivery: "SENT" | "FAILED" | "NOT_CONFIGURED";
   } | null>(null);
   const pkg = packages.find((p) => p.id === form.packageId);
   const [fieldErrors, setFieldErrors] = useState<v.FieldErrors>({});
@@ -70,28 +63,17 @@ export function CounterRegistrationForm({
     }
     setBusy(true);
     try {
-      const initialPassword = generateInitialPassword();
-      const newMember = await memberApi.createMember(
-        {
-          fullName: form.fullName,
-          email: form.email,
-          phone: form.phone,
-          dateOfBirth: form.dateOfBirth,
-        },
-        initialPassword,
-      );
-
-      const order = await membershipApi.counterRegisterOrRenew(
-        newMember.id,
-        form.packageId,
-        form.paymentMethod,
-      );
-
-      setCreated({
-        member: newMember,
-        order,
-        initialPassword,
+      const result = await membershipApi.counterRegisterMember({
+        fullName: form.fullName,
+        email: form.email,
+        phone: form.phone,
+        dateOfBirth: form.dateOfBirth,
+        packageId: form.packageId,
+        expectedPrice: pkg.price,
+        paymentMethod: form.paymentMethod,
       });
+
+      setCreated(result);
     } catch (err) {
       setFieldErrors(fieldErrorsOf(err));
       setError(describeError(err));
@@ -102,28 +84,43 @@ export function CounterRegistrationForm({
   if (created)
     return (
       <Dialog
-        title="Đã tạo thành viên tại quầy"
+        title="Đã tạo thành viên & hóa đơn chờ thanh toán"
         onClose={() => onCreated(created.member, created.order)}
         footer={
-          <button
-            className="button primary"
-            onClick={() => onCreated(created.member, created.order)}
-          >
-            Đã bàn giao · Xem hóa đơn
-          </button>
+          <>
+            <button
+              className="button secondary"
+              onClick={() => onCreated(created.member, created.order)}
+            >
+              Xem hóa đơn tại quầy
+            </button>
+            <Link
+              className="button primary"
+              to={`/payments/cash?invoice=${created.order.invoice.id}`}
+            >
+              Đến xác nhận thu tiền mặt
+            </Link>
+          </>
         }
       >
         <div className="order-summary">
           <h3>{created.member.fullName}</h3>
           <p>Email đăng nhập: {created.member.email}</p>
-          <p>Mật khẩu khởi tạo (chỉ hiển thị lần này):</p>
-          <code className="initial-password">{created.initialPassword}</code>
+          <p>
+            Mã hóa đơn: <strong>{created.order.invoice.number}</strong> · Cần
+            thu: <strong>{formatMoney(created.order.invoice.amount)}</strong>
+          </p>
+          <p>
+            Trạng thái hiện tại: <strong>Chờ thanh toán (PENDING_PAYMENT)</strong>
+          </p>
         </div>
         <div className="info-note">
           <p>
-            Email chưa được gửi vì dịch vụ gửi email chưa kết nối. Bàn giao
-            riêng thông tin đăng nhập cho thành viên trước khi đóng. Hóa đơn
-            đã được ghi nhận và gói tập đã kích hoạt theo giao dịch tại quầy.
+            {created.emailDelivery === "SENT"
+              ? "Thông tin kích hoạt tài khoản đã được gửi tới email của hội viên."
+              : "Tài khoản hội viên và đơn đăng ký gói đã được lưu nguyên tử trên hệ thống."}{" "}
+            Gói tập chỉ chuyển sang trạng thái hoạt động sau khi nhân viên xác
+            nhận đã thu đủ tiền mặt tại quầy.
           </p>
         </div>
       </Dialog>
@@ -210,7 +207,8 @@ export function CounterRegistrationForm({
             <div className="field">
               <span>Thông tin đăng nhập</span>
               <p>
-                Mật khẩu được sinh tự động. Thành viên đăng nhập bằng email.
+                Hệ thống tự động khởi tạo bảo mật cho hội viên đăng nhập bằng
+                email.
               </p>
             </div>
             <label className="field field-full">
@@ -223,12 +221,15 @@ export function CounterRegistrationForm({
                 }
               >
                 <option value="">— Chọn gói cho thành viên mới —</option>
-                {packages.slice().sort((a, b) => a.price - b.price).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} · {durationLabel(p.durationMonths)} ·{" "}
-                    {formatMoney(p.price)}
-                  </option>
-                ))}
+                {packages
+                  .slice()
+                  .sort((a, b) => a.price - b.price)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · {durationLabel(p.durationMonths)} ·{" "}
+                      {formatMoney(p.price)}
+                    </option>
+                  ))}
               </select>
             </label>
             <label className="field field-full">
@@ -243,10 +244,6 @@ export function CounterRegistrationForm({
                 }
               >
                 <option value="CASH">Tiền mặt tại quầy</option>
-                <option value="BANK_TRANSFER">
-                  Chuyển khoản (chưa kết nối)
-                </option>
-                <option value="CARD">Thẻ (chưa kết nối)</option>
               </select>
             </label>
           </div>
@@ -255,8 +252,8 @@ export function CounterRegistrationForm({
               {pkg
                 ? `Cần thanh toán ${formatMoney(pkg.price)}. `
                 : "Chưa chọn gói tập. "}
-              Tạo yêu cầu chưa có nghĩa là đã thu tiền. Gói chỉ được kích hoạt
-              sau khi xác nhận thanh toán; thời hạn bắt đầu từ ngày xác nhận.
+              Tạo yêu cầu sẽ sinh hóa đơn chờ thanh toán (PENDING_PAYMENT). Gói
+              chỉ được kích hoạt sau khi xác nhận thu tiền mặt tại quầy.
             </p>
           </div>
           {error && (

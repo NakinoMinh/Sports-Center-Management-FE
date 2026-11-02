@@ -20,6 +20,7 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { MembershipPackagesPage } from "./pages/manager/MembershipPackagesPage";
 import { MembershipPage } from "./pages/membership/MembershipPage";
 import { CashPaymentsPage } from "./pages/membership/CashPaymentsPage";
+import { InvoicesPage } from "./pages/membership/InvoicesPage";
 import { MembershipStatusPage } from "./pages/membership/MembershipStatusPage";
 import { ReceptionOperationsPage } from "./pages/membership/ReceptionOperationsPage";
 import { MembersPage } from "./pages/manager/MembersPage";
@@ -262,6 +263,14 @@ export default function App() {
                 element={
                   <OwnedScreen role={accessRules.payments}>
                     <CashPaymentsPage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/invoices"
+                element={
+                  <OwnedScreen role={accessRules.invoices}>
+                    <InvoicesPage />
                   </OwnedScreen>
                 }
               />
