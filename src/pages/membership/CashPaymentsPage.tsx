@@ -19,8 +19,96 @@ import {
   todayDate,
 } from "../../services/membershipService";
 import { membershipApi } from "../../services/membershipApi";
+import { ApiError } from "../../services/apiClient";
 import type { MembershipInvoice } from "../../types/membership";
 import { formatDate, formatMoney } from "../../utils/format";
+
+function getLocalDateString(isoOrDateStr: string | undefined): string {
+  if (!isoOrDateStr) return "";
+  try {
+    const d = new Date(isoOrDateStr);
+    if (!Number.isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+  } catch {
+    // ignore
+  }
+  return isoOrDateStr.slice(0, 10);
+}
+
+function mapPaymentError(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 409) {
+      const msg = err.message.toLowerCase();
+      if (msg.includes("already") || msg.includes("paid")) {
+        return "Hóa đơn này đã được thu tiền trước đó. Hệ thống không ghi nhận thu lần hai.";
+      }
+      if (msg.includes("upgrade") || msg.includes("expired")) {
+        return "Báo giá nâng gói đã hết hạn (chỉ có hiệu lực trong ngày lập). Vui lòng hủy yêu cầu và tạo báo giá mới.";
+      }
+      if (
+        msg.includes("deadlock") ||
+        msg.includes("concurrency") ||
+        msg.includes("transaction") ||
+        msg.includes("modified")
+      ) {
+        return "Hóa đơn đang được xử lý bởi nhân viên khác hoặc có xung đột dữ liệu. Vui lòng thử lại.";
+      }
+      if (msg.includes("inactive")) {
+        return "Gói tập hiện tại đang tạm ngưng hoạt động.";
+      }
+      return err.message || "Xung đột dữ liệu hoặc hóa đơn đã được xử lý bởi nhân viên khác.";
+    }
+    if (err.status === 400) {
+      const msg = err.message.toLowerCase();
+      if (msg.includes("invoice state") || msg.includes("state")) {
+        return "Trạng thái hóa đơn không hợp lệ hoặc đã bị thay đổi.";
+      }
+      if (msg.includes("payment method")) {
+        return "Phương thức thanh toán của hóa đơn không phải là tiền mặt.";
+      }
+      return err.message || "Yêu cầu không hợp lệ. Vui lòng kiểm tra lại thông tin.";
+    }
+    if (err.status === 403) {
+      const msg = err.message.toLowerCase();
+      if (msg.includes("member") && msg.includes("inactive")) {
+        return "Tài khoản thành viên đã bị vô hiệu hóa.";
+      }
+      if (msg.includes("role") || msg.includes("staff")) {
+        return "Tài khoản của bạn không có quyền xác nhận thu tiền mặt.";
+      }
+      return err.message || "Bạn không có quyền thực hiện thao tác này.";
+    }
+    if (err.status === 423) {
+      const msg = err.message.toLowerCase();
+      if (msg.includes("staff")) {
+        return "Tài khoản nhân viên của bạn đang bị khóa.";
+      }
+      if (msg.includes("member")) {
+        return "Tài khoản thành viên đang bị khóa.";
+      }
+      return "Tài khoản hiện đang bị khóa.";
+    }
+    if (err.status === 404) {
+      return "Không tìm thấy hóa đơn trên hệ thống.";
+    }
+    return err.message;
+  }
+  return err instanceof Error ? err.message : "Không thể xác nhận thanh toán.";
+}
+
+function mapCancelError(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 409 || err.status === 400) {
+      return "Không thể hủy do trạng thái hóa đơn đã thay đổi hoặc đã được thanh toán.";
+    }
+    if (err.status === 403) {
+      return "Bạn không có quyền hủy hóa đơn này.";
+    }
+    return err.message;
+  }
+  return err instanceof Error ? err.message : "Không thể hủy yêu cầu.";
+}
 
 export function CashPaymentsPage() {
   const { currentUser } = useAuth();
@@ -65,9 +153,11 @@ export function CashPaymentsPage() {
   }, [refresh]);
   const selectedId = params.get("invoice");
   const invoice = invoices.find((i) => i.id === selectedId);
+  const invoiceCreatedDay = getLocalDateString(invoice?.createdAt);
   const staleUpgrade =
     invoice?.kind === "UPGRADE" &&
-    (invoice.creditAmount === undefined || invoice.startDate !== todayDate());
+    ((invoiceCreatedDay && invoiceCreatedDay !== todayDate()) ||
+      (!invoiceCreatedDay && invoice.startDate !== todayDate()));
   const pending = invoices.filter((i) => i.status === "PENDING_PAYMENT");
   const visible = invoices.filter(
     (i) =>
@@ -121,9 +211,7 @@ export function CashPaymentsPage() {
       close();
     } catch (err) {
       await refresh();
-      setDialogError(
-        err instanceof Error ? err.message : "Không thể xác nhận.",
-      );
+      setDialogError(mapPaymentError(err));
     } finally {
       setBusy(false);
     }
@@ -172,13 +260,6 @@ export function CashPaymentsPage() {
             {formatMoney(pending.reduce((sum, i) => sum + i.amount, 0))}
           </strong>
         </section>
-      </div>
-      <div className="info-note">
-        <p>
-          PENDING_PAYMENT → lễ tân / quản lý xác nhận → PAID → ACTIVE (hoặc chờ
-          đến kỳ đã lên lịch). Chỉ xác nhận khi đã kiểm tra tiền. Đây là dữ liệu
-          demo; không xử lý thanh toán thẻ hay chuyển khoản.
-        </p>
       </div>
       <section className="panel history-panel">
         <div className="toolbar">
@@ -340,6 +421,7 @@ export function CashPaymentsPage() {
                   type="button"
                   className="button secondary"
                   onClick={close}
+                  disabled={busy}
                 >
                   Đóng
                 </button>
@@ -347,6 +429,7 @@ export function CashPaymentsPage() {
                   type="button"
                   className="button danger"
                   onClick={() => setCanceling(true)}
+                  disabled={busy}
                 >
                   Hủy yêu cầu
                 </button>
@@ -360,7 +443,7 @@ export function CashPaymentsPage() {
                     Number(received) !== invoice.amount
                   }
                 >
-                  Xác nhận đã thu tiền
+                  {busy ? "Đang xử lý..." : "Xác nhận đã thu tiền"}
                 </button>
               </div>
             </form>
@@ -401,9 +484,7 @@ export function CashPaymentsPage() {
                     );
                   } catch (err) {
                     await refresh();
-                    setDialogError(
-                      err instanceof Error ? err.message : "Không thể hủy.",
-                    );
+                    setDialogError(mapCancelError(err));
                   }
                   setCanceling(false);
                 }}
