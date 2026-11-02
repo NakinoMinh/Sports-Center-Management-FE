@@ -74,6 +74,38 @@ interface ReceiptDto {
   memberPhone?: string;
 }
 
+interface CounterRegisterMemberResponseDto {
+  member: {
+    accountId: string;
+    memberCode: string;
+    fullName?: string;
+    dateOfBirth?: string;
+    email: string;
+    phone?: string;
+    status: string;
+    createdAt: string;
+  };
+  receipt: ReceiptDto;
+  initialPassword?: string;
+  emailDelivery: "SENT" | "FAILED" | "NOT_CONFIGURED";
+}
+
+export interface CounterRegistrationInput {
+  fullName: string;
+  email: string;
+  phone: string;
+  dateOfBirth: string;
+  packageId: string;
+  expectedPrice: number;
+  paymentMethod: PaymentMethod;
+}
+
+export interface CounterRegistrationResult {
+  member: MembershipActor;
+  order: MembershipOrder;
+  emailDelivery: "SENT" | "FAILED" | "NOT_CONFIGURED";
+}
+
 const mapPackage = (item: PackageDto): MembershipPackage => ({
   id: String(item.id),
   name: item.name,
@@ -145,7 +177,7 @@ const orderFromReceipt = (data: ReceiptDto): MembershipOrder => ({
     startDate: data.startDate,
     endDate: data.endDate,
     kind: data.kind,
-    status: "CONFIRMED",
+    status: data.subscriptionStatus ?? "CONFIRMED",
     invoiceId: String(data.invoiceId),
     createdAt: data.createdAt,
   },
@@ -166,7 +198,7 @@ const orderFromReceipt = (data: ReceiptDto): MembershipOrder => ({
     endDate: data.endDate,
     kind: data.kind,
     paymentMethod: data.paymentMethod,
-    status: "PAID",
+    status: data.invoiceStatus ?? "PAID",
     createdAt: data.createdAt,
     createdBy: data.memberAccountId,
     paidAt: data.paidAt,
@@ -256,22 +288,72 @@ export const membershipApi = {
     return orderFromSubscription(result, actor);
   },
 
+  async counterRegisterMember(
+    input: CounterRegistrationInput,
+  ): Promise<CounterRegistrationResult> {
+    const result = await apiRequest<CounterRegisterMemberResponseDto>(
+      "/Member/counter-registration",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          fullName: input.fullName.trim(),
+          email: input.email.trim(),
+          phone: input.phone.trim(),
+          dateOfBirth: input.dateOfBirth,
+          packageId: Number(input.packageId),
+          expectedPrice: input.expectedPrice,
+          paymentMethod: input.paymentMethod,
+        }),
+      },
+    );
+    return {
+      member: {
+        id: result.member.accountId,
+        username: result.member.memberCode,
+        fullName: result.member.fullName ?? result.member.memberCode,
+        email: result.member.email,
+        phone: result.member.phone,
+        dateOfBirth: result.member.dateOfBirth,
+        role: "MEMBER",
+        isActive: result.member.status === "Active",
+        createdAt: result.member.createdAt,
+        failedAttempts: 0,
+        isLocked: false,
+      },
+      order: orderFromReceipt(result.receipt),
+      emailDelivery: result.emailDelivery,
+    };
+  },
+
   async counterRegisterOrRenew(
     memberId: string,
     packageId: string,
     paymentMethod: PaymentMethod,
+    expectedPrice?: number,
   ): Promise<MembershipOrder> {
     const result = await apiRequest<ReceiptDto>("/MemberSubscription/counter-register-or-renew", {
       method: "POST",
-      body: JSON.stringify({ memberAccountId: memberId, packageId: Number(packageId), paymentMethod }),
+      body: JSON.stringify({
+        memberAccountId: memberId,
+        packageId: Number(packageId),
+        paymentMethod,
+        ...(expectedPrice !== undefined ? { expectedPrice } : {}),
+      }),
     });
     return orderFromReceipt(result);
   },
 
-  async payInvoice(invoiceId: string, paymentMethod: PaymentMethod): Promise<MembershipOrder> {
+  async payInvoice(
+    invoiceId: string,
+    paymentMethod: PaymentMethod,
+    receivedAmount?: number,
+  ): Promise<MembershipOrder> {
     const result = await apiRequest<ReceiptDto>(`/MembershipInvoice/${invoiceId}/pay`, {
       method: "POST",
-      body: JSON.stringify({ paymentMethod }),
+      body: JSON.stringify({
+        paymentMethod,
+        ...(receivedAmount !== undefined ? { receivedAmount } : {}),
+      }),
     });
     return orderFromReceipt(result);
   },
@@ -292,12 +374,18 @@ export const membershipApi = {
     status?: string;
     search?: string;
     paymentMethod?: string;
+    fromDate?: string;
+    toDate?: string;
   }): Promise<MembershipInvoice[]> {
     const query = new URLSearchParams();
     if (params?.memberId) query.set("memberId", params.memberId);
     if (params?.status && params.status !== "ALL") query.set("status", params.status);
     if (params?.search) query.set("search", params.search);
-    if (params?.paymentMethod) query.set("paymentMethod", params.paymentMethod);
+    if (params?.paymentMethod && params.paymentMethod !== "ALL") {
+      query.set("paymentMethod", params.paymentMethod);
+    }
+    if (params?.fromDate) query.set("fromDate", params.fromDate);
+    if (params?.toDate) query.set("toDate", params.toDate);
     const qs = query.toString();
     const result = await apiRequest<ReceiptDto[]>(`/MembershipInvoice${qs ? `?${qs}` : ""}`);
     return result.map((dto) => ({
@@ -324,5 +412,67 @@ export const membershipApi = {
       paidBy: dto.paidByStaffId,
       paidByName: dto.paidByStaffName,
     }));
+  },
+
+  async searchInvoices(params?: {
+    memberId?: string;
+    status?: string;
+    search?: string;
+    paymentMethod?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<{
+    items: MembershipInvoice[];
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  }> {
+    const query = new URLSearchParams();
+    if (params?.memberId) query.set("memberId", params.memberId);
+    if (params?.status && params.status !== "ALL") query.set("status", params.status);
+    if (params?.search) query.set("search", params.search);
+    if (params?.paymentMethod && params.paymentMethod !== "ALL") {
+      query.set("paymentMethod", params.paymentMethod);
+    }
+    query.set("page", String(params?.page ?? 1));
+    query.set("pageSize", String(params?.pageSize ?? 20));
+    const result = await apiRequest<{
+      items: ReceiptDto[];
+      page: number;
+      pageSize: number;
+      totalItems: number;
+      totalPages: number;
+    }>(`/MembershipInvoice/search?${query.toString()}`);
+    return {
+      items: result.items.map((dto) => ({
+        id: String(dto.invoiceId),
+        number: dto.invoiceNumber,
+        subscriptionId: String(dto.subscriptionId),
+        memberId: dto.memberAccountId,
+        memberName: dto.memberFullName ?? dto.memberCode,
+        memberEmail: dto.memberEmail,
+        packageId: String(dto.packageId),
+        packageName: dto.packageName,
+        packagePrice: dto.packagePrice,
+        durationMonths: dto.durationMonths,
+        benefits: Array.isArray(dto.benefits) ? dto.benefits : [],
+        amount: dto.amount,
+        startDate: dto.startDate,
+        endDate: dto.endDate,
+        kind: dto.kind,
+        paymentMethod: dto.paymentMethod,
+        status: dto.invoiceStatus,
+        createdAt: dto.createdAt,
+        createdBy: dto.memberAccountId,
+        paidAt: dto.paidAt,
+        paidBy: dto.paidByStaffId,
+        paidByName: dto.paidByStaffName,
+      })),
+      page: result.page,
+      pageSize: result.pageSize,
+      totalItems: result.totalItems,
+      totalPages: result.totalPages,
+    };
   },
 };

@@ -129,7 +129,6 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
   }, [currentUser, isCounter, memberId, submittedEmailSearch]);
 
   useEffect(() => {
-    // Synchronize with the external localStorage adapter when the selected member changes.
     // oxlint-disable-next-line react/set-state-in-effect
     void refresh();
     const sync = () => void refresh();
@@ -211,6 +210,7 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
             quote.memberId,
             quote.packageId,
             quote.paymentMethod,
+            quote.packagePrice,
           )
         : await membershipApi.registerOrRenew(
             currentUser,
@@ -226,7 +226,7 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
       }));
       setNotice(
         isCounter
-          ? "Đã đăng ký/gia hạn và ghi nhận thanh toán tại quầy."
+          ? "Đã tạo yêu cầu và hóa đơn chờ thanh toán tại quầy. Vui lòng xác nhận thu tiền mặt để kích hoạt gói."
           : "Đã tạo yêu cầu và hóa đơn chờ thanh toán. Gói mới chưa được kích hoạt.",
       );
     } catch (err) {
@@ -293,6 +293,9 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
             </button>
             <Link className="button secondary" to="/payments/cash">
               Xác nhận thu tiền mặt
+            </Link>
+            <Link className="button secondary" to="/invoices">
+              Tra cứu hóa đơn
             </Link>
           </div>
           <div className="member-picker-heading">
@@ -525,9 +528,15 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                     <span className="eyebrow">THEO DÕI ĐĂNG KÝ</span>
                     <h2>Lịch sử gói tập & hóa đơn</h2>
                   </div>
-                  <span className="count-badge">
-                    {snapshot.subscriptions.length} đăng ký
-                  </span>
+                  <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                    <Link className="button secondary" to="/invoices">
+                      <FileText size={16} />
+                      Tra cứu hóa đơn & biên nhận
+                    </Link>
+                    <span className="count-badge">
+                      {snapshot.subscriptions.length} đăng ký
+                    </span>
+                  </div>
                 </div>
                 {snapshot.subscriptions.length ? (
                   <div className="table-wrap">
@@ -840,8 +849,9 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
             setRegistering(false);
             setSelectedMember(newMember.id);
             setInvoice(order.invoice);
+            void refresh();
             setNotice(
-              `Đã tạo thành viên ${newMember.fullName} và yêu cầu gói. Cần xác nhận thanh toán để kích hoạt.`,
+              `Đã tạo thành viên ${newMember.fullName} và yêu cầu gói (${order.invoice.number}). Vui lòng xác nhận thu tiền mặt để kích hoạt.`,
             );
           }}
         />

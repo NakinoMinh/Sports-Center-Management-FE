@@ -54,6 +54,11 @@ const MANAGER: readonly UserRole[] = ["CENTER_MANAGER"];
 const COUNTER: readonly UserRole[] = ["RECEPTIONIST", "CENTER_MANAGER"];
 const MEMBER: readonly UserRole[] = ["MEMBER"];
 const MEMBER_COACH: readonly UserRole[] = ["MEMBER", "COACH"];
+const INVOICE_ROLES: readonly UserRole[] = [
+  "MEMBER",
+  "RECEPTIONIST",
+  "CENTER_MANAGER",
+];
 
 /**
  * Single source of truth for the sidebar and the breadcrumb.
@@ -272,6 +277,13 @@ export const navSections: readonly NavSection[] = [
         icon: "cash",
         roles: COUNTER,
         trail: ["Tài chính", "Xác nhận tiền mặt"],
+      },
+      {
+        to: "/invoices",
+        label: "Hóa đơn & Biên nhận",
+        icon: "history",
+        roles: INVOICE_ROLES,
+        trail: ["Tài chính", "Hóa đơn & Biên nhận"],
       },
     ],
   },

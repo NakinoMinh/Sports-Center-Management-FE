@@ -20,7 +20,11 @@ export function InvoiceDocument({ invoice }: { invoice: MembershipInvoice }) {
               : "Chờ thanh toán"}
         </span>
       </header>
-      <h2>HÓA ĐƠN GÓI THÀNH VIÊN</h2>
+      <h2>
+        {invoice.status === "PAID"
+          ? "BIÊN NHẬN THANH TOÁN GÓI THÀNH VIÊN"
+          : "HÓA ĐƠN GÓI THÀNH VIÊN"}
+      </h2>
       <p className="invoice-number">
         {invoice.number} · Lập ngày {formatDate(invoice.createdAt)}
       </p>
@@ -38,7 +42,7 @@ export function InvoiceDocument({ invoice }: { invoice: MembershipInvoice }) {
           <dd>{orderKindLabels[invoice.kind]}</dd>
         </div>
         <div>
-          <dt>Phương thức dự kiến</dt>
+          <dt>Phương thức thanh toán</dt>
           <dd>
             {
               {
@@ -80,31 +84,33 @@ export function InvoiceDocument({ invoice }: { invoice: MembershipInvoice }) {
         <p className="invoice-note">
           Khấu trừ {invoice.remainingDays}/{invoice.previousPeriodDays} ngày
           chưa sử dụng × {formatMoney(invoice.previousPackagePrice ?? 0)} ={" "}
-          {formatMoney(invoice.creditAmount)} (làm tròn đến đồng).<br />
+          {formatMoney(invoice.creditAmount)} (làm tròn đến đồng).
+          <br />
           Phí nâng gói: {formatMoney(invoice.packagePrice)} −{" "}
-          {formatMoney(invoice.creditAmount)} ={" "}
-          {formatMoney(invoice.amount)}. Kỳ mới đủ {invoice.durationMonths} tháng
-          từ ngày thanh toán. Báo giá chờ thanh toán chỉ có hiệu lực trong ngày lập.
+          {formatMoney(invoice.creditAmount)} = {formatMoney(invoice.amount)}.
+          Kỳ mới đủ {invoice.durationMonths} tháng từ ngày thanh toán. Báo giá
+          chờ thanh toán chỉ có hiệu lực trong ngày lập.
         </p>
       )}
       {invoice.kind === "UPGRADE" && invoice.creditAmount === undefined && (
         <p className="invoice-note">
           Hóa đơn theo chính sách nâng gói cũ.
-          {invoice.status === "PENDING_PAYMENT" && " Vui lòng hủy và lập lại yêu cầu để tính giá trị ngày còn lại trước khi thu tiền."}
+          {invoice.status === "PENDING_PAYMENT" &&
+            " Vui lòng hủy và lập lại yêu cầu để tính giá trị ngày còn lại trước khi thu tiền."}
         </p>
       )}
       {invoice.paidAt && (
         <p className="invoice-note">
-          Người xác nhận: {invoice.paidByName} ·{" "}
+          Người xác nhận thu tiền: {invoice.paidByName ?? invoice.paidBy ?? "Thu ngân trung tâm"} ·{" "}
           {new Date(invoice.paidAt).toLocaleString("vi-VN")}
         </p>
       )}
       <p className="invoice-note">
         {invoice.status === "PENDING_PAYMENT"
-          ? "Hóa đơn đang chờ thanh toán, không phải biên nhận đã thu tiền. Gói mới chưa được kích hoạt."
+          ? "Hóa đơn đang chờ thanh toán, chưa phải biên nhận đã thu tiền. Gói mới chưa được kích hoạt."
           : invoice.status === "CANCELED"
             ? "Yêu cầu đã hủy, không thu tiền và không cấp quyền tập."
-            : "Đã ghi nhận thanh toán trong bản demo. Gói có hiệu lực theo kỳ sử dụng trên hóa đơn; gói có ngày bắt đầu trong tương lai sẽ chờ đến ngày đó."}
+            : "Đã xác nhận thanh toán tại quầy. Gói tập có hiệu lực chính thức theo kỳ hạn ghi trên biên nhận."}
       </p>
     </article>
   );
