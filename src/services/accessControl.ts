@@ -14,6 +14,7 @@ export const accessRules = {
   counter: ["RECEPTIONIST", "CENTER_MANAGER"],
   payments: ["RECEPTIONIST", "CENTER_MANAGER"],
   invoices: ["MEMBER", "RECEPTIONIST", "CENTER_MANAGER"],
+  reports: ["CENTER_MANAGER"],
   coach: ["COACH", "CENTER_MANAGER"],
 } satisfies Record<string, UserRole[]>;
 export function accountEnabled(

@@ -71,10 +71,8 @@ export const reportApi = {
     to?: string;
   }): Promise<MemberReport> {
     const query = new URLSearchParams();
-    if (params.from && params.to) {
-      query.set("from", params.from);
-      query.set("to", params.to);
-    }
+    if (params.from) query.set("from", params.from);
+    if (params.to) query.set("to", params.to);
     const qs = query.toString();
     return apiRequest<MemberReport>(`/reports/members${qs ? `?${qs}` : ""}`);
   },

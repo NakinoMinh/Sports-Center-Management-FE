@@ -153,6 +153,33 @@ export const dateRange =
 
     return null;
   };
+
+/** Calendar dates stay independent of the browser's timezone. */
+export const reportDate: Validator = (value) => {
+  if (value === "") return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000")) {
+    return "Ngày không hợp lệ. Vui lòng chọn lại ngày.";
+  }
+  const date = new Date(`${value}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    return "Ngày không tồn tại. Vui lòng chọn lại ngày.";
+  }
+  // The API uses the start of the following day as its exclusive upper bound.
+  if (value === "9999-12-31") return "Vui lòng chọn ngày trước 31/12/9999.";
+  return null;
+};
+
+export const reportDateRange = (from: string, maxDays?: number): Validator => (to) => {
+  const error = reportDate(to);
+  if (error) return error;
+  if (!from || !to || reportDate(from)) return null;
+  const rangeError = dateRange(from)(to);
+  if (rangeError) return rangeError;
+  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 + 1;
+  return maxDays !== undefined && days > maxDays
+    ? `Chọn khoảng thời gian tối đa ${maxDays} ngày, tính cả ngày đầu và ngày cuối.`
+    : null;
+};
 /** Package price and any other money amount, in VND. */
 export const money =
   (

@@ -99,7 +99,7 @@ const MESSAGES: Record<string, string> = {
   DATA_INTEGRITY_ERROR:
     "Dữ liệu hóa đơn hoặc gói tập không đồng nhất. Vui lòng liên hệ bộ phận kỹ thuật.",
   INVALID_REPORT_DATE_RANGE:
-    "Khoảng thời gian báo cáo không hợp lệ (tối đa 366 ngày và ngày bắt đầu không lớn hơn ngày kết thúc).",
+    "Khoảng thời gian báo cáo không hợp lệ. Kiểm tra thứ tự ngày và giới hạn thời gian ghi ở bộ lọc.",
   INVALID_REPORT_GROUPING:
     "Chu kỳ gom nhóm báo cáo không hợp lệ. Chỉ hỗ trợ theo ngày (DAY) hoặc theo tháng (MONTH).",
   UNSUPPORTED_REPORT_PAYMENT_METHOD:

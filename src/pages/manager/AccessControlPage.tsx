@@ -15,6 +15,7 @@ const rules: Record<keyof typeof accessRules, string> = {
   counter: "Nghiệp vụ tại quầy",
   payments: "Xác nhận tiền mặt",
   invoices: "Tra cứu hóa đơn & biên nhận",
+  reports: "Xem báo cáo doanh thu, hội viên & lớp",
   coach: "Không gian huấn luyện viên",
 };
 export function AccessControlPage() {
