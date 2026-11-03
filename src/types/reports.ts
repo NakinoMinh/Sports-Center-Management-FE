@@ -4,6 +4,24 @@ export type ReportTab = "revenue" | "members" | "classes";
 
 export type ClassRegistrationStatusFilter = "BOOKED" | "CANCELED" | "ALL";
 
+export type ReportQuery = {
+  tab: ReportTab;
+  from?: string;
+  to?: string;
+  groupBy: ReportGroupBy;
+  paymentMethod: "CASH";
+  classId?: number;
+  sportId?: number;
+  registrationStatus: ClassRegistrationStatusFilter;
+  page: number;
+  pageSize: number;
+};
+
+export type ReportResult =
+  | { tab: "revenue"; report: RevenueReport }
+  | { tab: "members"; report: MemberReport }
+  | { tab: "classes"; report: ClassReport };
+
 export interface RevenueReportItem {
   period: string;
   paymentMethod: string;

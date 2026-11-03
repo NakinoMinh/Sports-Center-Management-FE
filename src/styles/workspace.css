@@ -3978,3 +3978,138 @@ textarea {
   max-height: calc(100dvh - 160px);
 }
 
+/* UC36–UC38: báo cáo tổng hợp của quản lý. */
+.reports-page {
+  min-width: 0;
+}
+
+.reports-page :is(h1, h2, h3) {
+  color: inherit;
+}
+
+.report-tabs,
+.report-actions,
+.report-update-row,
+.report-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.report-tabs {
+  margin-bottom: var(--space-5);
+}
+
+.report-tabs .button {
+  flex: 1 1 auto;
+  min-height: var(--tap-target);
+}
+
+.report-filter-panel {
+  padding: var(--space-5);
+}
+
+.report-filter-grid,
+.report-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--space-12) * 2)), 1fr));
+  gap: var(--space-4);
+}
+
+.report-filter-grid {
+  align-items: start;
+}
+
+.report-filter-grid .field {
+  min-width: 0;
+}
+
+.report-filter-grid :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--tap-target);
+}
+
+.report-filter-grid .field-error {
+  font-size: var(--text-xs);
+}
+
+.report-filter-panel > .report-note {
+  margin-block: var(--space-4);
+}
+
+.report-note,
+.report-metric p {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-normal);
+  overflow-wrap: anywhere;
+}
+
+.report-update-row {
+  justify-content: space-between;
+  padding-block: var(--space-4);
+}
+
+.report-update-row .report-note {
+  flex: 1 1 calc(var(--space-12) * 2);
+}
+
+.report-results {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.report-results > *,
+.report-results .panel {
+  min-width: 0;
+}
+
+.report-metrics {
+  margin: 0;
+}
+
+.report-metric {
+  padding: var(--space-5);
+}
+
+.report-metric dt {
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.report-metric dd {
+  margin: var(--space-2) 0;
+  color: var(--fg-strong);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.report-table {
+  min-width: calc(var(--space-12) * 5);
+}
+
+.report-class-table {
+  min-width: calc(var(--space-12) * 6);
+}
+
+.report-empty {
+  margin: 0;
+  padding: var(--space-5);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.report-pagination {
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-top: thin solid var(--border-default);
+  font-size: var(--text-sm);
+}
+

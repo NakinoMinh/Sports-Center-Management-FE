@@ -21,6 +21,7 @@ import { MembershipPackagesPage } from "./pages/manager/MembershipPackagesPage";
 import { MembershipPage } from "./pages/membership/MembershipPage";
 import { CashPaymentsPage } from "./pages/membership/CashPaymentsPage";
 import { InvoicesPage } from "./pages/membership/InvoicesPage";
+import { ReportsPage } from "./pages/manager/ReportsPage";
 import { MembershipStatusPage } from "./pages/membership/MembershipStatusPage";
 import { ReceptionOperationsPage } from "./pages/membership/ReceptionOperationsPage";
 import { MembersPage } from "./pages/manager/MembersPage";
@@ -279,6 +280,14 @@ export default function App() {
                 element={
                   <OwnedScreen role={accessRules.packages}>
                     <MembershipPackagesPage />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/manager/reports"
+                element={
+                  <OwnedScreen role={accessRules.reports}>
+                    <ReportsPage />
                   </OwnedScreen>
                 }
               />

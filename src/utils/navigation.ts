@@ -285,6 +285,13 @@ export const navSections: readonly NavSection[] = [
         roles: INVOICE_ROLES,
         trail: ["Tài chính", "Hóa đơn & Biên nhận"],
       },
+      {
+        to: "/manager/reports",
+        label: "Báo cáo tổng hợp",
+        icon: "layers",
+        roles: MANAGER,
+        trail: ["Tài chính", "Báo cáo tổng hợp"],
+      },
     ],
   },
   {
