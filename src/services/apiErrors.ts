@@ -13,6 +13,11 @@ import { ApiError } from "./apiClient";
  * SportsCenterManagement; keep this table in sync when the backend adds one.
  */
 const MESSAGES: Record<string, string> = {
+  DEMO_PAYMENT_DISABLED: "Thanh toán chuyển khoản hiện chưa khả dụng. Vui lòng liên hệ trung tâm.",
+  DEMO_CONFIRMATION_REQUIRED: "Vui lòng xác nhận thanh toán để tiếp tục.",
+  DEMO_PAYMENT_NOT_CONFIGURED: "Chưa thể xử lý thanh toán. Vui lòng liên hệ trung tâm.",
+  DEMO_PAYMENT_REJECTED: "Không thể thanh toán hóa đơn này. Hãy tải lại hóa đơn hoặc tạo yêu cầu mới.",
+  VNPAY_NOT_CONFIGURED: "Thanh toán VNPAY chưa được trung tâm cấu hình. Hóa đơn vẫn đang chờ; vui lòng liên hệ trung tâm.",
   // --- Authentication and session ---
   UNAUTHORIZED: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
   FORBIDDEN: "Tài khoản của bạn không có quyền thực hiện thao tác này.",

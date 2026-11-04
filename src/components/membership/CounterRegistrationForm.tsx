@@ -4,6 +4,7 @@ import * as v from "../../utils/validation";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import { Dialog } from "../common/Dialog";
 import { membershipApi } from "../../services/membershipApi";
+import { VnpayPaymentButton } from "./VnpayPaymentButton";
 import type {
   MembershipActor,
   MembershipOrder,
@@ -94,16 +95,17 @@ export function CounterRegistrationForm({
             >
               Xem hóa đơn tại quầy
             </button>
-            <Link
+            {created.order.invoice.paymentMethod === "CASH" && <Link
               className="button primary"
               to={`/payments/cash?invoice=${created.order.invoice.id}`}
             >
               Đến xác nhận thu tiền mặt
-            </Link>
+            </Link>}
           </>
         }
       >
         <div className="order-summary">
+          <VnpayPaymentButton invoice={created.order.invoice} />
           <h3>{created.member.fullName}</h3>
           <p>Email đăng nhập: {created.member.email}</p>
           <p>
@@ -244,6 +246,7 @@ export function CounterRegistrationForm({
                 }
               >
                 <option value="CASH">Tiền mặt tại quầy</option>
+                <option value="BANK_TRANSFER">Chuyển khoản</option>
               </select>
             </label>
           </div>
@@ -253,7 +256,7 @@ export function CounterRegistrationForm({
                 ? `Cần thanh toán ${formatMoney(pkg.price)}. `
                 : "Chưa chọn gói tập. "}
               Tạo yêu cầu sẽ sinh hóa đơn chờ thanh toán (PENDING_PAYMENT). Gói
-              chỉ được kích hoạt sau khi xác nhận thu tiền mặt tại quầy.
+              chỉ được kích hoạt sau khi máy chủ xác nhận thanh toán.
             </p>
           </div>
           {error && (

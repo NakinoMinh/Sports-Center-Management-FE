@@ -82,6 +82,7 @@ export interface MemberSubscription {
 
 /** Package, member and price snapshots must not change when the catalog changes. */
 export interface MembershipInvoice extends MembershipQuote {
+  isDemo?: boolean;
   id: string;
   number: string;
   subscriptionId: string;
