@@ -1,4 +1,5 @@
 import type { MembershipInvoice } from "../../types/membership";
+import { VnpayPaymentButton } from "./VnpayPaymentButton";
 import { durationLabel, formatDate, formatMoney } from "../../utils/format";
 import { orderKindLabels } from "../../services/membershipService";
 
@@ -101,7 +102,7 @@ export function InvoiceDocument({ invoice }: { invoice: MembershipInvoice }) {
       )}
       {invoice.paidAt && (
         <p className="invoice-note">
-          Người xác nhận thu tiền: {invoice.paidByName ?? invoice.paidBy ?? "Thu ngân trung tâm"} ·{" "}
+          Người xác nhận thanh toán: {invoice.paidByName ?? invoice.paidBy ?? "Thu ngân trung tâm"} ·{" "}
           {new Date(invoice.paidAt).toLocaleString("vi-VN")}
         </p>
       )}
@@ -110,8 +111,9 @@ export function InvoiceDocument({ invoice }: { invoice: MembershipInvoice }) {
           ? "Hóa đơn đang chờ thanh toán, chưa phải biên nhận đã thu tiền. Gói mới chưa được kích hoạt."
           : invoice.status === "CANCELED"
             ? "Yêu cầu đã hủy, không thu tiền và không cấp quyền tập."
-            : "Đã xác nhận thanh toán tại quầy. Gói tập có hiệu lực chính thức theo kỳ hạn ghi trên biên nhận."}
+            : "Thanh toán thành công. Gói tập có hiệu lực theo kỳ hạn ghi trên biên nhận."}
       </p>
+      <VnpayPaymentButton invoice={invoice} />
     </article>
   );
 }

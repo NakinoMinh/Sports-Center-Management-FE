@@ -48,6 +48,7 @@ interface SubscriptionDto {
 }
 
 interface ReceiptDto {
+  isDemo?: boolean;
   invoiceId: number;
   invoiceNumber: string;
   amount: number;
@@ -182,6 +183,7 @@ const orderFromReceipt = (data: ReceiptDto): MembershipOrder => ({
     createdAt: data.createdAt,
   },
   invoice: {
+    isDemo: data.isDemo ?? false,
     id: String(data.invoiceId),
     number: data.invoiceNumber,
     subscriptionId: String(data.subscriptionId),
@@ -389,6 +391,7 @@ export const membershipApi = {
     const qs = query.toString();
     const result = await apiRequest<ReceiptDto[]>(`/MembershipInvoice${qs ? `?${qs}` : ""}`);
     return result.map((dto) => ({
+      isDemo: dto.isDemo ?? false,
       id: String(dto.invoiceId),
       number: dto.invoiceNumber,
       subscriptionId: String(dto.subscriptionId),
@@ -446,6 +449,7 @@ export const membershipApi = {
     }>(`/MembershipInvoice/search?${query.toString()}`);
     return {
       items: result.items.map((dto) => ({
+        isDemo: dto.isDemo ?? false,
         id: String(dto.invoiceId),
         number: dto.invoiceNumber,
         subscriptionId: String(dto.subscriptionId),

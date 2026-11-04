@@ -4113,3 +4113,7 @@ textarea {
   font-size: var(--text-sm);
 }
 
+
+@media print {
+  .vnpay-payment-action { display: none !important; }
+}

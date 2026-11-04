@@ -21,6 +21,8 @@ import { MembershipPackagesPage } from "./pages/manager/MembershipPackagesPage";
 import { MembershipPage } from "./pages/membership/MembershipPage";
 import { CashPaymentsPage } from "./pages/membership/CashPaymentsPage";
 import { InvoicesPage } from "./pages/membership/InvoicesPage";
+import { PaymentResultPage } from "./pages/membership/PaymentResultPage";
+import { DemoPaymentPage } from "./pages/membership/DemoPaymentPage";
 import { ReportsPage } from "./pages/manager/ReportsPage";
 import { MembershipStatusPage } from "./pages/membership/MembershipStatusPage";
 import { ReceptionOperationsPage } from "./pages/membership/ReceptionOperationsPage";
@@ -266,6 +268,18 @@ export default function App() {
                     <CashPaymentsPage />
                   </OwnedScreen>
                 }
+              />
+              <Route
+                path="/payments/result"
+                element={<OwnedScreen role={accessRules.invoices}><PaymentResultPage /></OwnedScreen>}
+              />
+              <Route
+                path="/payments/demo"
+                element={<OwnedScreen role={accessRules.invoices}><DemoPaymentPage /></OwnedScreen>}
+              />
+              <Route
+                path="/payments/transfer"
+                element={<OwnedScreen role={accessRules.invoices}><DemoPaymentPage /></OwnedScreen>}
               />
               <Route
                 path="/invoices"

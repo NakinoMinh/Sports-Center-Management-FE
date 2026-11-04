@@ -44,7 +44,7 @@ import { CounterRegistrationForm } from "../../components/membership/CounterRegi
 
 const paymentLabels: Record<PaymentMethod, string> = {
   CASH: "Tiền mặt tại quầy",
-  BANK_TRANSFER: "Chuyển khoản (chưa kết nối)",
+  BANK_TRANSFER: "Chuyển khoản",
   CARD: "Thẻ tại quầy (chưa kết nối)",
 };
 const statusLabels = {
