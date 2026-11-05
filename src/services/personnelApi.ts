@@ -81,21 +81,51 @@ const mapReceptionistToUser = (recept: ReceptionistDto): Omit<User, "passwordHas
   isActive: recept.status === "Active",
 });
 
+/**
+ * The API caps a page at 20 rows and silently falls back to that default when a
+ * larger pageSize is asked for, so a single request can never hold the whole
+ * roster. The screen has no pager, so it walks the pages and keeps every row —
+ * otherwise a centre with more than 20 coaches shows 20 and claims that is all
+ * of them.
+ */
+const PERSONNEL_PAGE_SIZE = 20;
+const PERSONNEL_PAGE_LIMIT = 50;
+
+const listPages = async <TItem>(
+  path: string,
+  params: URLSearchParams,
+): Promise<TItem[]> => {
+  const collected: TItem[] = [];
+  let page = 1;
+  let totalPages = 1;
+  do {
+    params.set("page", String(page));
+    params.set("pageSize", String(PERSONNEL_PAGE_SIZE));
+    const result = await apiRequest<{
+      items: TItem[];
+      totalPages: number;
+    }>(`${path}?${params.toString()}`);
+    collected.push(...result.items);
+    totalPages = result.totalPages;
+    page += 1;
+  } while (page <= totalPages && page <= PERSONNEL_PAGE_LIMIT);
+  return collected;
+};
+
 export const personnelApi = {
   async list(role: PersonnelRole, search = "", status = ""): Promise<PersonnelPerson[]> {
-    const params: URLSearchParams = new URLSearchParams({ page: "1", pageSize: "50" });
+    const params: URLSearchParams = new URLSearchParams();
     if (search.trim()) params.set("search", search.trim());
     if (status && status !== "ALL") {
       params.set("status", status === "ACTIVE" ? "Active" : "Inactive");
     }
 
     if (role === "COACH") {
-      const result: PagedCoachResultDto = await apiRequest<PagedCoachResultDto>(`/Coach?${params.toString()}`);
-      return result.items.map(mapCoachToUser);
-    } else {
-      const result: PagedReceptionistResultDto = await apiRequest<PagedReceptionistResultDto>(`/Receptionist?${params.toString()}`);
-      return result.items.map(mapReceptionistToUser);
+      const items = await listPages<CoachDto>("/Coach", params);
+      return items.map(mapCoachToUser);
     }
+    const items = await listPages<ReceptionistDto>("/Receptionist", params);
+    return items.map(mapReceptionistToUser);
   },
 
   async create(

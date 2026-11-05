@@ -35,7 +35,7 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
     {
       role: "CENTER_MANAGER",
       roleTitle: "Quản Lý Trung Tâm",
-      name: "Center Manager",
+      name: "Nguyễn Minh Quân",
       email: "uchihaminh6969@gmail.com",
       password: "Admin@123",
       badgeClass: "badge-manager",
@@ -44,7 +44,7 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
     {
       role: "RECEPTIONIST",
       roleTitle: "Nhân Viên Lễ Tân",
-      name: "Receptionist Staff",
+      name: "Lê Thị Thu Hà",
       email: "makitonati@gmail.com",
       password: "Admin@123",
       badgeClass: "badge-receptionist",
@@ -53,7 +53,7 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
     {
       role: "COACH",
       roleTitle: "Huấn Luyện Viên",
-      name: "Nguyễn Văn Thể",
+      name: "Võ Nhật Thiên",
       email: "thienvonhat@gmail.com",
       password: import.meta.env.VITE_DEMO_COACH_PASSWORD ?? "",
       badgeClass: "badge-coach",
@@ -62,7 +62,7 @@ export const QuickAccounts: React.FC<QuickAccountsProps> = ({
     {
       role: "MEMBER",
       roleTitle: "Hội Viên Trung Tâm",
-      name: "Phạm Hoàng Nam",
+      name: "Nguyễn Bình Minh",
       email: "minhnakino@gmail.com",
       password: import.meta.env.VITE_DEMO_MEMBER_PASSWORD ?? "",
       badgeClass: "badge-member",

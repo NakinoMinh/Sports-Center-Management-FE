@@ -114,3 +114,17 @@ export interface CounterRegistrationInput {
   paymentMethod: PaymentMethod;
   expectedPrice: number;
 }
+
+/**
+ * Totals across every invoice matching the current filters, computed by the
+ * API. The counter screens present these as centre-wide figures, so they must
+ * not be derived from the page that happens to be on screen.
+ */
+export type InvoiceSummary = {
+  paidCount: number;
+  paidAmount: number;
+  pendingCount: number;
+  pendingAmount: number;
+  canceledCount: number;
+  canceledAmount: number;
+};

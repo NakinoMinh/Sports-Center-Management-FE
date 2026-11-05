@@ -113,6 +113,11 @@ export function ProfilePage() {
 
   const isCoach = currentUser.role === "COACH";
   const isReceptionist = currentUser.role === "RECEPTIONIST";
+  // dbo.Coach has no AvatarUrl column and only dbo.Member / dbo.CenterManager
+  // carry a date of birth, so those controls are hidden for the roles whose
+  // profile cannot store them rather than failing silently on save.
+  const canEditAvatar = !isCoach;
+  const canEditDateOfBirth = !isCoach && !isReceptionist;
 
   // Initials fallback
   const initials = currentUser.fullName
@@ -319,15 +324,17 @@ export function ProfilePage() {
                   <span>{initials}</span>
                 </div>
               )}
-              <button
-                type="button"
-                className="avatar-change-btn"
-                onClick={() => setShowAvatarPicker((prev) => !prev)}
-                title="Thay đổi ảnh đại diện"
-                aria-label="Thay đổi ảnh đại diện"
-              >
-                <Camera size={16} />
-              </button>
+              {canEditAvatar && (
+                <button
+                  type="button"
+                  className="avatar-change-btn"
+                  onClick={() => setShowAvatarPicker((prev) => !prev)}
+                  title="Thay đổi ảnh đại diện"
+                  aria-label="Thay đổi ảnh đại diện"
+                >
+                  <Camera size={16} />
+                </button>
+              )}
             </div>
 
             <div className="avatar-caption">
@@ -340,7 +347,7 @@ export function ProfilePage() {
           </div>
 
           {/* Quick Avatar Picker Drawer / Box */}
-          {showAvatarPicker && (
+          {canEditAvatar && showAvatarPicker && (
             <div className="avatar-picker-box">
               <div className="avatar-picker-header">
                 <span>Tải ảnh lên, chọn ảnh mẫu hoặc nhập URL</span>
@@ -436,7 +443,11 @@ export function ProfilePage() {
             <div className="panel-heading">
               <div>
                 <h2>Thông tin cá nhân</h2>
-                <p>Cập nhật họ tên, số điện thoại liên hệ và thông tin chuyên môn</p>
+                <p>
+                  {isCoach
+                    ? "Cập nhật họ tên, số điện thoại liên hệ và thông tin chuyên môn"
+                    : "Cập nhật họ tên và số điện thoại liên hệ"}
+                </p>
               </div>
             </div>
 
@@ -499,23 +510,25 @@ export function ProfilePage() {
                   )}
                 </label>
 
-                <label className="field">
-                  <span className="field-label-with-icon">
-                    <Calendar size={13} />
-                    <span>Ngày sinh</span>
-                  </span>
-                  <input
-                    type="date"
-                    value={form.dateOfBirth}
-                    aria-invalid={Boolean(fieldErrors.dateOfBirth)}
-                    onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
-                  />
-                  {fieldErrors.dateOfBirth && (
-                    <small className="field-error">
-                      {fieldErrors.dateOfBirth}
-                    </small>
-                  )}
-                </label>
+                {canEditDateOfBirth && (
+                  <label className="field">
+                    <span className="field-label-with-icon">
+                      <Calendar size={13} />
+                      <span>Ngày sinh</span>
+                    </span>
+                    <input
+                      type="date"
+                      value={form.dateOfBirth}
+                      aria-invalid={Boolean(fieldErrors.dateOfBirth)}
+                      onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+                    />
+                    {fieldErrors.dateOfBirth && (
+                      <small className="field-error">
+                        {fieldErrors.dateOfBirth}
+                      </small>
+                    )}
+                  </label>
+                )}
 
                 {/* Role specific: Coach Specialization */}
                 {isCoach && (

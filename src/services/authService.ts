@@ -353,16 +353,28 @@ export const authService = {
     if (avatar.length > 500) {
       throw new Error("Đường dẫn ảnh đại diện quá dài (tối đa 500 ký tự).");
     }
+    // Each profile table only carries the fields that belong to its role, and
+    // the API rejects the whole request when it is sent one that does not
+    // (INVALID_FIELD_FOR_ROLE). Sending the same payload for every role made
+    // the screen unsaveable for coaches and receptionists, so the body is
+    // assembled from what this role actually owns.
+    const body: Record<string, string | null> = {
+      fullName,
+      phone: phone || null,
+    };
+    if (actor.role === "MEMBER" || actor.role === "CENTER_MANAGER") {
+      body.dateOfBirth = dateOfBirth || null;
+    }
+    if (actor.role !== "COACH") {
+      body.avatarUrl = avatar || null;
+    }
+    if (actor.role === "COACH") {
+      body.specialization = specialization || null;
+      body.workSchedule = workSchedule || null;
+    }
     const profile: AccountProfileDto = await apiRequest<AccountProfileDto>("/Account/profile", {
       method: "PATCH",
-      body: JSON.stringify({
-        fullName,
-        phone: phone || null,
-        dateOfBirth: dateOfBirth || null,
-        avatarUrl: avatar || null,
-        specialization: specialization || null,
-        workSchedule: workSchedule || null,
-      }),
+      body: JSON.stringify(body),
     });
     const updated: Omit<User, "passwordHash"> = mergeProfile(actor, profile);
     saveUser(updated);

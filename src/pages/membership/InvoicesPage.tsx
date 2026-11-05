@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
@@ -13,10 +13,19 @@ import { Dialog } from "../../components/common/Dialog";
 import { InvoiceDocument } from "../../components/membership/InvoiceDocument";
 import { membershipApi } from "../../services/membershipApi";
 import { orderKindLabels } from "../../services/membershipService";
-import type { MembershipInvoice } from "../../types/membership";
+import type { InvoiceSummary, MembershipInvoice } from "../../types/membership";
 import { formatDate, formatMoney } from "../../utils/format";
 
 const PAGE_SIZE = 10;
+
+const emptySummary = (): InvoiceSummary => ({
+  paidCount: 0,
+  paidAmount: 0,
+  pendingCount: 0,
+  pendingAmount: 0,
+  canceledCount: 0,
+  canceledAmount: 0,
+});
 
 export function InvoicesPage() {
   const { currentUser } = useAuth();
@@ -26,6 +35,7 @@ export function InvoicesPage() {
 
   const [invoices, setInvoices] = useState<MembershipInvoice[]>([]);
   const [totalItems, setTotalItems] = useState(0);
+  const [summary, setSummary] = useState<InvoiceSummary>(emptySummary);
   const [serverTotalPages, setServerTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -57,16 +67,20 @@ export function InvoicesPage() {
         status: statusFilter !== "ALL" ? statusFilter : undefined,
         paymentMethod: methodFilter !== "ALL" ? methodFilter : undefined,
         search: search.trim() || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
         page,
         pageSize: PAGE_SIZE,
       });
       setInvoices(paged.items);
       setTotalItems(paged.totalItems);
+      setSummary(paged.summary);
       setServerTotalPages(Math.max(1, paged.totalPages));
       setError("");
     } catch (err) {
       setInvoices([]);
       setTotalItems(0);
+      setSummary(emptySummary());
       setServerTotalPages(1);
       setError(
         err instanceof Error
@@ -84,31 +98,9 @@ export function InvoicesPage() {
     }
   }, [dateRangeError, loadInvoices]);
 
-  const filtered = useMemo(() => {
-    return invoices.filter((inv) => {
-      const createdDay = inv.createdAt.slice(0, 10);
-      if (fromDate && createdDay < fromDate) return false;
-      if (toDate && createdDay > toDate) return false;
-      return true;
-    });
-  }, [fromDate, invoices, toDate]);
-
   const totalPages = serverTotalPages;
   const safePage = Math.min(page, totalPages);
-  const pagedItems = filtered;
-
-  const paidInvoices = useMemo(
-    () => filtered.filter((i) => i.status === "PAID"),
-    [filtered],
-  );
-  const pendingInvoices = useMemo(
-    () => filtered.filter((i) => i.status === "PENDING_PAYMENT"),
-    [filtered],
-  );
-  const canceledInvoices = useMemo(
-    () => filtered.filter((i) => i.status === "CANCELED"),
-    [filtered],
-  );
+  const pagedItems = invoices;
 
   async function openReceiptOrInvoice(inv: MembershipInvoice) {
     if (inv.status === "PAID") {
@@ -165,25 +157,23 @@ export function InvoicesPage() {
       <div className="cash-summary">
         <section className="panel">
           <span>Tổng hóa đơn khớp bộ lọc</span>
-          <strong>{fromDate || toDate ? filtered.length : totalItems}</strong>
+          <strong>{totalItems}</strong>
         </section>
         <section className="panel">
           <span>Đã thanh toán (PAID)</span>
           <strong>
-            {paidInvoices.length} ·{" "}
-            {formatMoney(paidInvoices.reduce((s, i) => s + i.amount, 0))}
+            {summary.paidCount} · {formatMoney(summary.paidAmount)}
           </strong>
         </section>
         <section className="panel">
           <span>Chờ thanh toán (PENDING)</span>
           <strong>
-            {pendingInvoices.length} ·{" "}
-            {formatMoney(pendingInvoices.reduce((s, i) => s + i.amount, 0))}
+            {summary.pendingCount} · {formatMoney(summary.pendingAmount)}
           </strong>
         </section>
         <section className="panel">
           <span>Đã hủy (CANCELED)</span>
-          <strong>{canceledInvoices.length}</strong>
+          <strong>{summary.canceledCount}</strong>
         </section>
       </div>
 
@@ -393,7 +383,7 @@ export function InvoicesPage() {
               >
                 <span>
                   Trang {safePage} / {totalPages} · Tổng{" "}
-                  {fromDate || toDate ? filtered.length : totalItems} hóa đơn
+                  {totalItems} hóa đơn
                 </span>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   <button
