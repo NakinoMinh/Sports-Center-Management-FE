@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowRight, RefreshCw, Search, ShieldCheck, Users } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, PauseCircle, PlayCircle, RefreshCw, Search, ShieldCheck, Users } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
+import { describeError } from "../../services/apiErrors";
 import { getMembershipStatusSummary } from "../../services/membershipService";
 import { memberApi } from "../../services/memberApi";
 import { membershipApi, subscriptionFromInvoice } from "../../services/membershipApi";
+import { trainingOperationsApi } from "../../services/trainingOperationsApi";
 import type { MemberSubscription, MembershipActor } from "../../types/membership";
 import { formatDate } from "../../utils/format";
 
@@ -24,6 +26,12 @@ export function MembershipStatusPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("ALL");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [suspensionReason, setSuspensionReason] = useState("");
+  const [showSuspendForm, setShowSuspendForm] = useState(false);
+  const [submittingSuspension, setSubmittingSuspension] = useState(false);
+  const [modalNotice, setModalNotice] = useState("");
+  const [modalError, setModalError] = useState("");
+
   const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
@@ -39,6 +47,7 @@ export function MembershipStatusPage() {
       setError(err instanceof Error ? err.message : "Không thể tải trạng thái gói tập.");
     } finally { setLoading(false); }
   }, [currentUser]);
+
   useEffect(() => {
     // Synchronize the local data adapter, including when a payment is confirmed in another tab.
     // oxlint-disable-next-line react/set-state-in-effect
@@ -52,15 +61,57 @@ export function MembershipStatusPage() {
       window.clearInterval(timer);
     };
   }, [refresh]);
+
   const rows = data.members.map((member) => ({ member, ...getMembershipStatusSummary(data.subscriptions.filter((sub) => sub.memberId === member.id)) }));
   const visible = rows.filter((row) => {
     const matches = normalize([row.member.fullName, row.member.email, row.member.phone, row.member.id].join(" ")).includes(normalize(query.trim()));
     return matches && (filter === "ALL" || (filter === "EXPIRING" ? row.expiringSoon : row.status === filter || (filter === "UPCOMING" && row.status === "SCHEDULED_DOWNGRADE")));
   });
   const selected = rows.find((row) => row.member.id === selectedId);
+
+  const openMemberDetail = (memberId: string) => {
+    setSelectedId(memberId);
+    setShowSuspendForm(false);
+    setSuspensionReason("");
+    setModalError("");
+    setModalNotice("");
+  };
+
+  const handleToggleSuspension = async (suspend: boolean) => {
+    if (!selected?.subscription) return;
+    if (suspend && suspensionReason.trim().length < 4) {
+      setModalError("Vui lòng nhập lý do tạm ngưng / bảo lưu gói tập (tối thiểu 4 ký tự).");
+      return;
+    }
+
+    setSubmittingSuspension(true);
+    setModalError("");
+    setModalNotice("");
+    try {
+      const res = await trainingOperationsApi.updateSubscriptionSuspension(selected.subscription.id, {
+        isSuspended: suspend,
+        reason: suspend ? suspensionReason.trim() : undefined,
+      });
+      await refresh();
+      setShowSuspendForm(false);
+      setSuspensionReason("");
+      setModalNotice(
+        suspend
+          ? "Đã chuyển gói tập sang trạng thái Tạm ngưng (Bảo lưu) và gửi thông báo cho hội viên."
+          : res.compensatedDays && res.compensatedDays > 0
+            ? `Đã kích hoạt mở lại gói tập và tự động cộng bù ${res.compensatedDays} ngày bảo lưu (hạn mới: ${formatDate(res.endDate ?? selected.subscription.endDate)}).`
+            : "Đã kích hoạt mở lại gói tập bình thường cho hội viên.",
+      );
+    } catch (caught) {
+      setModalError(describeError(caught));
+    } finally {
+      setSubmittingSuspension(false);
+    }
+  };
+
   return <>
     <div className="page-heading">
-      <div><span className="eyebrow">QUẦY LỄ TÂN · TRA CỨU THÀNH VIÊN</span><h1>Kiểm tra gói tập</h1><p>Nắm rõ trạng thái và thời hạn để hỗ trợ thành viên kịp thời.</p></div>
+      <div><span className="eyebrow">QUẦY LỄ TÂN · TRA CỨU THÀNH VIÊN</span><h1>Kiểm tra gói tập</h1><p>Nắm rõ trạng thái, thời hạn và hỗ trợ bảo lưu / kích hoạt lại gói tập cho thành viên kịp thời.</p></div>
       <span className="page-icon"><ShieldCheck size={26} /></span>
     </div>
     {error && <div className="error-notice" role="alert">{error}<button className="button secondary" onClick={refresh}>Thử lại</button></div>}
@@ -79,7 +130,7 @@ export function MembershipStatusPage() {
             <select aria-label="Lọc trạng thái gói" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="ALL">Tất cả trạng thái</option><option value="EXPIRING">Sắp hết hạn (&lt; 7 ngày)</option>{Object.entries(labels).filter(([key]) => key !== "SCHEDULED_DOWNGRADE").map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
           </div>
           {loading ? <div className="empty-state" role="status">Đang tải thông tin thành viên...</div> : !error && <>
-            <p className="membership-status-help">{visible.length} thành viên · Số ngày còn lại tính cả hôm nay và ngày cuối sử dụng. Tạm ngưng không tự động kéo dài kỳ hạn.</p>
+            <p className="membership-status-help">{visible.length} thành viên · Số ngày còn lại tính cả hôm nay và ngày cuối sử dụng. Khi mở lại gói bảo lưu, hệ thống tự động cộng bù số ngày đã tạm ngưng vào hạn sử dụng.</p>
             {visible.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Thành viên</th><th>Gói tập</th><th>Trạng thái</th><th>Thời hạn sử dụng</th><th>Còn lại</th><th>Thao tác</th></tr></thead><tbody>
               {visible.map((row) => <tr key={row.member.id}>
                 <td><strong>{row.member.fullName || row.member.username}</strong><small>{row.member.email}</small><small>{row.member.phone || "Chưa có số điện thoại"}</small></td>
@@ -87,12 +138,14 @@ export function MembershipStatusPage() {
                 <td><span className={`status-chip ${row.status.toLowerCase()}`}>{labels[row.status]}</span></td>
                 <td>{row.subscription ? <>{formatDate(row.subscription.startDate)} &rarr; {formatDate(row.subscription.endDate)}</> : "—"}{row.status === "PENDING_PAYMENT" && <small>Dự kiến, chưa kích hoạt</small>}</td>
                 <td><strong>{row.status === "NONE" || row.status === "PENDING_PAYMENT" || row.status === "UPCOMING" || row.status === "SCHEDULED_DOWNGRADE" ? "—" : `${row.remainingDays} ngày`}</strong>{row.expiringSoon && <small className="membership-expiry-warning"><AlertTriangle size={14} /> Sắp hết hạn</small>}</td>
-                <td><button className="text-button" onClick={() => setSelectedId(row.member.id)}>Xem chi tiết <ArrowRight size={15} /></button></td>
+                <td><button className="text-button" onClick={() => openMemberDetail(row.member.id)}>Xem chi tiết <ArrowRight size={15} /></button></td>
               </tr>)}
             </tbody></table></div> : <div className="empty-state"><Users size={30} /><h3>Không tìm thấy thành viên</h3><p>Thử tìm kiếm khác hoặc chọn tất cả trạng thái.</p><button className="button secondary" onClick={() => { setQuery(""); setFilter("ALL"); }}>Xóa bộ lọc</button></div>}
           </>}
         </section>
     {selected && <Dialog title="Thông tin thành viên & gói tập" onClose={() => setSelectedId(null)} footer={<><button className="button secondary" onClick={() => setSelectedId(null)}>Đóng</button><Link className="button primary" to={`/receptionist/memberships?member=${encodeURIComponent(selected.member.id)}`}>Đăng ký / Gia hạn <ArrowRight size={16} /></Link></>}>
+      {modalError && <div className="error-notice" role="alert"><span>{modalError}</span></div>}
+      {modalNotice && <div className="success-notice" role="status"><CheckCircle2 size={18} /><span>{modalNotice}</span></div>}
       <div className="order-summary"><h3>{selected.member.fullName || selected.member.username}</h3><dl>
         <div><dt>Mã thành viên</dt><dd>{selected.member.username || selected.member.id}</dd></div><div><dt>Email</dt><dd>{selected.member.email}</dd></div><div><dt>Số điện thoại</dt><dd>{selected.member.phone || "Chưa cập nhật"}</dd></div>
         <div><dt>{selected.status === "ACTIVE" ? "Gói đang sử dụng" : "Gói tập"}</dt><dd>{selected.subscription?.packageName ?? "Chưa có gói"}</dd></div><div><dt>Trạng thái</dt><dd><span className={`status-chip ${selected.status.toLowerCase()}`}>{labels[selected.status]}</span></dd></div>
@@ -101,9 +154,86 @@ export function MembershipStatusPage() {
         {selected.upcoming && selected.upcoming !== selected.subscription && <div><dt>Kỳ tiếp theo</dt><dd>{selected.upcoming.packageName} &middot; {formatDate(selected.upcoming.startDate)} &rarr; {formatDate(selected.upcoming.endDate)}</dd></div>}
       </dl></div>
       {selected.expiringSoon && <div className="pending-notice" role="status"><AlertTriangle size={22} /><div><strong>Gói sắp hết hạn: còn {selected.remainingDays} ngày</strong><p>{selected.upcoming ? `Đã có kỳ tiếp theo bắt đầu ${formatDate(selected.upcoming.startDate)}.` : "Nhắc thành viên gia hạn để tiếp tục tập luyện."}</p></div></div>}
-      {selected.status === "SUSPENDED" && <div className="info-note"><ShieldCheck size={20} /><p>Gói đang tạm ngưng, chưa được sử dụng để vào tập. {selected.subscription?.suspensionReason || "Liên hệ quản lý trung tâm để kiểm tra lý do và hỗ trợ."}</p></div>}
+      {selected.status === "SUSPENDED" && <div className="info-note"><ShieldCheck size={20} /><p>Gói đang tạm ngưng, chưa được sử dụng để vào tập. {selected.subscription?.suspensionReason ? `Lý do bảo lưu: ${selected.subscription.suspensionReason}.` : "Liên hệ quản lý trung tâm để kiểm tra lý do và hỗ trợ."}</p></div>}
       {selected.status === "EXPIRED" && <div className="info-note"><p>Gói đã hết hạn. Thành viên cần gia hạn và hoàn tất thanh toán để tiếp tục sử dụng.</p></div>}
       {selected.status === "PENDING_PAYMENT" && <div className="info-note"><p>Gói chưa có hiệu lực. Ngày sử dụng đang là dự kiến, cần xác nhận thanh toán.</p></div>}
+
+      {selected.subscription && selected.status === "ACTIVE" && (
+        <div className="training-card" style={{ marginTop: 12 }}>
+          {!showSuspendForm ? (
+            <div className="training-card-header" style={{ marginBottom: 0 }}>
+              <div>
+                <strong>Bảo lưu / Tạm ngưng gói tập</strong>
+                <p style={{ margin: "4px 0 0", fontSize: "0.86rem", color: "#94a3b8" }}>
+                  Tạm khóa quyền check-in và đặt lớp khi hội viên bận công tác hoặc chấn thương.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  setShowSuspendForm(true);
+                  setModalError("");
+                }}
+              >
+                <PauseCircle size={16} /> Tạm ngưng gói
+              </button>
+            </div>
+          ) : (
+            <div className="form-grid">
+              <label className="field span-2">
+                <span>Lý do tạm ngưng / bảo lưu gói tập</span>
+                <input
+                  value={suspensionReason}
+                  onChange={(e) => setSuspensionReason(e.target.value)}
+                  placeholder="VD: Hội viên đi công tác 2 tuần / chấn thương cổ chân..."
+                />
+              </label>
+              <div className="span-2 header-actions-group">
+                <button
+                  type="button"
+                  className="button primary"
+                  disabled={submittingSuspension}
+                  onClick={() => void handleToggleSuspension(true)}
+                >
+                  <PauseCircle size={16} />
+                  {submittingSuspension ? "Đang xử lý..." : "Xác nhận tạm ngưng"}
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={submittingSuspension}
+                  onClick={() => setShowSuspendForm(false)}
+                >
+                  Hủy
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {selected.subscription && selected.status === "SUSPENDED" && (
+        <div className="training-card" style={{ marginTop: 12 }}>
+          <div className="training-card-header" style={{ marginBottom: 0 }}>
+            <div>
+              <strong>Mở lại gói tập đang bảo lưu</strong>
+              <p style={{ margin: "4px 0 0", fontSize: "0.86rem", color: "#94a3b8" }}>
+                Khôi phục trạng thái hoạt động để thành viên tiếp tục đăng ký lớp và điểm danh.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="button primary"
+              disabled={submittingSuspension}
+              onClick={() => void handleToggleSuspension(false)}
+            >
+              <PlayCircle size={16} />
+              {submittingSuspension ? "Đang mở lại..." : "Mở lại gói tập"}
+            </button>
+          </div>
+        </div>
+      )}
     </Dialog>}
   </>;
 }

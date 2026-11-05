@@ -3,6 +3,7 @@ import type {
   MembershipInvoice,
   MembershipDuration,
   MembershipOrder,
+  MembershipOrderKind,
   MembershipPackage,
   MembershipPackageInput,
   PaymentMethod,
@@ -40,7 +41,7 @@ interface SubscriptionDto {
   benefits: string[];
   startDate: string;
   endDate: string;
-  kind: "REGISTER" | "RENEW";
+  kind: MembershipOrderKind;
   status: "PENDING_PAYMENT" | "CONFIRMED";
   amount: number;
   paymentMethod: PaymentMethod;
@@ -59,7 +60,9 @@ interface ReceiptDto {
   paidByStaffName?: string;
   subscriptionId: number;
   subscriptionStatus: "CONFIRMED" | "PENDING_PAYMENT" | "CANCELED";
-  kind: "REGISTER" | "RENEW";
+  isSuspended?: boolean;
+  suspensionReason?: string;
+  kind: MembershipOrderKind;
   startDate: string;
   endDate: string;
   packageId: number;
@@ -227,6 +230,8 @@ export const subscriptionFromInvoice = (
       : invoice.status === "CANCELED"
         ? "CANCELED"
         : "PENDING_PAYMENT",
+  isSuspended: invoice.isSuspended,
+  suspensionReason: invoice.suspensionReason,
   invoiceId: invoice.id,
   createdAt: invoice.createdAt,
 });
@@ -406,6 +411,8 @@ export const membershipApi = {
       kind: dto.kind,
       paymentMethod: dto.paymentMethod,
       status: dto.invoiceStatus,
+      isSuspended: dto.isSuspended,
+      suspensionReason: dto.suspensionReason,
       createdAt: dto.createdAt,
       createdBy: dto.memberAccountId,
       paidAt: dto.paidAt,

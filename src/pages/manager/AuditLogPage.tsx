@@ -5,6 +5,7 @@ import { auditApi, type AuditEntry } from "../../services/auditApi";
 import { formatDate } from "../../utils/format";
 import { describeError } from "../../services/apiErrors";
 import * as v from "../../utils/validation";
+
 const ACTION_LABELS: Record<string, { label: string; chipClass: string }> = {
   // --- Sprint 1: tài khoản, nhân sự, gói tập, thanh toán ---
   CREATE: { label: "Tạo mới", chipClass: "action-create" },
@@ -30,8 +31,6 @@ const ACTION_LABELS: Record<string, { label: string; chipClass: string }> = {
   CANCEL: { label: "Hủy yêu cầu", chipClass: "action-cancel" },
 
   // --- Sprint 2 / Flow 2: bộ môn, phòng, lớp, lịch và đăng ký buổi học ---
-  // Backend ghi các hành động này qua StageAuditLogAsync; thiếu nhãn thì bảng
-  // chỉ hiện mã thô và quản lý không đọc được nhật ký thay đổi lịch.
   SPORT_CREATED: { label: "Tạo bộ môn", chipClass: "action-create" },
   SPORT_UPDATED: { label: "Sửa bộ môn", chipClass: "action-update" },
   SPORT_STATUS_CHANGED: {
@@ -57,7 +56,10 @@ const ACTION_LABELS: Record<string, { label: string; chipClass: string }> = {
   SESSION_CREATED: { label: "Tạo buổi học", chipClass: "action-create" },
   SESSION_UPDATED: { label: "Sửa buổi học", chipClass: "action-update" },
   SESSION_RESCHEDULED: { label: "Dời lịch buổi học", chipClass: "action-update" },
-  SESSION_COACH_CHANGED: { label: "Đổi huấn luyện viên", chipClass: "action-update" },
+  SESSION_COACH_CHANGED: {
+    label: "Đổi huấn luyện viên",
+    chipClass: "action-update",
+  },
   SESSION_CANCELED: { label: "Hủy buổi học", chipClass: "action-cancel" },
   CLASS_REGISTERED: { label: "Đăng ký buổi học", chipClass: "action-create" },
   CLASS_REGISTRATION_CANCELED: {
@@ -68,10 +70,84 @@ const ACTION_LABELS: Record<string, { label: string; chipClass: string }> = {
     label: "Sửa quyền bộ môn của gói",
     chipClass: "action-update",
   },
+
+  // --- Huấn luyện, điểm danh, vận hành quầy & phân quyền ---
+  ACCOUNT_UNLOCKED: {
+    label: "Mở khóa tài khoản",
+    chipClass: "action-security",
+  },
+  ACCOUNT_STATUS_CHANGED: {
+    label: "Đổi trạng thái tài khoản",
+    chipClass: "action-update",
+  },
+  UPDATE_PERMISSION: {
+    label: "Cập nhật phân quyền",
+    chipClass: "action-security",
+  },
+  PERMISSION_UPDATED: {
+    label: "Cập nhật phân quyền",
+    chipClass: "action-security",
+  },
+  RECORD_ATTENDANCE: {
+    label: "Điểm danh buổi tập",
+    chipClass: "action-update",
+  },
+  CHECK_IN: { label: "Check-in tại quầy", chipClass: "action-create" },
+  CENTER_CHECK_IN: { label: "Check-in tại quầy", chipClass: "action-create" },
+  CHECK_OUT: { label: "Check-out ra về", chipClass: "action-update" },
+  SUSPEND_SUBSCRIPTION: {
+    label: "Tạm ngưng (Bảo lưu) gói tập",
+    chipClass: "action-deactivate",
+  },
+  RESUME_SUBSCRIPTION: {
+    label: "Mở lại gói tập bảo lưu",
+    chipClass: "action-activate",
+  },
+  CREATE_SUPPORT_REQUEST: {
+    label: "Tiếp nhận yêu cầu hỗ trợ",
+    chipClass: "action-create",
+  },
+  UPDATE_SUPPORT_REQUEST: {
+    label: "Xử lý yêu cầu hỗ trợ",
+    chipClass: "action-update",
+  },
+  UPDATE_STUDENT_GOAL: {
+    label: "Cập nhật mục tiêu tập luyện",
+    chipClass: "action-profile",
+  },
+  CREATE_TRAINING_PLAN: {
+    label: "Tạo kế hoạch tập luyện",
+    chipClass: "action-create",
+  },
+  CREATE_TRAINING_RESULT: {
+    label: "Ghi nhận kết quả tập luyện",
+    chipClass: "action-update",
+  },
+  SEND_HOMEWORK_NOTICE: {
+    label: "Giao bài tập về nhà / Thông báo",
+    chipClass: "action-create",
+  },
 };
 
 /** Nhóm chọn cho ô "Loại thao tác", theo đúng mã backend ghi vào audit. */
 const ACTION_GROUPS: readonly { title: string; actions: readonly string[] }[] = [
+  {
+    title: "Huấn luyện, Điểm danh & Vận hành",
+    actions: [
+      "UPDATE_PERMISSION",
+      "RECORD_ATTENDANCE",
+      "CHECK_IN",
+      "CHECK_OUT",
+      "SUSPEND_SUBSCRIPTION",
+      "RESUME_SUBSCRIPTION",
+      "CREATE_SUPPORT_REQUEST",
+      "UPDATE_SUPPORT_REQUEST",
+      "UPDATE_STUDENT_GOAL",
+      "CREATE_TRAINING_PLAN",
+      "CREATE_TRAINING_RESULT",
+      "SEND_HOMEWORK_NOTICE",
+    ],
+  },
   {
     title: "Lớp học và lịch (Sprint 2)",
     actions: [
@@ -151,6 +227,18 @@ const ENTITY_LABELS: Record<string, string> = {
   DISCIPLINE: "Bộ môn",
   Room: "Phòng tập",
   ROOM: "Phòng tập",
+  PermissionConfig: "Phân quyền",
+  RolePermissionConfig: "Phân quyền",
+  ClassAttendance: "Điểm danh lớp",
+  CenterVisit: "Check-in quầy",
+  SupportRequest: "Yêu cầu hỗ trợ",
+  StudentGoal: "Mục tiêu tập luyện",
+  MemberTrainingProfile: "Mục tiêu tập luyện",
+  MemberSubscription: "Đăng ký gói tập",
+  TrainingPlan: "Kế hoạch tập luyện",
+  TrainingResult: "Kết quả tập luyện",
+  CoachNotice: "Thông báo HLV",
+  Notification: "Thông báo",
 };
 
 export function AuditLogPage() {
@@ -178,22 +266,48 @@ export function AuditLogPage() {
     }
 
     try {
-      const data = await auditApi.list({ query, action, from, to, classId, sessionId, actorId, entityType, entityId, page, pageSize: 50 });
+      const data = await auditApi.list({
+        query,
+        action,
+        from,
+        to,
+        classId,
+        sessionId,
+        actorId,
+        entityType,
+        entityId,
+        page,
+        pageSize: 50,
+      });
       setItems(data);
       setError("");
     } catch (err) {
-      setError(
-        describeError(err),
-      );
+      setError(describeError(err));
     }
-  }, [currentUser, query, action, from, to, classId, sessionId, actorId, entityType, entityId, page]);
+  }, [
+    currentUser,
+    query,
+    action,
+    from,
+    to,
+    classId,
+    sessionId,
+    actorId,
+    entityType,
+    entityId,
+    page,
+  ]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const clearFilters = () => {
-    setClassId(""); setSessionId(""); setActorId(""); setEntityType(""); setPage(1);
+    setClassId("");
+    setSessionId("");
+    setActorId("");
+    setEntityType("");
+    setPage(1);
     setQuery("");
     setAction("");
     setEntityId("");
@@ -201,7 +315,17 @@ export function AuditLogPage() {
     setTo("");
   };
 
-  const hasActiveFilters = Boolean(query || action || from || to || classId || sessionId || actorId || entityType || entityId);
+  const hasActiveFilters = Boolean(
+    query ||
+      action ||
+      from ||
+      to ||
+      classId ||
+      sessionId ||
+      actorId ||
+      entityType ||
+      entityId,
+  );
   const dateError = v.dateRange(from)(to);
   return (
     <>
@@ -211,7 +335,7 @@ export function AuditLogPage() {
           <h1>Lịch sử thao tác hệ thống</h1>
           <p>
             Theo dõi, tra cứu toàn bộ các thay đổi quan trọng về thành viên,
-            nhân sự, gói tập và thanh toán.
+            nhân sự, gói tập, lớp học, giáo án và thanh toán.
           </p>
         </div>
         <span className="page-icon">
@@ -221,7 +345,7 @@ export function AuditLogPage() {
 
       {error && (
         <div className="error-notice" role="alert">
-          {error}
+          <span>{error}</span>
         </div>
       )}
 
@@ -254,47 +378,105 @@ export function AuditLogPage() {
           </div>
         </div>
 
-        {/* Toolbar with comprehensive filters */}
+        {/* Toolbar with comprehensive 3x3 filters */}
         <div className="toolbar audit-toolbar">
-          <label className="field">ID lớp<input type="number" min="1" value={classId} onChange={e => {setClassId(e.target.value);setPage(1);}} /></label>
-          <label className="field">ID buổi<input type="number" min="1" value={sessionId} onChange={e => {setSessionId(e.target.value);setPage(1);}} /></label>
-          <label className="field">ID người thao tác<input value={actorId} onChange={e => {setActorId(e.target.value);setPage(1);}} /></label>
-          <label className="field">Loại đối tượng<input value={entityType} placeholder="Class, ClassSession…" onChange={e => {setEntityType(e.target.value);setPage(1);}} /></label>
-          <label className="search-field">
-            <Search size={17} />
+          <label className="field">
+            <span>Tìm kiếm từ khóa</span>
+            <div className="search-field">
+              <Search size={17} />
+              <input
+                placeholder="Tìm theo người thực hiện, đối tượng, mô tả..."
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </div>
+          </label>
+
+          <label className="field">
+            <span>Loại thao tác</span>
+            <select
+              aria-label="Loại thao tác"
+              value={action}
+              onChange={(e) => {
+                setAction(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">Tất cả thao tác</option>
+              {ACTION_GROUPS.map((group) => (
+                <optgroup key={group.title} label={group.title}>
+                  {group.actions.map((code) => (
+                    <option key={code} value={code}>
+                      {ACTION_LABELS[code]?.label ?? code}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Loại đối tượng</span>
             <input
-              placeholder="Tìm theo người thực hiện, đối tượng, mô tả..."
-              value={query}
-              onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+              value={entityType}
+              placeholder="VD: Class, TrainingPlan, Invoice…"
+              onChange={(e) => {
+                setEntityType(e.target.value);
+                setPage(1);
+              }}
             />
           </label>
-          <select
-            aria-label="Loại thao tác"
-            value={action}
-            onChange={(e) => {
-              setAction(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">Tất cả thao tác</option>
-            {ACTION_GROUPS.map((group) => (
-              <optgroup key={group.title} label={group.title}>
-                {group.actions.map((code) => (
-                  <option key={code} value={code}>
-                    {ACTION_LABELS[code]?.label ?? code}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
 
           <label className="field">
             <span>ID đối tượng</span>
             <input
               type="text"
-              placeholder="Nhập ID lớp hoặc buổi"
+              placeholder="Nhập ID lớp, buổi hoặc bản ghi"
               value={entityId}
-              onChange={(e) => { setEntityId(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setEntityId(e.target.value);
+                setPage(1);
+              }}
+            />
+          </label>
+
+          <label className="field">
+            <span>ID lớp</span>
+            <input
+              type="number"
+              min="1"
+              value={classId}
+              onChange={(e) => {
+                setClassId(e.target.value);
+                setPage(1);
+              }}
+            />
+          </label>
+
+          <label className="field">
+            <span>ID buổi</span>
+            <input
+              type="number"
+              min="1"
+              value={sessionId}
+              onChange={(e) => {
+                setSessionId(e.target.value);
+                setPage(1);
+              }}
+            />
+          </label>
+
+          <label className="field">
+            <span>ID người thao tác</span>
+            <input
+              value={actorId}
+              onChange={(e) => {
+                setActorId(e.target.value);
+                setPage(1);
+              }}
             />
           </label>
 
@@ -303,7 +485,10 @@ export function AuditLogPage() {
             <input
               type="date"
               value={from}
-              onChange={(e) => { setFrom(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setFrom(e.target.value);
+                setPage(1);
+              }}
             />
           </label>
 
@@ -313,7 +498,10 @@ export function AuditLogPage() {
               type="date"
               value={to}
               aria-invalid={Boolean(dateError)}
-              onChange={(e) => { setTo(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setTo(e.target.value);
+                setPage(1);
+              }}
             />
             {dateError && <small className="field-error">{dateError}</small>}
           </label>
@@ -414,7 +602,23 @@ export function AuditLogPage() {
             )}
           </div>
         )}
-        <div className="table-footer"><button className="button secondary" disabled={page <= 1} onClick={() => setPage(page-1)}>Trước</button><span>Trang {page}</span><button className="button secondary" disabled={items.length < 50} onClick={() => setPage(page+1)}>Sau</button></div>
+        <div className="table-footer">
+          <button
+            className="button secondary"
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+          >
+            Trước
+          </button>
+          <span>Trang {page}</span>
+          <button
+            className="button secondary"
+            disabled={items.length < 50}
+            onClick={() => setPage(page + 1)}
+          >
+            Sau
+          </button>
+        </div>
       </section>
     </>
   );

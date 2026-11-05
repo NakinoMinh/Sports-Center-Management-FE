@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { Dialog } from "../../components/common/Dialog";
 import { useAuth } from "../../hooks/useAuth";
+import { isApiConfigured } from "../../services/apiClient";
+import { describeError } from "../../services/apiErrors";
 import { todayDate } from "../../services/membershipService";
 import { memberApi } from "../../services/memberApi";
 import {
@@ -17,6 +19,10 @@ import {
   type ReceptionState,
   type SupportStatus,
 } from "../../services/receptionService";
+import {
+  trainingOperationsApi,
+  type MemberEligibilityInfo,
+} from "../../services/trainingOperationsApi";
 import { CounterClassBooking } from "../../components/classes/CounterClassBooking";
 import type { MembershipActor } from "../../types/membership";
 import { formatDate } from "../../utils/format";
@@ -54,6 +60,9 @@ const time = (value: string) =>
 export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
   const { currentUser } = useAuth();
   const [state, setState] = useState(empty);
+  const [eligibilityMap, setEligibilityMap] = useState<
+    Record<string, MemberEligibilityInfo>
+  >({});
   const [members, setMembers] = useState<MembershipActor[]>([]);
   const [memberId, setMemberId] = useState("");
   const [search, setSearch] = useState("");
@@ -74,12 +83,49 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
   const [category, setCategory] = useState("Gói tập");
   const [supportStatus, setSupportStatus] =
     useState<SupportStatus>("IN_PROGRESS");
+
   const refresh = useCallback(async () => {
     if (!currentUser) return;
     try {
-      setState(receptionService.getSnapshot(currentUser));
       const realMembers = await memberApi.listAllMembers();
       setMembers(realMembers);
+      if (isApiConfigured()) {
+        const snap = await trainingOperationsApi.getReceptionSnapshot();
+        setEligibilityMap(snap.memberEligibility ?? {});
+        setState({
+          version: 1,
+          visits: snap.visits.map((vItem) => ({
+            id: vItem.id,
+            memberId: vItem.memberId,
+            date: vItem.date,
+            checkedInAt: vItem.checkedInAt,
+            checkedOutAt: vItem.checkedOutAt ?? undefined,
+            createdBy: vItem.checkedInBy,
+          })),
+          requests: snap.requests.map((rItem) => ({
+            id: rItem.id,
+            memberId: rItem.memberId,
+            category: rItem.category,
+            subject: rItem.subject,
+            description: rItem.note,
+            status: (rItem.status === "CLOSED" ? "RESOLVED" : rItem.status) as SupportStatus,
+            createdAt: rItem.createdAt,
+            createdBy: rItem.createdBy,
+            updates: rItem.resolutionNote
+              ? [
+                  {
+                    at: rItem.updatedAt,
+                    by: rItem.updatedBy ?? rItem.createdBy,
+                    status: (rItem.status === "CLOSED" ? "RESOLVED" : rItem.status) as SupportStatus,
+                    note: rItem.resolutionNote,
+                  },
+                ]
+              : [],
+          })),
+        });
+      } else {
+        setState(receptionService.getSnapshot(currentUser));
+      }
       setError("");
     } catch (err) {
       setState(empty);
@@ -89,35 +135,40 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
       setLoading(false);
     }
   }, [currentUser]);
+
   useEffect(() => {
-    // Synchronize the external browser storage adapter.
-    // oxlint-disable-next-line react/set-state-in-effect
-    refresh();
-    window.addEventListener("storage", refresh);
-    window.addEventListener("focus", refresh);
-    const timer = window.setInterval(refresh, 60000);
+    void refresh();
+    const sync = () => void refresh();
+    window.addEventListener("storage", sync);
+    window.addEventListener("focus", sync);
+    const timer = window.setInterval(sync, 60000);
     return () => {
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("focus", sync);
       window.clearInterval(timer);
     };
   }, [refresh]);
-  function run(action: () => void, message: string, inDialog = false) {
+
+  async function runAsync(
+    action: () => Promise<void> | void,
+    message: string,
+    inDialog = false,
+  ) {
     setNotice("");
     setActionError("");
     try {
-      action();
-      refresh();
+      await action();
+      await refresh();
       setNotice(message);
       setDialog(null);
       setDialogError("");
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Không thể lưu thao tác.";
-      if (inDialog) setDialogError(message);
-      else setActionError(message);
+      const msg = describeError(err);
+      if (inDialog) setDialogError(msg);
+      else setActionError(msg);
     }
   }
+
   function open(kind: NonNullable<typeof dialog>["kind"], id = "") {
     setDialog({ kind, id });
     setDialogError("");
@@ -170,7 +221,7 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
       {error && (
         <div className="error-notice" role="alert">
           {error}
-          <button className="button secondary" onClick={refresh}>
+          <button className="button secondary" onClick={() => void refresh()}>
             Tải lại
           </button>
         </div>
@@ -192,14 +243,14 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
         </div>
       )}
       <section className="panel reception-member-panel">
-            <div className="panel-heading">
-              <div>
-                <h2>Thành viên cần hỗ trợ</h2>
+        <div className="panel-heading">
+          <div>
+            <h2>Thành viên cần hỗ trợ</h2>
             <p>
               Tìm theo tên không dấu, email, số điện thoại hoặc mã thành viên.
             </p>
           </div>
-          <button className="button secondary" onClick={refresh}>
+          <button className="button secondary" onClick={() => void refresh()}>
             <RefreshCw size={16} /> Làm mới
           </button>
         </div>
@@ -247,6 +298,22 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
               <p>
                 {selected.email} · {selected.phone || "Chưa có số điện thoại"}
               </p>
+              {isApiConfigured() && (
+                <p style={{ marginTop: "0.35rem" }}>
+                  <span
+                    className={`status-chip ${
+                      eligibilityMap[memberId]?.canCheckIn
+                        ? "active"
+                        : eligibilityMap[memberId]?.checkedInToday
+                          ? "pending_payment"
+                          : "canceled"
+                    }`}
+                  >
+                    {eligibilityMap[memberId]?.statusText ??
+                      "Chưa đăng ký gói tập nào — Cần mua gói tập trước khi vào tập"}
+                  </span>
+                </p>
+              )}
             </div>
             <Link
               className="button secondary"
@@ -269,17 +336,26 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
                 <div>
                   <h2>Sổ điểm danh</h2>
                   <p>
-                    Mỗi thành viên được ghi nhận một lượt mỗi ngày. Chỉ gói còn
-                    hiệu lực mới được vào tập.
+                    Thành viên được điểm danh vào tập khi gói còn hiệu lực (đã
+                    thanh toán, không bị bảo lưu) và đã ghi nhận ra về cho lượt tập trước đó.
                   </p>
                 </div>
                 <button
                   className="button primary"
-                  disabled={!memberId || !!error}
+                  disabled={
+                    !memberId ||
+                    !!error ||
+                    (isApiConfigured() &&
+                      !eligibilityMap[memberId]?.canCheckIn)
+                  }
                   onClick={() =>
                     currentUser &&
-                    run(() => {
-                      receptionService.checkIn(currentUser, memberId);
+                    void runAsync(async () => {
+                      if (isApiConfigured()) {
+                        await trainingOperationsApi.checkInMember({ memberId });
+                      } else {
+                        receptionService.checkIn(currentUser, memberId);
+                      }
                       setDate(todayDate());
                     }, `Đã điểm danh ${selected?.fullName}.`)
                   }
@@ -329,14 +405,18 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
                               disabled={!!error}
                               onClick={() =>
                                 currentUser &&
-                                run(
-                                  () =>
+                                void runAsync(async () => {
+                                  if (isApiConfigured()) {
+                                    await trainingOperationsApi.checkOutMember(
+                                      visit.id,
+                                    );
+                                  } else {
                                     receptionService.checkOut(
                                       currentUser,
                                       visit.id,
-                                    ),
-                                  "Đã ghi nhận giờ ra về.",
-                                )
+                                    );
+                                  }
+                                }, "Đã ghi nhận giờ ra về.")
                               }
                             >
                               Ghi nhận ra về
@@ -456,194 +536,217 @@ export function ReceptionOperationsPage({ mode }: { mode: Mode }) {
               )}
             </section>
           )}
-      {dialog && (
-        <Dialog
-          title={
-            dialog.kind === "request"
-              ? "Tiếp nhận yêu cầu mới"
-              : "Chi tiết yêu cầu hỗ trợ"
-          }
-          onClose={() => setDialog(null)}
-        >
-          <form
-            className="reception-form"
-            noValidate
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!currentUser) return;
-              const formErrors = v.validateForm(
-                { subject, note },
-                {
-                  ...(dialog.kind === "request"
-                    ? {
-                        subject: v.all(
-                          v.required("Tiêu đề"),
-                          v.minLength("Tiêu đề", 3),
-                          v.maxLength("Tiêu đề", 120),
-                        ),
-                      }
-                    : {}),
-                  note: v.all(
-                    v.required(
-                      dialog.kind === "request"
-                        ? "Nội dung yêu cầu"
-                        : "Ghi chú xử lý",
-                    ),
-                    v.minLength(
-                      dialog.kind === "request"
-                        ? "Nội dung yêu cầu"
-                        : "Ghi chú xử lý",
-                      dialog.kind === "request" ? 10 : 3,
-                    ),
-                  ),
-                },
-              );
-              if (v.hasErrors(formErrors)) {
-                setFieldErrors(formErrors);
-                return;
+          {dialog && (
+            <Dialog
+              title={
+                dialog.kind === "request"
+                  ? "Tiếp nhận yêu cầu mới"
+                  : "Chi tiết yêu cầu hỗ trợ"
               }
-              setFieldErrors({});
-              run(
-                () => {
-                  if (dialog.kind === "request")
-                    receptionService.createRequest(currentUser, {
-                      memberId,
-                      category,
-                      subject,
-                      description: note,
-                    });
-                  if (dialog.kind === "update")
-                    receptionService.updateRequest(
-                      currentUser,
-                      dialog.id,
-                      supportStatus,
-                      note,
-                    );
-                },
-                "Đã lưu yêu cầu hỗ trợ.",
-                true,
-              );
-            }}
-          >
-            {dialog.kind === "request" && (
-              <>
-                <p>
-                  Thành viên: <strong>{selected?.fullName}</strong>
-                </p>
-                <label className="field">
-                  <span>Nhóm yêu cầu</span>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                  >
-                    {[
-                      "Gói tập",
-                      "Lớp học",
-                      "Thanh toán",
-                      "Cơ sở vật chất",
-                      "Khác",
-                    ].map((item) => (
-                      <option key={item}>{item}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Tiêu đề</span>
-                  <input
-                    maxLength={120}
-                    value={subject}
-                    aria-invalid={Boolean(fieldErrors.subject)}
-                    onChange={(e) => setSubject(e.target.value)}
-                  />
-                  {fieldErrors.subject && (
-                    <small className="field-error">{fieldErrors.subject}</small>
-                  )}
-                </label>
-              </>
-            )}
-            {dialog.kind === "update" && activeRequest && (
-              <>
-                <div className="order-summary">
-                  <h3>{activeRequest.subject}</h3>
-                  <p>
-                    {memberName(activeRequest.memberId)} ·{" "}
-                    {activeRequest.category} ·{" "}
-                    {formatDate(activeRequest.createdAt)}
-                  </p>
-                  <p className="reception-preserve-text">
-                    {activeRequest.description}
-                  </p>
-                </div>
-                <h3>Lịch sử xử lý</h3>
-                {activeRequest.updates.length ? (
-                  activeRequest.updates.map((update, index) => (
-                    <div className="info-note" key={index}>
+              onClose={() => setDialog(null)}
+            >
+              <form
+                className="reception-form"
+                noValidate
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!currentUser) return;
+                  const formErrors = v.validateForm(
+                    { subject, note },
+                    {
+                      ...(dialog.kind === "request"
+                        ? {
+                            subject: v.all(
+                              v.required("Tiêu đề"),
+                              v.minLength("Tiêu đề", 3),
+                              v.maxLength("Tiêu đề", 120),
+                            ),
+                          }
+                        : {}),
+                      note: v.all(
+                        v.required(
+                          dialog.kind === "request"
+                            ? "Nội dung yêu cầu"
+                            : "Ghi chú xử lý",
+                        ),
+                        v.minLength(
+                          dialog.kind === "request"
+                            ? "Nội dung yêu cầu"
+                            : "Ghi chú xử lý",
+                          dialog.kind === "request" ? 10 : 4,
+                        ),
+                      ),
+                    },
+                  );
+                  if (v.hasErrors(formErrors)) {
+                    setFieldErrors(formErrors);
+                    return;
+                  }
+                  setFieldErrors({});
+                  void runAsync(
+                    async () => {
+                      if (dialog.kind === "request") {
+                        if (isApiConfigured()) {
+                          await trainingOperationsApi.createSupportRequest({
+                            memberId,
+                            category,
+                            subject,
+                            note,
+                          });
+                        } else {
+                          receptionService.createRequest(currentUser, {
+                            memberId,
+                            category,
+                            subject,
+                            description: note,
+                          });
+                        }
+                      }
+                      if (dialog.kind === "update") {
+                        if (isApiConfigured()) {
+                          await trainingOperationsApi.updateSupportRequest(
+                            dialog.id,
+                            {
+                              status: supportStatus,
+                              resolutionNote: note,
+                            },
+                          );
+                        } else {
+                          receptionService.updateRequest(
+                            currentUser,
+                            dialog.id,
+                            supportStatus,
+                            note,
+                          );
+                        }
+                      }
+                    },
+                    "Đã lưu yêu cầu hỗ trợ.",
+                    true,
+                  );
+                }}
+              >
+                {dialog.kind === "request" && (
+                  <>
+                    <p>
+                      Thành viên: <strong>{selected?.fullName}</strong>
+                    </p>
+                    <label className="field">
+                      <span>Nhóm yêu cầu</span>
+                      <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                      >
+                        {[
+                          "Gói tập",
+                          "Lớp học",
+                          "Thanh toán",
+                          "Cơ sở vật chất",
+                          "Khác",
+                        ].map((item) => (
+                          <option key={item}>{item}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>Tiêu đề</span>
+                      <input
+                        maxLength={120}
+                        value={subject}
+                        aria-invalid={Boolean(fieldErrors.subject)}
+                        onChange={(e) => setSubject(e.target.value)}
+                      />
+                      {fieldErrors.subject && (
+                        <small className="field-error">
+                          {fieldErrors.subject}
+                        </small>
+                      )}
+                    </label>
+                  </>
+                )}
+                {dialog.kind === "update" && activeRequest && (
+                  <>
+                    <div className="order-summary">
+                      <h3>{activeRequest.subject}</h3>
                       <p>
-                        <strong>{supportLabels[update.status]}</strong> ·{" "}
-                        {formatDate(update.at)} {time(update.at)}
-                        <br />
-                        {update.note}
+                        {memberName(activeRequest.memberId)} ·{" "}
+                        {activeRequest.category} ·{" "}
+                        {formatDate(activeRequest.createdAt)}
+                      </p>
+                      <p className="reception-preserve-text">
+                        {activeRequest.description}
                       </p>
                     </div>
-                  ))
-                ) : (
-                  <p>Yêu cầu mới tiếp nhận, chưa có ghi chú xử lý.</p>
+                    <h3>Lịch sử xử lý</h3>
+                    {activeRequest.updates.length ? (
+                      activeRequest.updates.map((update, index) => (
+                        <div className="info-note" key={index}>
+                          <p>
+                            <strong>{supportLabels[update.status]}</strong> ·{" "}
+                            {formatDate(update.at)} {time(update.at)}
+                            <br />
+                            {update.note}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p>Yêu cầu mới tiếp nhận, chưa có ghi chú xử lý.</p>
+                    )}
+                    <label className="field">
+                      <span>Trạng thái mới</span>
+                      <select
+                        value={supportStatus}
+                        onChange={(e) =>
+                          setSupportStatus(e.target.value as SupportStatus)
+                        }
+                      >
+                        {Object.entries(supportLabels).map(([key, label]) => (
+                          <option key={key} value={key}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
                 )}
                 <label className="field">
-                  <span>Trạng thái mới</span>
-                  <select
-                    value={supportStatus}
-                    onChange={(e) =>
-                      setSupportStatus(e.target.value as SupportStatus)
-                    }
-                  >
-                    {Object.entries(supportLabels).map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+                  <span>
+                    {dialog.kind === "request"
+                      ? "Nội dung yêu cầu"
+                      : "Ghi chú xử lý"}
+                  </span>
+                  <textarea
+                    maxLength={2000}
+                    rows={4}
+                    value={note}
+                    aria-invalid={Boolean(fieldErrors.note)}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                  {fieldErrors.note && (
+                    <small className="field-error">{fieldErrors.note}</small>
+                  )}
                 </label>
-              </>
-            )}
-            <label className="field">
-              <span>
-                {dialog.kind === "request"
-                  ? "Nội dung yêu cầu"
-                  : "Ghi chú xử lý"}
-              </span>
-              <textarea
-                maxLength={2000}
-                rows={4}
-                value={note}
-                aria-invalid={Boolean(fieldErrors.note)}
-                onChange={(e) => setNote(e.target.value)}
-              />
-              {fieldErrors.note && (
-                <small className="field-error">{fieldErrors.note}</small>
-              )}
-            </label>
-            {dialogError && (
-              <p className="form-error" role="alert">
-                {dialogError}
-              </p>
-            )}
-            <div className="counter-actions">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setDialog(null)}
-              >
-                Quay lại
-              </button>
-              <button type="submit" className="button primary">
-                Lưu yêu cầu
-              </button>
-            </div>
-          </form>
-        </Dialog>
-      )}
-      </>
+                {dialogError && (
+                  <p className="form-error" role="alert">
+                    {dialogError}
+                  </p>
+                )}
+                <div className="counter-actions">
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => setDialog(null)}
+                  >
+                    Quay lại
+                  </button>
+                  <button type="submit" className="button primary">
+                    Lưu yêu cầu
+                  </button>
+                </div>
+              </form>
+            </Dialog>
+          )}
+        </>
       )}
     </>
   );

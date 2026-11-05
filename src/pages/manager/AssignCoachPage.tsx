@@ -162,6 +162,7 @@ export function AssignCoachPage() {
       !isCoachSuitableForSport(
         { disciplines: selectedCoach.disciplines },
         selectedSession.sportName,
+        selectedSession.sportId,
       )
     ) {
       setFormError(
@@ -455,6 +456,7 @@ export function AssignCoachPage() {
                   const isSportMatched = isCoachSuitableForSport(
                     { disciplines: coach.disciplines },
                     selectedSession.sportName,
+        selectedSession.sportId,
                   );
                   const conflictingSession = sessions.find(
                     (item) =>

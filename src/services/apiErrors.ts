@@ -24,6 +24,12 @@ const MESSAGES: Record<string, string> = {
   ACCOUNT_INACTIVE:
     "Tài khoản đã ngừng hoạt động. Liên hệ quản lý trung tâm để được hỗ trợ.",
   ACCOUNT_NOT_FOUND: "Không tìm thấy tài khoản này trong hệ thống.",
+  INVALID_ACCOUNT_STATUS: "Trạng thái tài khoản chỉ được là Active hoặc Inactive.",
+  SELF_DEACTIVATION_NOT_ALLOWED: "Quản lý trung tâm không thể tự ngừng hoạt động tài khoản của chính mình.",
+  LAST_ACTIVE_CENTER_MANAGER: "Không thể ngừng hoạt động quản lý trung tâm đang hoạt động cuối cùng.",
+  COACH_HAS_UPCOMING_SESSIONS: "Không thể ngừng hoạt động hoặc xóa huấn luyện viên đang có lịch dạy trong tương lai.",
+  CLASS_HAS_UPCOMING_SESSIONS: "Không thể lưu trữ lớp học đang còn buổi học được lên lịch trong tương lai. Vui lòng hủy các buổi học tương lai trước khi lưu trữ.",
+  CLASS_SPORT_LOCKED: "Không thể đổi bộ môn khi lớp học đang có buổi học được lên lịch.",
 
   // --- Registration ---
   EMAIL_ALREADY_EXISTS:
