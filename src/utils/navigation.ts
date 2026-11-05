@@ -1,3 +1,4 @@
+import { accessRules } from "../services/accessControl";
 import type { UserRole } from "../types/auth";
 
 export const roleLabels: Record<UserRole, string> = {
@@ -40,6 +41,8 @@ export interface NavItem {
   icon: NavIcon;
   /** Roles that may see the link. Omitted means every signed-in role. */
   roles?: readonly UserRole[];
+  /** Optional feature key bound to dynamic accessRules. */
+  featureKey?: keyof typeof accessRules;
   /** Breadcrumb trail shown in the topbar, excluding the workspace root. */
   trail: readonly string[];
 }
@@ -62,11 +65,6 @@ const INVOICE_ROLES: readonly UserRole[] = [
 
 /**
  * Single source of truth for the sidebar and the breadcrumb.
- *
- * The rail previously rendered fifteen ungrouped links, which overflowed the
- * viewport and pushed the account controls out of reach, while the breadcrumb
- * was hard-coded and disagreed with the page it sat above. Both now read from
- * this table, so a route can only ever be described one way.
  */
 export const navSections: readonly NavSection[] = [
   {
@@ -90,6 +88,7 @@ export const navSections: readonly NavSection[] = [
         label: "Thông báo",
         icon: "bell",
         roles: MEMBER_COACH,
+        featureKey: "notifications",
         trail: ["Thông báo", "Cập nhật lớp học"],
       },
     ],
@@ -105,10 +104,19 @@ export const navSections: readonly NavSection[] = [
         trail: ["Thành viên", "Gói tập của tôi"],
       },
       {
+        to: "/member/training",
+        label: "Kế hoạch & Điểm danh",
+        icon: "check",
+        roles: ["MEMBER"],
+        featureKey: "memberClasses",
+        trail: ["Thành viên", "Kế hoạch & Điểm danh"],
+      },
+      {
         to: "/manager/members",
         label: "Danh sách thành viên",
         icon: "users",
         roles: MANAGER,
+        featureKey: "members",
         trail: ["Thành viên", "Danh sách"],
       },
     ],
@@ -125,10 +133,18 @@ export const navSections: readonly NavSection[] = [
         trail: ["Lớp học", "Lịch dạy của tôi"],
       },
       {
+        to: "/training/coach",
+        label: "Giáo án & Kết quả tập",
+        icon: "whistle",
+        roles: ["COACH"],
+        trail: ["Lớp học", "Giáo án & Kết quả tập"],
+      },
+      {
         to: "/manager/sports",
         label: "Bộ môn",
         icon: "layers",
         roles: MANAGER,
+        featureKey: "sports",
         trail: ["Lớp học", "Bộ môn"],
       },
       {
@@ -136,6 +152,7 @@ export const navSections: readonly NavSection[] = [
         label: "Danh mục lớp",
         icon: "badge",
         roles: MANAGER,
+        featureKey: "classes",
         trail: ["Lớp học", "Danh mục lớp"],
       },
       {
@@ -143,6 +160,7 @@ export const navSections: readonly NavSection[] = [
         label: "Lịch học",
         icon: "calendar",
         roles: MANAGER,
+        featureKey: "classes",
         trail: ["Lớp học", "Lịch học"],
       },
       {
@@ -157,6 +175,7 @@ export const navSections: readonly NavSection[] = [
         label: "Khám phá lớp",
         icon: "compass",
         roles: MEMBER,
+        featureKey: "memberClasses",
         trail: ["Lớp học", "Khám phá lớp"],
       },
       {
@@ -164,6 +183,7 @@ export const navSections: readonly NavSection[] = [
         label: "Lịch của tôi",
         icon: "calendar",
         roles: MEMBER,
+        featureKey: "memberClasses",
         trail: ["Lớp học", "Lịch của tôi"],
       },
     ],
@@ -176,6 +196,7 @@ export const navSections: readonly NavSection[] = [
         label: "Huấn luyện viên",
         icon: "whistle",
         roles: MANAGER,
+        featureKey: "classes",
         trail: ["Nhân sự", "Huấn luyện viên"],
       },
       {
@@ -183,6 +204,7 @@ export const navSections: readonly NavSection[] = [
         label: "Phân công HLV",
         icon: "calendar",
         roles: MANAGER,
+        featureKey: "classes",
         trail: ["Nhân sự", "Phân công HLV"],
       },
       {
@@ -190,6 +212,7 @@ export const navSections: readonly NavSection[] = [
         label: "Nhân viên lễ tân",
         icon: "badge",
         roles: MANAGER,
+        featureKey: "classes",
         trail: ["Nhân sự", "Nhân viên lễ tân"],
       },
     ],
@@ -203,6 +226,7 @@ export const navSections: readonly NavSection[] = [
         label: "Đăng ký & gia hạn",
         icon: "card",
         roles: COUNTER,
+        featureKey: "counter",
         trail: ["Quầy lễ tân", "Đăng ký & gia hạn"],
       },
       {
@@ -210,6 +234,7 @@ export const navSections: readonly NavSection[] = [
         label: "Kiểm tra gói tập",
         icon: "check",
         roles: COUNTER,
+        featureKey: "counter",
         trail: ["Quầy lễ tân", "Kiểm tra gói tập"],
       },
       {
@@ -217,6 +242,7 @@ export const navSections: readonly NavSection[] = [
         label: "Điểm danh",
         icon: "check",
         roles: COUNTER,
+        featureKey: "counter",
         trail: ["Quầy lễ tân", "Điểm danh"],
       },
       {
@@ -238,6 +264,7 @@ export const navSections: readonly NavSection[] = [
         label: "Yêu cầu hỗ trợ",
         icon: "support",
         roles: COUNTER,
+        featureKey: "counter",
         trail: ["Quầy lễ tân", "Yêu cầu hỗ trợ"],
       },
     ],
@@ -250,6 +277,7 @@ export const navSections: readonly NavSection[] = [
         label: "Quản lý phòng tập",
         icon: "layers",
         roles: MANAGER,
+        featureKey: "classes",
         trail: ["Cơ sở vật chất", "Quản lý phòng tập"],
       },
     ],
@@ -262,6 +290,7 @@ export const navSections: readonly NavSection[] = [
         label: "Gói & học phí",
         icon: "layers",
         roles: MANAGER,
+        featureKey: "packages",
         trail: ["Tài chính", "Gói & học phí"],
       },
       {
@@ -269,6 +298,7 @@ export const navSections: readonly NavSection[] = [
         label: "Quyền bộ môn của gói",
         icon: "shield",
         roles: MANAGER,
+        featureKey: "packages",
         trail: ["Tài chính", "Quyền bộ môn của gói"],
       },
       {
@@ -276,6 +306,7 @@ export const navSections: readonly NavSection[] = [
         label: "Xác nhận tiền mặt",
         icon: "cash",
         roles: COUNTER,
+        featureKey: "payments",
         trail: ["Tài chính", "Xác nhận tiền mặt"],
       },
       {
@@ -283,6 +314,7 @@ export const navSections: readonly NavSection[] = [
         label: "Hóa đơn & Biên nhận",
         icon: "history",
         roles: INVOICE_ROLES,
+        featureKey: "invoices",
         trail: ["Tài chính", "Hóa đơn & Biên nhận"],
       },
       {
@@ -290,6 +322,7 @@ export const navSections: readonly NavSection[] = [
         label: "Báo cáo tổng hợp",
         icon: "layers",
         roles: MANAGER,
+        featureKey: "reports",
         trail: ["Tài chính", "Báo cáo tổng hợp"],
       },
     ],
@@ -302,6 +335,7 @@ export const navSections: readonly NavSection[] = [
         label: "Phân quyền",
         icon: "shield",
         roles: MANAGER,
+        featureKey: "permissions",
         trail: ["Hệ thống", "Phân quyền"],
       },
       {
@@ -309,14 +343,19 @@ export const navSections: readonly NavSection[] = [
         label: "Lịch sử thao tác",
         icon: "history",
         roles: MANAGER,
+        featureKey: "permissions",
         trail: ["Hệ thống", "Lịch sử thao tác"],
       },
     ],
   },
 ];
 
-const visibleTo = (item: NavItem, role: UserRole): boolean =>
-  item.roles === undefined || item.roles.includes(role);
+const visibleTo = (item: NavItem, role: UserRole): boolean => {
+  if (item.featureKey && item.featureKey in accessRules) {
+    return (accessRules[item.featureKey] as readonly UserRole[]).includes(role);
+  }
+  return item.roles === undefined || item.roles.includes(role);
+};
 
 /** Sections a role can actually see, with empty sections dropped. */
 export function navigationFor(role: UserRole): NavSection[] {

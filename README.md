@@ -1,6 +1,6 @@
 # Sports Center Management FE
 
-Frontend cho hệ thống quản lý trung tâm thể thao, xây dựng bằng React 19, TypeScript và Vite. Ứng dụng cung cấp các luồng xác thực, hồ sơ, thành viên, nhân sự, gói tập, thanh toán tại quầy và nhật ký hoạt động theo từng vai trò.
+Frontend cho hệ thống quản lý trung tâm thể thao, xây dựng bằng React 19, TypeScript và Vite. Ứng dụng cung cấp các luồng xác thực, hồ sơ, thành viên, nhân sự, gói tập, thanh toán tại quầy, quản lý lớp/lịch học, huấn luyện – điểm danh – vận hành quầy và nhật ký hoạt động theo từng vai trò.
 
 Repository: [NakinoMinh/Sports-Center-Management-FE](https://github.com/NakinoMinh/Sports-Center-Management-FE)
 
@@ -10,25 +10,20 @@ Repository: [NakinoMinh/Sports-Center-Management-FE](https://github.com/NakinoMi
 - [DESIGN.md](DESIGN.md): kiến trúc hiện tại, thiết kế mục tiêu, khác biệt schema/API và lộ trình triển khai.
 - [Sprint3.md](Sprint3.md): kế hoạch đề xuất Flow 3 — thanh toán, hóa đơn và báo cáo.
 
-Đọc mục 0 của hai tài liệu trước khi phát triển. Flow 1–3 (user/membership, class/schedule, payment/report) bắt buộc; Flow 4–6 (training/attendance, AI recommendation, AI assistant) tùy chọn. Tài liệu Sprint 1 và bàn giao API bên dưới có phạm vi hẹp hơn toàn dự án.
-
 ## Kiến trúc FE (Không dùng MVVM)
 
 Dự án tổ chức theo hướng **Component-based** và **React Hooks**, không dùng mô hình MVVM (Model-View-ViewModel). Giao diện nằm trong component/page, trạng thái dùng chung đặt trong Context, còn nghiệp vụ và dữ liệu được tách vào Service.
 
 - `src/assets/`: Ảnh, SVG, logo và các tài nguyên được import vào giao diện.
 - `src/components/`: Các UI tái sử dụng như Input, Alert, Dialog, sidebar/header, form gói tập và mẫu hóa đơn.
-- `src/context/`: State dùng chung cho toàn ứng dụng. Hiện có `AuthContext` quản lý phiên đăng nhập, user hiện tại và logout.
-- `src/hooks/`: Custom hooks. `useAuth` giúp component lấy dữ liệu từ `AuthContext`.
-- `src/pages/`: Các trang hoàn chỉnh: Login, Register, quản lý gói tập của Manager, đăng ký/gia hạn của Member và hỗ trợ tại quầy cho Receptionist.
-- `src/services/`: API client, xác thực, thành viên, nhân sự, gói tập và audit log. Một số luồng lễ tân/thanh toán demo vẫn dùng LocalStorage.
-- `src/styles/`: CSS cho vùng làm việc sau khi đăng nhập: sidebar, bảng, card, responsive mobile và in hóa đơn.
-- `src/types/`: Các kiểu TypeScript như `User`, `UserRole`, `MembershipPackage`, `MemberSubscription` và `MembershipInvoice`.
-- `src/utils/`: Hàm dùng chung để format tiền VND, ngày tháng và điều hướng theo vai trò.
-- `src/App.tsx`: Khai báo route, bảo vệ các trang đã đăng nhập và điều hướng theo role.
-- `src/App.css`: CSS cho Login/Register.
-- `src/index.css`: CSS toàn cục, font, màu và reset cơ bản.
-- `src/main.tsx`: Điểm khởi chạy, render `<App />` vào phần tử `#root`.
+- `src/context/`: State dùng chung cho toàn ứng dụng (`AuthContext`, `ToastContext`).
+- `src/hooks/`: Custom hooks (`useAuth`).
+- `src/pages/`: Các trang hoàn chỉnh theo từng vai trò (Center Manager, Receptionist, Coach, Member).
+- `src/services/`: API client, xác thực, thành viên, nhân sự, gói tập, lớp học, lịch tập, huấn luyện – vận hành (`trainingOperationsApi.ts`), báo cáo và audit log.
+- `src/styles/`: CSS cho vùng làm việc sau khi đăng nhập: sidebar, bảng, card, không gian huấn luyện, responsive mobile và in hóa đơn.
+- `src/types/`: Các kiểu TypeScript cho `User`, `UserRole`, `MembershipPackage`, `MemberSubscription`, `MembershipInvoice`, lớp học và vận hành.
+- `src/utils/`: Hàm dùng chung để format tiền VND, ngày tháng, lịch học và điều hướng theo vai trò.
+- `src/App.tsx`: Khai báo route, bảo vệ các trang đã đăng nhập (kết hợp phân quyền động) và điều hướng theo role.
 
 Luồng chính của FE:
 
@@ -36,7 +31,6 @@ Luồng chính của FE:
 main.tsx → App.tsx → AuthProvider → ToastProvider
          → Login/Register hoặc WorkspaceLayout
          → Page theo role → Service → API backend
-                               └── LocalStorage cho luồng demo còn lại
 ```
 
 ## 👥 Các Actor (Vai trò)
@@ -46,9 +40,58 @@ main.tsx → App.tsx → AuthProvider → ToastProvider
 - **Receptionist** – Nhân viên lễ tân
 
 ## 🔄 Các luồng chính (Main Flows)
-- **Flow 1**: User and membership management
-- **Flow 2**: Class booking and schedule management
-- **Flow 3**: Payment and report management
+- **Flow 1**: User and membership management (Quản lý tài khoản, nhân sự, hội viên & gói tập)
+- **Flow 2**: Class booking and schedule management (Quản lý bộ môn, phòng tập, lớp học, lịch dạy & đặt lịch)
+- **Flow 3**: Payment and report management (Hóa đơn, xác nhận thu tiền mặt tại quầy & báo cáo thống kê)
+- **Flow 4**: Training progress, attendance and center operations (Điểm danh, lộ trình huấn luyện, vận hành quầy lễ tân & phân quyền động)
+
+---
+
+## ✨ Các tính năng bổ sung & Cải thiện nghiệp vụ chi tiết
+
+### 1. Phân hệ Huấn luyện, Điểm danh & Theo dõi Tiến độ Tập luyện
+- **Không gian Huấn luyện dành cho HLV (`/coach/training`, `/coach/classes`, `/coach/schedule`):**
+  - **Điểm danh buổi học theo thời gian thực:** Ghi nhận trạng thái chuyên cần (`PRESENT` - Có mặt, `LATE` - Đi trễ, `EXCUSED` - Có phép, `ABSENT` - Vắng mặt) kèm ghi chú cho từng học viên; đồng bộ trạng thái hoàn thành buổi học (`COMPLETED`) và tự động tính tỷ lệ chuyên cần tích lũy.
+  - **Hồ sơ thể chất & Mục tiêu học viên:** Cập nhật mục tiêu tập luyện (`FitnessGoal`), trình độ (`BEGINNER`, `INTERMEDIATE`, `ADVANCED`), cân nặng hiện tại / cân nặng mục tiêu và lưu ý thể trạng cho từng học viên.
+  - **Thiết kế Giáo án / Lộ trình Tập luyện (`TrainingPlan`):** Hỗ trợ lập giáo án **Cá nhân (`INDIVIDUAL`)** hoặc **Cả lớp (`CLASS`)** với danh sách bài tập chi tiết (số hiệp `sets`, số lần lặp `reps`, thời lượng `durationMinutes`, lưu ý kỹ thuật) và bài tập về nhà (`Homework`).
+  - **Đánh giá Kết quả Buổi tập (`TrainingResult`) & Giao bài tập về nhà:** Ghi nhận khối lượng bài tập đã hoàn thành, tỷ lệ hoàn thành (`0–100%`), mức độ tiến bộ (`EXCEEDED` - Vượt mục tiêu, `ON_TRACK` - Đúng lộ trình, `NEEDS_ATTENTION` - Cần cải thiện), nhận xét chuyên môn của HLV và gửi thông báo bài tập về nhà trực tiếp tới hộp thư học viên.
+- **Trang Lộ trình & Tiến độ dành cho Hội viên (`/my-training`, `/my-schedule`):**
+  - Theo dõi mục tiêu thể chất cá nhân, chênh lệch cân nặng hiện tại so với mục tiêu và tổng quan tỷ lệ chuyên cần (`Có mặt`, `Đi trễ`, `Có phép`, `Vắng mặt`).
+  - Xem chi tiết các giáo án cá nhân và giáo án chung của lớp đang theo học, lịch sử đánh giá sau từng buổi tập từ HLV và danh sách bài tập về nhà ngay trên trang lộ trình và lịch học cá nhân.
+
+### 2. Vận hành Quầy Lễ tân, Check-in/Check-out & Bảo lưu Gói tập (`/reception/operations`, `/memberships/status`)
+- **Check-in / Check-out tại quầy (`CenterVisit`):**
+  - Kiểm tra tự động hiệu lực gói tập trước khi cho phép hội viên check-in vào trung tâm; ghi nhận thời điểm vào/ra, nhân viên thực hiện và lịch sử lượt đến trong ngày.
+- **Tạm ngưng (Bảo lưu) & Kích hoạt lại Gói tập (`SUSPEND` / `RESUME`):**
+  - Cho phép tạm ngưng gói tập đang hoạt động kèm lý do bảo lưu.
+  - Khi kích hoạt lại (`RESUME`), hệ thống **tự động tính số ngày gói bị tạm ngưng và cộng bù tương ứng vào ngày hết hạn (`EndDate`)**, đảm bảo hội viên không bị mất ngày sử dụng, đồng thời khôi phục trạng thái hoạt động của tài khoản hội viên.
+- **Tiếp nhận & Xử lý Yêu cầu Hỗ trợ (`SupportRequest`):**
+  - Tạo mới, phân loại danh mục (`Gói tập`, `Lớp học`, `Thiết bị & Cơ sở vật chất`, `Khiếu nại / Góp ý`) và cập nhật tiến độ xử lý (`OPEN`, `IN_PROGRESS`, `RESOLVED`) kèm ghi chú phản hồi.
+
+### 3. Phân quyền Động theo Vai trò (`/manager/access-control`)
+- Ma trận cấu hình quyền truy cập chức năng theo vai trò (`Center Manager`, `Receptionist`, `Coach`, `Member`) lưu trữ đồng bộ trên Backend (`RolePermissionConfig`).
+- Tự động đồng bộ menu điều hướng (`WorkspaceLayout.tsx`), bộ bảo vệ đường dẫn (`App.tsx`) và kiểm tra quyền truy cập tại các API vận hành.
+
+### 4. Các cải tiến & Siết chặt Logic Nghiệp vụ Thực tế (Business Logic Hardening)
+- **Kiểm soát chặt thời gian Điểm danh & Đánh giá kết quả:**
+  - Chặn điểm danh cho các buổi học trong tương lai hoặc chưa tới giờ bắt đầu (`ATTENDANCE_TOO_EARLY`).
+  - Ràng buộc ngày ghi nhận kết quả tập luyện (`RecordedDate`) không được vượt quá ngày hiện tại và phải nằm trong khoảng hiệu lực (`StartDate` – `EndDate`) của giáo án đã chọn; kiểm tra học viên phải có đăng ký `BOOKED` trong buổi học tương ứng.
+- **Ràng buộc Gói tập khi Check-in và Bảo lưu:**
+  - Chặn check-in khi gói tập đang trong trạng thái bảo lưu (`MEMBERSHIP_SUSPENDED`), chưa tới ngày bắt đầu hoặc đã hết hạn.
+  - Khi tạm ngưng gói tập (`SUSPEND`), tự động hủy các lượt đặt lịch lớp học sắp tới của hội viên và hoàn lại chỗ trống (`BookedCount`) cho lớp.
+- **Chuẩn hóa Nghiệp vụ Nâng cấp (`UPGRADE`) & Hạ cấp (`DOWNGRADE`) Gói tập:**
+  - **Nâng cấp (`UPGRADE`):** Tính toán tự động phần tiền dư chưa sử dụng của gói hiện tại theo số ngày còn lại (`Prorated Credit`), khấu trừ trực tiếp vào số tiền thanh toán trên hóa đơn, kích hoạt gói mới ngay trong ngày và đóng gói cũ ở ngày liền trước. Hiển thị bảng khấu trừ chi tiết trên phiếu báo giá (`MembershipPage.tsx`) và biên lai (`InvoiceDocument.tsx`).
+  - **Hạ cấp (`DOWNGRADE`):** Giữ nguyên quyền lợi gói hiện tại cho đến hết hạn và tự động nối tiếp gói mới từ ngày kế tiếp (`EndDate + 1`).
+- **Bảo vệ toàn vẹn dữ liệu Tài khoản, Lớp học & Lịch tập:**
+  - Chặn vô hiệu hóa tài khoản HLV khi vẫn còn lịch dạy `SCHEDULED` trong tương lai (`COACH_HAS_UPCOMING_SESSIONS`).
+  - Khi khóa hoặc xóa mềm Hội viên, tự động giải phóng chỗ các buổi học sắp tới và hủy toàn bộ hóa đơn/đơn đăng ký gói tập `PENDING_PAYMENT` đang chờ thu tiền.
+  - Chặn đổi bộ môn của lớp học khi lớp đã có buổi học được lên lịch (`CLASS_SPORT_LOCKED`) và chặn lưu trữ lớp (`ARCHIVED`) khi vẫn còn buổi tập sắp tới (`CLASS_HAS_UPCOMING_SESSIONS`).
+  - Áp dụng quy tắc hội viên chỉ được tự hủy đặt lịch trước giờ học tối thiểu **7 tiếng** (`CANCELLATION_DEADLINE_PASSED`).
+- **Đồng bộ Nhật ký Hoạt động (`AuditLogPage.tsx`), Thông báo (`NotificationsPage.tsx`) & Việt hóa Lỗi (`apiErrors.ts`):**
+  - Bổ sung nhóm lọc và nhãn tiếng Việt cho toàn bộ thao tác huấn luyện, điểm danh, bảo lưu gói tập, vận hành quầy và mở khóa/đổi trạng thái tài khoản.
+  - Việt hóa toàn diện các thông báo lỗi trả về từ API sang ngôn ngữ tự nhiên, rõ ràng cho người dùng.
+
+---
 
 ## 🚀 Hướng dẫn chạy dự án
 
@@ -63,26 +106,18 @@ node --version
 npm --version
 ```
 
-Nếu cả hai lệnh đều trả về số phiên bản, môi trường đã sẵn sàng. Dự án hiện đã được kiểm tra với Node.js `24.16.0` và npm `11.13.0`.
-
 ### 2. Clone hoặc mở source code
-
-Nếu chưa có source code trên máy:
 
 ```bash
 git clone https://github.com/NakinoMinh/Sports-Center-Management-FE.git
 cd Sports-Center-Management-FE
 ```
 
-Nếu đã tải source code, chỉ cần mở terminal tại thư mục `Sports-Center-Management-FE`.
-
 ### 3. Cài đặt thư viện
 
 ```bash
 npm install
 ```
-
-Lệnh này đọc `package.json` và cài React, Vite, TypeScript, React Router, Lucide icons, bcryptjs cùng các thư viện phát triển vào thư mục `node_modules`.
 
 ### 4. Cấu hình môi trường
 
@@ -98,33 +133,15 @@ Giá trị mặc định kết nối tới backend tại `http://localhost:5198/
 VITE_API_BASE_URL=http://localhost:5198/api
 ```
 
-File `.env.local` chỉ dùng trên máy cá nhân và không được commit.
-
 ### 5. Chạy môi trường phát triển
 
 ```bash
 npm run dev
 ```
 
-Terminal sẽ hiển thị một địa chỉ tương tự `http://localhost:5173/`. Mở địa chỉ đó trên trình duyệt để sử dụng giao diện. Khi sửa code, Vite tự cập nhật trang.
+Terminal sẽ hiển thị một địa chỉ tương tự `http://localhost:5173/`. Mở địa chỉ đó trên trình duyệt để sử dụng giao diện.
 
-Backend cần chạy tại địa chỉ đã cấu hình trong `VITE_API_BASE_URL`. Giao diện tài khoản kiểm thử chỉ xuất hiện trong môi trường development và sử dụng dữ liệu từ database backend hiện tại.
-
-### 6. Tài khoản kiểm thử
-
-Tại màn hình đăng nhập, mở **Tài khoản kiểm thử theo vai trò** để điền nhanh tài khoản Center Manager, Receptionist, Coach hoặc Member. Các tài khoản này phụ thuộc dữ liệu seed của backend; nếu database thay đổi, cần cập nhật danh sách kiểm thử tương ứng.
-
-Bạn cũng có thể tạo tài khoản Member mới tại màn hình đăng ký. Xác thực, hồ sơ và dữ liệu thành viên đi qua API backend; một số luồng thanh toán tại quầy vẫn lưu trạng thái demo trong LocalStorage của trình duyệt.
-
-### Luồng gói tập và xác nhận tiền mặt
-
-- **Receptionist → Đăng ký & gia hạn tại quầy:** chọn Member hiện có hoặc bấm **Đăng ký thành viên mới tại quầy**. Tạo Member tại quầy bắt buộc chọn gói; chỉ tạo yêu cầu chờ thanh toán, không tự kích hoạt.
-- **Receptionist / Center Manager → Xác nhận tiền mặt** (`/payments/cash`): tìm hóa đơn, kiểm tra thông tin, nhập đúng số tiền và tích xác nhận đã thu. Hóa đơn chuyển từ `PENDING_PAYMENT` sang `PAID`; gói hoạt động ngay hoặc chờ đúng ngày bắt đầu.
-- **Member → Gói tập của tôi:** cùng gói/cùng giá tự chuyển sang gia hạn. Gói giá cao hơn được khấu trừ giá trị ngày chưa sử dụng; kỳ mới bắt đầu đủ 1/3/12 tháng từ ngày thanh toán. Gói giá thấp hơn bắt đầu sau toàn bộ kỳ đã trả tiền. Nếu đã có kỳ tương lai trả trước, gói giá cao hơn cũng nối tiếp và thu đủ giá.
-- Gói chỉ có tên, giá, quyền lợi và kỳ hạn tháng/quý/năm; không phân hạng. Khấu trừ = giá gói cũ lúc mua × số ngày còn lại / tổng ngày kỳ cũ, làm tròn đến đồng. Ví dụ gói 450.000đ còn 15/30 ngày: chuyển sang gói năm 4.200.000đ cần trả 3.975.000đ. Báo giá nâng gói chỉ có hiệu lực trong ngày; yêu cầu cũ phải hủy và lập lại trước khi thu tiền. Dữ liệu lịch sử được giữ nguyên.
-- Chuyển khoản/thẻ chưa có đối soát. Mọi thanh toán và phân quyền hiện chỉ mô phỏng FE, không thay thế kiểm tra tại BE. Hướng dẫn chi tiết và trường hợp biên: [Sprint 1](docs/Sprint1.md).
-
-### 7. Kiểm tra code trước khi commit
+### 6. Kiểm tra code trước khi commit
 
 ```bash
 npm run lint
@@ -133,15 +150,5 @@ npm run build
 ```
 
 - `npm run lint`: kiểm tra lỗi style và chất lượng code.
-- `npm test`: chạy kiểm thử cho xác thực, gói tập, gia hạn và hóa đơn.
+- `npm test`: chạy bộ kiểm thử đơn vị (Vitest — `199/199` tests pass).
 - `npm run build`: kiểm tra TypeScript và tạo bản production trong thư mục `dist/`.
-
-### Lỗi thường gặp
-
-| Vấn đề | Cách xử lý |
-| --- | --- |
-| `node` hoặc `npm` không được nhận diện | Cài Node.js LTS, đóng/mở lại terminal rồi chạy lại `node --version`. |
-| Thiếu package hoặc lỗi `Cannot find module` | Xóa `node_modules` và chạy lại `npm install`. |
-| Cổng `5173` đang được sử dụng | Vite sẽ đề xuất cổng khác; mở đúng URL mà terminal hiển thị. |
-| Không gọi được API | Kiểm tra backend đang chạy và `VITE_API_BASE_URL` trong `.env.local` trỏ đúng tới `/api`. |
-| Phiên đăng nhập không hợp lệ | Đăng xuất rồi đăng nhập lại; nếu cần, xóa `scms_auth_token` và `scms_demo_session_v1` trong Local Storage. |

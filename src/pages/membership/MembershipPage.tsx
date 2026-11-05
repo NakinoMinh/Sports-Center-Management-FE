@@ -21,6 +21,7 @@ import {
   addDateDays,
   addMonthsClamped,
   getSubscriptionStatus,
+  parseDate,
   resolveOrderKind,
   orderKindLabels,
   todayDate,
@@ -146,8 +147,20 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
     (sub) => sub.status === "CONFIRMED",
   );
   const current = [...confirmed]
-    .filter((sub) => getSubscriptionStatus(sub) === "ACTIVE")
+    .filter((sub) => {
+      const st = getSubscriptionStatus(sub);
+      return st === "ACTIVE" || st === "SUSPENDED";
+    })
     .sort((a, b) => b.endDate.localeCompare(a.endDate))[0];
+  const isCurrentSuspended = current
+    ? getSubscriptionStatus(current) === "SUSPENDED"
+    : false;
+  const upcomingSub = [...confirmed]
+    .filter((sub) => {
+      const st = getSubscriptionStatus(sub);
+      return st === "UPCOMING" || st === "SCHEDULED_DOWNGRADE";
+    })
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
   const pending = snapshot.subscriptions.find(
     (sub) => sub.status === "PENDING_PAYMENT",
   );
@@ -179,6 +192,37 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
         -1,
       );
 
+      let amount = pkg.price;
+      let previousSubscriptionId: string | undefined;
+      let previousPackagePrice: number | undefined;
+      let previousPeriodDays: number | undefined;
+      let remainingDays: number | undefined;
+      let creditAmount: number | undefined;
+
+      if (orderKind === "UPGRADE" && current) {
+        previousSubscriptionId = current.id;
+        previousPackagePrice = current.packagePrice;
+        previousPeriodDays = Math.max(
+          1,
+          Math.round(
+            (parseDate(current.endDate).getTime() -
+              parseDate(current.startDate).getTime()) /
+              86400000,
+          ) + 1,
+        );
+        remainingDays = Math.max(
+          0,
+          Math.round(
+            (parseDate(current.endDate).getTime() - parseDate(today).getTime()) /
+              86400000,
+          ) + 1,
+        );
+        creditAmount = Math.round(
+          (current.packagePrice * remainingDays) / previousPeriodDays,
+        );
+        amount = Math.max(0, pkg.price - creditAmount);
+      }
+
       setQuote({
         memberId: target.id,
         memberName: target.fullName,
@@ -188,11 +232,16 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
         packagePrice: pkg.price,
         durationMonths: pkg.durationMonths,
         benefits: pkg.benefits,
-        amount: pkg.price,
+        amount,
         startDate,
         endDate,
         kind: orderKind,
         paymentMethod: "CASH",
+        previousSubscriptionId,
+        previousPackagePrice,
+        previousPeriodDays,
+        remainingDays,
+        creditAmount,
       });
     } catch (err) {
       refresh();
@@ -380,13 +429,26 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                     : "Chọn gói phù hợp để bắt đầu hành trình tập luyện tại Titan Arena."}
                 </p>
                 <span
-                  className={`status-chip ${current ? "active" : "neutral"}`}
+                  className={`status-chip ${
+                    current
+                      ? isCurrentSuspended
+                        ? "warning"
+                        : "active"
+                      : "neutral"
+                  }`}
                 >
                   <span className="status-dot" />
                   {current
-                    ? "Gói hiện tại đang hoạt động"
+                    ? isCurrentSuspended
+                      ? "Gói hiện tại đang tạm ngưng (bảo lưu)"
+                      : "Gói hiện tại đang hoạt động"
                     : "Chưa có gói đang hoạt động"}
                 </span>
+                {isCurrentSuspended && current?.suspensionReason && (
+                  <p style={{ marginTop: "0.5rem", color: "#fbbf24" }}>
+                    Lý do bảo lưu: <strong>{current.suspensionReason}</strong>
+                  </p>
+                )}
                 {current && (
                   <div className="membership-dates">
                     <div>
@@ -409,6 +471,43 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                 </span>
               </div>
             </section>
+          )}
+          {isCurrentSuspended && current && (
+            <div className="pending-notice">
+              <Clock3 size={22} />
+              <div>
+                <strong>Gói tập hiện tại đang tạm ngưng (bảo lưu)</strong>
+                <p>
+                  {current.packageName} · HSD đến {formatDate(current.endDate)}
+                  {current.suspensionReason
+                    ? ` · Lý do: ${current.suspensionReason}`
+                    : ""}
+                  . Vui lòng mở lại gói tập trước khi thực hiện gia hạn hoặc mua gói mới.
+                </p>
+              </div>
+              {isCounter && (
+                <Link
+                  className="button secondary"
+                  to="/receptionist/membership-status"
+                >
+                  Mở lại gói tập
+                </Link>
+              )}
+            </div>
+          )}
+          {upcomingSub && (
+            <div className="pending-notice">
+              <CalendarDays size={22} />
+              <div>
+                <strong>Đã có sẵn gói tập nối tiếp trong tương lai</strong>
+                <p>
+                  {upcomingSub.packageName} · Dự kiến bắt đầu từ{" "}
+                  {formatDate(upcomingSub.startDate)} đến{" "}
+                  {formatDate(upcomingSub.endDate)}. Không cần gia hạn thêm cho
+                  đến khi kỳ này bắt đầu.
+                </p>
+              </div>
+            </div>
           )}
           {pending && (
             <div className="pending-notice">
@@ -502,7 +601,13 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                       </ul>
                       <button
                         className={`button ${pkg.durationMonths === 3 ? "primary" : "secondary"}`}
-                        disabled={!!pending || !memberId || !!error}
+                        disabled={
+                          !!pending ||
+                          isCurrentSuspended ||
+                          !!upcomingSub ||
+                          !memberId ||
+                          !!error
+                        }
                         onClick={() => selectPackage(pkg)}
                       >
                         {

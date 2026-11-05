@@ -118,9 +118,10 @@ const normalizeDiscipline = (value: string): string =>
 export const isCoachSuitableForSport = (
   coach: {
     specializations?: readonly string[];
-    disciplines?: readonly { disciplineName: string; isActive: boolean }[];
+    disciplines?: readonly { disciplineId?: number; disciplineName: string; isActive: boolean }[];
   },
   sportName?: string,
+  sportId?: number,
 ): boolean => {
   if (!sportName || !sportName.trim()) return true;
   const target = normalizeDiscipline(sportName);
@@ -132,6 +133,19 @@ export const isCoachSuitableForSport = (
       : (coach.disciplines ?? [])
           .filter((item) => item.isActive)
           .map((item) => item.disciplineName);
+
+  if (
+    sportId !== undefined &&
+    sportId > 0 &&
+    coach.disciplines &&
+    coach.disciplines.length > 0
+  ) {
+    const activeDisciplines = coach.disciplines.filter((item) => item.isActive);
+    if (activeDisciplines.length === 0) return false;
+    if (activeDisciplines.some((item) => item.disciplineId === sportId)) {
+      return true;
+    }
+  }
 
   if (list.length === 0) return true;
   return list.some((item) => normalizeDiscipline(item) === target);

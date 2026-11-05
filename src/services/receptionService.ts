@@ -97,10 +97,10 @@ export const receptionService = {
     const state = read();
     if (
       state.visits.some(
-        (visit) => visit.memberId === memberId && visit.date === todayDate(),
+        (visit) => visit.memberId === memberId && visit.date === todayDate() && !visit.checkedOutAt,
       )
     )
-      throw new Error("Thành viên đã được điểm danh hôm nay.");
+      throw new Error("Thành viên đang tập tại trung tâm (chưa ghi nhận giờ ra về).");
     state.visits.unshift({
       id: crypto.randomUUID(),
       memberId,
