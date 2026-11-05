@@ -17,20 +17,40 @@ export const accessRules = {
   reports: ["CENTER_MANAGER"],
   coach: ["COACH", "CENTER_MANAGER"],
 } satisfies Record<string, UserRole[]>;
+
+export function applyDynamicPermissions(
+  permissions: Record<string, UserRole[]>,
+) {
+  let changed = false;
+  for (const [key, roles] of Object.entries(permissions)) {
+    if (key in accessRules && Array.isArray(roles) && roles.length > 0) {
+      (accessRules as Record<string, UserRole[]>)[key] = roles;
+      changed = true;
+    }
+  }
+  if (changed && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("scms:permissions-updated"));
+  }
+}
+
 export function accountEnabled(
   user: Pick<User, "isActive" | "deletedAt" | "isLocked">,
 ) {
   return user.isActive !== false && !user.deletedAt && !user.isLocked;
 }
+
 /** UI guard only; the API remains the authoritative authorization boundary. */
 export function authorizeRoles(
-  actor: Pick<User, "id" | "role"> & Partial<Pick<User, "isActive" | "deletedAt" | "isLocked">>,
+  actor: Pick<User, "id" | "role"> &
+    Partial<Pick<User, "isActive" | "deletedAt" | "isLocked">>,
   roles: readonly UserRole[],
 ) {
   if (!actor || !roles.includes(actor.role)) {
     throw new Error("Bạn không có quyền thực hiện thao tác này.");
   }
-  if (!accountEnabled(actor as Pick<User, "isActive" | "deletedAt" | "isLocked">)) {
+  if (
+    !accountEnabled(actor as Pick<User, "isActive" | "deletedAt" | "isLocked">)
+  ) {
     throw new Error("Bạn không có quyền thực hiện thao tác này.");
   }
   return actor as Omit<User, "passwordHash">;

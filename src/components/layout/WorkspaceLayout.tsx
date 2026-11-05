@@ -28,6 +28,9 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
+import { applyDynamicPermissions } from "../../services/accessControl";
+import { isApiConfigured } from "../../services/apiClient";
+import { trainingOperationsApi } from "../../services/trainingOperationsApi";
 import {
   navigationFor,
   roleLabels,
@@ -65,9 +68,31 @@ const initialsOf = (fullName: string): string =>
 export function WorkspaceLayout() {
   const { isAuthenticated, currentUser, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [, setPermissionTick] = useState(0);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const onPermissionsUpdated = () => {
+      setPermissionTick((prev) => prev + 1);
+    };
+    window.addEventListener("scms:permissions-updated", onPermissionsUpdated);
+    if (isAuthenticated && isApiConfigured()) {
+      void trainingOperationsApi
+        .getPermissions()
+        .then(applyDynamicPermissions)
+        .catch(() => {
+          // Keep default accessRules if endpoint is unavailable
+        });
+    }
+    return () => {
+      window.removeEventListener(
+        "scms:permissions-updated",
+        onPermissionsUpdated,
+      );
+    };
+  }, [isAuthenticated]);
 
   // The drawer is a modal surface on small screens: Escape dismisses it and the
   // page behind it must not scroll while it is open.

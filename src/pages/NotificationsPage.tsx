@@ -7,10 +7,20 @@ import type { ClassNotification } from "../types/notification";
 type ReadFilter = "ALL" | "UNREAD" | "READ";
 
 const TYPE_LABELS: Record<string, string> = {
-  CLASS_REGISTERED: "Đăng ký lớp",
-  SESSION_RESCHEDULED: "Đổi lịch học",
+  CLASS_REGISTERED: "Đăng ký lớp học",
+  SESSION_RESCHEDULED: "Đổi lịch buổi học",
   SESSION_COACH_CHANGED: "Đổi huấn luyện viên",
   SESSION_CANCELED: "Hủy buổi học",
+  TRAINING_PLAN_CREATED: "Giáo án tập luyện mới",
+  TRAINING_RESULT_RECORDED: "Kết quả & Đánh giá buổi tập",
+  COACH_HOMEWORK_NOTICE: "Bài tập về nhà & Dặn dò HLV",
+  CLASS_ATTENDANCE_RECORDED: "Điểm danh lớp học",
+  SUPPORT_REQUEST_CREATED: "Phiếu hỗ trợ tại quầy",
+  SUPPORT_REQUEST_UPDATED: "Phản hồi yêu cầu hỗ trợ",
+  MEMBERSHIP_EXPIRING_SOON: "Cảnh báo sắp hết hạn gói tập",
+  MEMBERSHIP_EXPIRED: "Gói tập đã hết hạn",
+  MEMBERSHIP_SUSPENDED: "Tạm ngưng (Bảo lưu) gói tập",
+  MEMBERSHIP_RESUMED: "Kích hoạt lại gói tập",
 };
 
 const formatCreatedAt = (value: string): string => {
@@ -75,10 +85,10 @@ export function NotificationsPage() {
     <div className="long-page-stack">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">THÔNG BÁO LỚP HỌC</span>
+          <span className="eyebrow">THÔNG BÁO HỆ THỐNG & LỚP HỌC</span>
           <h1>Thông báo của tôi</h1>
           <p>
-            Theo dõi đăng ký, đổi lịch, đổi huấn luyện viên và các buổi bị hủy.
+            Theo dõi lịch học, giáo án và nhận xét từ HLV, thời hạn gói tập và phản hồi yêu cầu hỗ trợ.
           </p>
         </div>
         <span className="page-icon">
@@ -149,7 +159,7 @@ export function NotificationsPage() {
                   <div className="notification-heading">
                     <div>
                       <span className="eyebrow">
-                        {TYPE_LABELS[item.type] ?? "Cập nhật lớp học"}
+                        {TYPE_LABELS[item.type] ?? "Thông báo hệ thống"}
                       </span>
                       <h3>{item.title}</h3>
                     </div>
@@ -176,7 +186,7 @@ export function NotificationsPage() {
           <div className="empty-state" role="status">
             <Bell size={34} aria-hidden="true" />
             <h3>Không có thông báo phù hợp</h3>
-            <p>Các thay đổi lớp học liên quan đến bạn sẽ xuất hiện tại đây.</p>
+            <p>Các thông báo về lịch học, giáo án tập luyện và thời hạn gói tập sẽ xuất hiện tại đây.</p>
           </div>
         )}
       </section>

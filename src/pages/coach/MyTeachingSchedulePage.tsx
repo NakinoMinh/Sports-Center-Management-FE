@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ClipboardList, RefreshCw } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { myTeachingScheduleApi } from "../../services/myTeachingScheduleApi";
 import { describeError } from "../../services/apiErrors";
 import {
@@ -117,7 +117,6 @@ export function MyTeachingSchedulePage() {
   }, [page, fromDate, toDate, statusFilter]);
 
   useEffect(() => {
-    // Debounce filter edits and ignore responses from the previous filter.
     const timer = setTimeout(() => void loadSchedule(), 150);
     return () => {
       clearTimeout(timer);
@@ -150,15 +149,21 @@ export function MyTeachingSchedulePage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          className="button secondary"
-          onClick={() => void loadSchedule()}
-          disabled={loading}
-        >
-          <RefreshCw size={16} aria-hidden="true" />
-          Làm mới
-        </button>
+        <div className="header-actions-group">
+          <Link to="/training/coach" className="button primary">
+            <ClipboardList size={16} aria-hidden="true" />
+            Giáo án & Đánh giá học viên
+          </Link>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => void loadSchedule()}
+            disabled={loading}
+          >
+            <RefreshCw size={16} aria-hidden="true" />
+            Làm mới
+          </button>
+        </div>
       </div>
 
       {/* Bộ lọc lịch dạy */}
@@ -188,32 +193,39 @@ export function MyTeachingSchedulePage() {
           />
         </label>
 
-        <select
-          aria-label="Lọc theo khung giờ"
-          value={slotFilter}
-          onChange={(event) => setSlotFilter(event.target.value)}
-        >
-          <option value="ALL">Tất cả khung giờ (Slot)</option>
-          {CENTER_TIME_SLOTS.map((slot) => (
-            <option key={slot.id} value={slot.id}>
-              {slot.name} · {slot.startTime} – {slot.endTime}
-            </option>
-          ))}
-        </select>
+        <label>
+          Khung giờ (Slot)
+          <select
+            aria-label="Lọc theo khung giờ"
+            value={slotFilter}
+            onChange={(event) => setSlotFilter(event.target.value)}
+          >
+            <option value="ALL">Tất cả khung giờ (Slot)</option>
+            {CENTER_TIME_SLOTS.map((slot) => (
+              <option key={slot.id} value={slot.id}>
+                {slot.name} · {slot.startTime} – {slot.endTime}
+              </option>
+            ))}
+          </select>
+        </label>
 
-        <select
-          aria-label="Lọc trạng thái buổi học"
-          value={statusFilter}
-          onChange={(event) => {
-            setStatusFilter(event.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">Tất cả trạng thái</option>
-          <option value="SCHEDULED">Đã lên lịch</option>
-          <option value="COMPLETED">Đã hoàn thành</option>
-          <option value="CANCELED">Đã hủy</option>
-        </select>
+        <label>
+          Trạng thái buổi học
+          <select
+            aria-label="Lọc trạng thái buổi học"
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="SCHEDULED">Đã lên lịch</option>
+            <option value="COMPLETED">Đã hoàn thành</option>
+            <option value="CANCELED">Đã hủy</option>
+          </select>
+        </label>
+
         <button
           type="button"
           className="button secondary"
@@ -232,16 +244,27 @@ export function MyTeachingSchedulePage() {
       {error && <p role="alert">{error}</p>}
 
       {!error && (
-        <p>
-          Tổng số: <strong>{visibleSessions.length}</strong>/{totalItems} buổi
-          học theo Slot
-        </p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "0.75rem",
+          }}
+        >
+          <span className="count-badge">
+            Tổng số: <strong>{visibleSessions.length}</strong>/{totalItems} buổi
+            học theo Slot
+          </span>
+        </div>
       )}
 
       {loading && !hasLoaded ? (
-        <p>Đang tải lịch dạy...</p>
+        <div className="empty-state">Đang tải lịch dạy...</div>
       ) : error ? (
-        <p>Chưa thể hiển thị lịch dạy. Vui lòng thử lại sau.</p>
+        <div className="empty-state">
+          Chưa thể hiển thị lịch dạy. Vui lòng thử lại sau.
+        </div>
       ) : (
         <div className="table-scroll">
           <table className="data-table">
@@ -259,50 +282,67 @@ export function MyTeachingSchedulePage() {
             </thead>
 
             <tbody>
-              {visibleSessions.map((session) => (
-                <tr key={session.id}>
-                  <td>{formatDate(session.date)}</td>
+              {visibleSessions.map((session) => {
+                const isCanceled =
+                  session.status === "CANCELED" ||
+                  session.status === "CANCELLED";
+                return (
+                  <tr key={session.id}>
+                    <td>
+                      <strong>{formatDate(session.date)}</strong>
+                    </td>
 
-                  <td>
-                    {formatSlotLabel(
-                      formatTime(session.startTime),
-                      formatTime(session.endTime),
-                    )}
-                  </td>
-
-                  <td>{session.className}</td>
-                  <td>{session.sportName}</td>
-                  <td>{session.roomName}</td>
-
-                  <td>
-                    {session.bookedCount}/{session.capacity}
-                  </td>
-
-                  <td>
-                    <div>{getStatusLabel(session.status)}</div>
-
-                    {(session.status === "CANCELED" ||
-                      session.status === "CANCELLED") &&
-                      session.cancelReason && (
-                        <small>Lý do: {session.cancelReason}</small>
+                    <td>
+                      {formatSlotLabel(
+                        formatTime(session.startTime),
+                        formatTime(session.endTime),
                       )}
-                  </td>
+                    </td>
 
-                  <td>
-                    <button
-                      type="button"
-                      className="button secondary"
-                      onClick={() =>
-                        navigate(
-                          `/coach/my-schedule/${session.id}/registrations`,
-                        )
-                      }
-                    >
-                      Quản lý học viên
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    <td>
+                      <strong>{session.className}</strong>
+                    </td>
+                    <td>{session.sportName}</td>
+                    <td>{session.roomName}</td>
+
+                    <td>
+                      <span className="count-badge">
+                        {session.bookedCount}/{session.capacity} chỗ
+                      </span>
+                    </td>
+
+                    <td>
+                      <span
+                        className={`status-chip ${
+                          isCanceled ? "canceled" : "active"
+                        }`}
+                      >
+                        {getStatusLabel(session.status)}
+                      </span>
+
+                      {isCanceled && session.cancelReason && (
+                        <small style={{ display: "block", marginTop: "0.25rem" }}>
+                          Lý do: {session.cancelReason}
+                        </small>
+                      )}
+                    </td>
+
+                    <td>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() =>
+                          navigate(
+                            `/coach/my-schedule/${session.id}/registrations`,
+                          )
+                        }
+                      >
+                        Điểm danh & Học viên
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
 
               {visibleSessions.length === 0 && (
                 <tr>
