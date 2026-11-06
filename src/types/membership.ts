@@ -87,6 +87,8 @@ export interface MembershipInvoice extends MembershipQuote {
   number: string;
   subscriptionId: string;
   status: "PAID" | "PENDING_PAYMENT" | "CANCELED";
+  isSuspended?: boolean;
+  suspensionReason?: string;
   createdAt: string;
   createdBy: string;
   paidAt?: string;

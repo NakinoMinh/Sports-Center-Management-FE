@@ -81,23 +81,39 @@ export function InvoiceDocument({ invoice }: { invoice: MembershipInvoice }) {
         <span>Tổng cộng</span>
         <strong>{formatMoney(invoice.amount)}</strong>
       </div>
-      {invoice.kind === "UPGRADE" && invoice.creditAmount !== undefined && (
+      {invoice.kind === "UPGRADE" && (
         <p className="invoice-note">
-          Khấu trừ {invoice.remainingDays}/{invoice.previousPeriodDays} ngày
-          chưa sử dụng × {formatMoney(invoice.previousPackagePrice ?? 0)} ={" "}
-          {formatMoney(invoice.creditAmount)} (làm tròn đến đồng).
-          <br />
+          {invoice.remainingDays !== undefined &&
+          invoice.previousPeriodDays !== undefined ? (
+            <>
+              Khấu trừ {invoice.remainingDays}/{invoice.previousPeriodDays} ngày
+              chưa sử dụng × {formatMoney(invoice.previousPackagePrice ?? 0)} ={" "}
+              {formatMoney(
+                invoice.creditAmount ??
+                  Math.max(0, invoice.packagePrice - invoice.amount),
+              )}{" "}
+              (làm tròn đến đồng).
+              <br />
+            </>
+          ) : (
+            <>
+              Khấu trừ giá trị ngày còn lại của gói cũ:{" "}
+              {formatMoney(
+                invoice.creditAmount ??
+                  Math.max(0, invoice.packagePrice - invoice.amount),
+              )}
+              .
+              <br />
+            </>
+          )}
           Phí nâng gói: {formatMoney(invoice.packagePrice)} −{" "}
-          {formatMoney(invoice.creditAmount)} = {formatMoney(invoice.amount)}.
-          Kỳ mới đủ {invoice.durationMonths} tháng từ ngày thanh toán. Báo giá
-          chờ thanh toán chỉ có hiệu lực trong ngày lập.
-        </p>
-      )}
-      {invoice.kind === "UPGRADE" && invoice.creditAmount === undefined && (
-        <p className="invoice-note">
-          Hóa đơn theo chính sách nâng gói cũ.
-          {invoice.status === "PENDING_PAYMENT" &&
-            " Vui lòng hủy và lập lại yêu cầu để tính giá trị ngày còn lại trước khi thu tiền."}
+          {formatMoney(
+            invoice.creditAmount ??
+              Math.max(0, invoice.packagePrice - invoice.amount),
+          )}{" "}
+          = {formatMoney(invoice.amount)}. Kỳ mới đủ {invoice.durationMonths}{" "}
+          tháng từ ngày thanh toán. Báo giá chờ thanh toán chỉ có hiệu lực trong
+          ngày lập.
         </p>
       )}
       {invoice.paidAt && (

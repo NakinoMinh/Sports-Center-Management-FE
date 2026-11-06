@@ -45,6 +45,8 @@ import { PackageSportsPage } from "./pages/manager/PackageSportsPage";
 import { accountEnabled, accessRules } from "./services/accessControl";
 import { MyTeachingSchedulePage } from "./pages/coach/MyTeachingSchedulePage";
 import { ClassRosterPage } from "./pages/coach/ClassRosterPage";
+import { CoachTrainingPage } from "./pages/coach/CoachTrainingPage";
+import { MemberTrainingPage } from "./pages/member/MemberTrainingPage";
 import type { UserRole } from "./types/auth";
 import "./App.css";
 import "./styles/workspace.css";
@@ -181,6 +183,24 @@ export default function App() {
               />
 
               <Route
+                path="/training/coach"
+                element={
+                  <OwnedScreen role={["COACH", "CENTER_MANAGER"]}>
+                    <CoachTrainingPage />
+                  </OwnedScreen>
+                }
+              />
+
+              <Route
+                path="/coach/training"
+                element={
+                  <OwnedScreen role={["COACH", "CENTER_MANAGER"]}>
+                    <CoachTrainingPage />
+                  </OwnedScreen>
+                }
+              />
+
+              <Route
                 path="/manager/sports"
                 element={
                   <OwnedScreen role={accessRules.sports}>
@@ -312,6 +332,14 @@ export default function App() {
                 element={
                   <OwnedScreen role={accessRules.membership}>
                     <MembershipPage mode="member" />
+                  </OwnedScreen>
+                }
+              />
+              <Route
+                path="/member/training"
+                element={
+                  <OwnedScreen role={accessRules.memberClasses}>
+                    <MemberTrainingPage />
                   </OwnedScreen>
                 }
               />
