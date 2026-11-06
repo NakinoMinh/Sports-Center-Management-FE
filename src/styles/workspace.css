@@ -4117,3 +4117,68 @@ textarea {
 @media print {
   .vnpay-payment-action { display: none !important; }
 }
+
+.transfer-checkout { min-width: 0; }
+.transfer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--space-12) * 3)), 1fr));
+  gap: var(--space-7);
+  margin-block: var(--space-6);
+  align-items: center;
+}
+.transfer-qr-card {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border: thin solid var(--border-default);
+  border-radius: var(--radius-xl);
+}
+.transfer-brand, .transfer-waiting {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--brand);
+  font-weight: var(--weight-bold);
+}
+.transfer-brand { font-size: var(--text-xl); }
+.transfer-qr { width: min(100%, calc(var(--space-10) * 5)); height: auto; }
+.transfer-summary { display: grid; gap: var(--space-5); margin-block: var(--space-6); }
+.transfer-summary > div { display: grid; gap: var(--space-2); min-width: 0; }
+.transfer-summary dt, .transfer-muted { color: var(--fg-muted); font-size: var(--text-sm); }
+.transfer-summary dd { margin: 0; font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.transfer-summary .transfer-amount { color: var(--brand); font-size: var(--text-2xl); font-weight: var(--weight-bold); }
+.transfer-mobile-shell {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--bg-canvas);
+}
+.transfer-mobile-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(var(--space-12) * 5);
+  padding: var(--space-6);
+  color: var(--fg-default);
+  background: var(--bg-surface);
+  border: thin solid var(--border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+.transfer-mobile-brand {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-6);
+  margin-bottom: var(--space-6);
+  border-bottom: thin solid var(--border-default);
+  color: var(--brand);
+}
+.transfer-mobile-brand strong { font-size: var(--text-xl); letter-spacing: var(--tracking-overline); }
+.transfer-mobile-brand span { font-size: var(--text-2xs); letter-spacing: var(--tracking-overline); }
+.transfer-mobile-card h1 { color: inherit; font-size: var(--text-2xl); line-height: var(--leading-snug); }
+.transfer-mobile-card p { line-height: var(--leading-normal); }
+.transfer-submit { width: 100%; margin-block: var(--space-3); }
+.transfer-success-icon { display: block; color: var(--brand); margin-block: var(--space-6); }

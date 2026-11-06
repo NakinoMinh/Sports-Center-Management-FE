@@ -23,6 +23,7 @@ import { CashPaymentsPage } from "./pages/membership/CashPaymentsPage";
 import { InvoicesPage } from "./pages/membership/InvoicesPage";
 import { PaymentResultPage } from "./pages/membership/PaymentResultPage";
 import { DemoPaymentPage } from "./pages/membership/DemoPaymentPage";
+import { TransferConfirmationPage } from "./pages/membership/TransferConfirmationPage";
 import { ReportsPage } from "./pages/manager/ReportsPage";
 import { MembershipStatusPage } from "./pages/membership/MembershipStatusPage";
 import { ReceptionOperationsPage } from "./pages/membership/ReceptionOperationsPage";
@@ -118,6 +119,7 @@ export default function App() {
             </Route>
             <Route path="/login" element={<AuthPage tab="login" />} />
             <Route path="/register" element={<AuthPage tab="register" />} />
+            <Route path="/payments/transfer/confirm" element={<TransferConfirmationPage />} />
             <Route element={<WorkspaceLayout />}>
               <Route path="/profile" element={<ProfilePage />} />
               <Route
