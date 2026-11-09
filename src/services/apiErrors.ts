@@ -13,6 +13,7 @@ import { ApiError } from "./apiClient";
  * SportsCenterManagement; keep this table in sync when the backend adds one.
  */
 const MESSAGES: Record<string, string> = {
+  TRANSFER_QR_EXPIRED: "Mã QR không hợp lệ hoặc đã hết hạn. Vui lòng tạo mã mới trên trang thanh toán rồi quét lại.",
   DEMO_PAYMENT_DISABLED: "Thanh toán chuyển khoản hiện chưa khả dụng. Vui lòng liên hệ trung tâm.",
   DEMO_CONFIRMATION_REQUIRED: "Vui lòng xác nhận thanh toán để tiếp tục.",
   DEMO_PAYMENT_NOT_CONFIGURED: "Chưa thể xử lý thanh toán. Vui lòng liên hệ trung tâm.",
