@@ -123,6 +123,35 @@ export const navSections: readonly NavSection[] = [
   },
 
   {
+    title: "Nhân sự",
+    items: [
+      {
+        to: "/manager/coaches",
+        label: "Huấn luyện viên",
+        icon: "whistle",
+        roles: MANAGER,
+        featureKey: "classes",
+        trail: ["Nhân sự", "Huấn luyện viên"],
+      },
+      {
+        to: "/manager/assign-coach",
+        label: "Phân công HLV",
+        icon: "calendar",
+        roles: MANAGER,
+        featureKey: "classes",
+        trail: ["Nhân sự", "Phân công HLV"],
+      },
+      {
+        to: "/manager/staff",
+        label: "Nhân viên lễ tân",
+        icon: "badge",
+        roles: MANAGER,
+        featureKey: "classes",
+        trail: ["Nhân sự", "Nhân viên lễ tân"],
+      },
+    ],
+  },
+  {
     title: "Lớp học",
     items: [
       {
@@ -189,31 +218,15 @@ export const navSections: readonly NavSection[] = [
     ],
   },
   {
-    title: "Nhân sự",
+    title: "Cơ sở vật chất",
     items: [
       {
-        to: "/manager/coaches",
-        label: "Huấn luyện viên",
-        icon: "whistle",
+        to: "/manager/rooms",
+        label: "Quản lý phòng tập",
+        icon: "layers",
         roles: MANAGER,
         featureKey: "classes",
-        trail: ["Nhân sự", "Huấn luyện viên"],
-      },
-      {
-        to: "/manager/assign-coach",
-        label: "Phân công HLV",
-        icon: "calendar",
-        roles: MANAGER,
-        featureKey: "classes",
-        trail: ["Nhân sự", "Phân công HLV"],
-      },
-      {
-        to: "/manager/staff",
-        label: "Nhân viên lễ tân",
-        icon: "badge",
-        roles: MANAGER,
-        featureKey: "classes",
-        trail: ["Nhân sự", "Nhân viên lễ tân"],
+        trail: ["Cơ sở vật chất", "Quản lý phòng tập"],
       },
     ],
   },
@@ -266,19 +279,6 @@ export const navSections: readonly NavSection[] = [
         roles: COUNTER,
         featureKey: "counter",
         trail: ["Quầy lễ tân", "Yêu cầu hỗ trợ"],
-      },
-    ],
-  },
-  {
-    title: "Cơ sở vật chất",
-    items: [
-      {
-        to: "/manager/rooms",
-        label: "Quản lý phòng tập",
-        icon: "layers",
-        roles: MANAGER,
-        featureKey: "classes",
-        trail: ["Cơ sở vật chất", "Quản lý phòng tập"],
       },
     ],
   },
