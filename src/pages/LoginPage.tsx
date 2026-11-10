@@ -7,6 +7,7 @@ import { AlertBadge } from "../components/common/AlertBadge";
 import { QuickAccounts } from "../components/common/QuickAccounts";
 import { authService } from "../services/authService";
 import { isApiConfigured } from "../services/apiClient";
+import { loginOtpDisabled } from "../utils/authConfig";
 
 interface LoginPageProps {
   onSwitchToRegister: () => void;
@@ -15,6 +16,10 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
   const { login, sessionMessage, refreshCurrentUser } = useAuth();
   const frontendDemo = import.meta.env.DEV && !isApiConfigured();
+  // Local-development switch, mirrors Auth:RequireLoginEmailVerification on the
+  // API. When the API skips the emailed code there is nothing to type in, so the
+  // whole block is hidden instead of asking for a code that is never checked.
+  const otpRequired = !loginOtpDisabled();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
@@ -80,7 +85,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
     // that a password is "too short" leaks what the stored password looks like.
     const emailError = v.email(email);
     const passwordEmpty = password === "" ? "Vui lòng nhập mật khẩu." : null;
-    const codeError = v.otpCode(verificationCode);
+    const codeError = otpRequired ? v.otpCode(verificationCode) : null;
     setEmailError(emailError ?? "");
     setPasswordError(passwordEmpty ?? "");
     setVerificationError(codeError ?? "");
@@ -167,7 +172,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
           autoComplete="current-password"
           disabled={isLoading}
         />
-          <div className="scms-email-verification">
+          {otpRequired && <div className="scms-email-verification">
             <div className="scms-verification-heading">
               <span><ShieldCheck size={17} /> Xác nhận email</span>
               <button type="button" className="scms-send-code-btn" onClick={sendVerificationCode} disabled={isLoading || countdown > 0}>
@@ -193,7 +198,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
               required
               disabled={isLoading || countdown <= 0}
             />
-          </div>
+          </div>}
         <div className="scms-form-row-between">
           <label className="scms-checkbox-label">
             <input

@@ -215,7 +215,16 @@ export function MyTeachingSchedulePage() {
             aria-label="Lọc trạng thái buổi học"
             value={statusFilter}
             onChange={(event) => {
-              setStatusFilter(event.target.value);
+              const nextStatus = event.target.value;
+              setStatusFilter(nextStatus);
+              // Completed sessions lie in the past; the default window is the coming week.
+              if (nextStatus === "COMPLETED") {
+                setFromDate(getVietnamDate(-30));
+                setToDate(getVietnamDate(0));
+              } else if (nextStatus === "SCHEDULED") {
+                setFromDate(getVietnamDate(0));
+                setToDate(getVietnamDate(7));
+              }
               setPage(1);
             }}
           >

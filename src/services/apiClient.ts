@@ -37,6 +37,10 @@ const SESSION_ENDING_401_CODES: ReadonlySet<string> = new Set([
   "TOKEN_REVOKED",
   "TOKEN_EXPIRED",
   "INVALID_TOKEN_CLAIMS",
+  // The token is well formed but the account behind it is gone (deleted, or
+  // the database was reseeded). Keeping the session alive leaves every screen
+  // showing "the authenticated account no longer exists" with no way out.
+  "ACCOUNT_NOT_FOUND",
 ]);
 
 const endsSession = (code: string | undefined): boolean =>

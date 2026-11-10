@@ -1,4 +1,5 @@
 import type {
+  InvoiceSummary,
   MembershipActor,
   MembershipInvoice,
   MembershipDuration,
@@ -9,6 +10,15 @@ import type {
   PaymentMethod,
 } from "../types/membership";
 import { apiRequest } from "./apiClient";
+
+const emptyInvoiceSummary = (): InvoiceSummary => ({
+  paidCount: 0,
+  paidAmount: 0,
+  pendingCount: 0,
+  pendingAmount: 0,
+  canceledCount: 0,
+  canceledAmount: 0,
+});
 
 interface PackageDto {
   id: number;
@@ -431,12 +441,15 @@ export const membershipApi = {
     paymentMethod?: string;
     page?: number;
     pageSize?: number;
+    fromDate?: string;
+    toDate?: string;
   }): Promise<{
     items: MembershipInvoice[];
     page: number;
     pageSize: number;
     totalItems: number;
     totalPages: number;
+    summary: InvoiceSummary;
   }> {
     const query = new URLSearchParams();
     if (params?.memberId) query.set("memberId", params.memberId);
@@ -445,6 +458,8 @@ export const membershipApi = {
     if (params?.paymentMethod && params.paymentMethod !== "ALL") {
       query.set("paymentMethod", params.paymentMethod);
     }
+    if (params?.fromDate) query.set("fromDate", params.fromDate);
+    if (params?.toDate) query.set("toDate", params.toDate);
     query.set("page", String(params?.page ?? 1));
     query.set("pageSize", String(params?.pageSize ?? 20));
     const result = await apiRequest<{
@@ -453,6 +468,7 @@ export const membershipApi = {
       pageSize: number;
       totalItems: number;
       totalPages: number;
+      summary?: InvoiceSummary;
     }>(`/MembershipInvoice/search?${query.toString()}`);
     return {
       items: result.items.map((dto) => ({
@@ -484,6 +500,7 @@ export const membershipApi = {
       pageSize: result.pageSize,
       totalItems: result.totalItems,
       totalPages: result.totalPages,
+      summary: result.summary ?? emptyInvoiceSummary(),
     };
   },
 };
