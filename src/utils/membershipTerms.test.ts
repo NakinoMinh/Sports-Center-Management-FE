@@ -12,6 +12,7 @@ describe("canAcceptTerms", () => {
 
 describe("hasReachedTermsEnd", () => {
   it("treats a fully visible document as already read to the end", () => {
+    expect(hasReachedTermsEnd({ scrollTop: 0, clientHeight: 0, scrollHeight: 0 })).toBe(false);
     expect(hasReachedTermsEnd({ scrollTop: 0, clientHeight: 500, scrollHeight: 500 })).toBe(true);
     expect(hasReachedTermsEnd({ scrollTop: 0, clientHeight: 300, scrollHeight: 500 })).toBe(false);
     expect(hasReachedTermsEnd({ scrollTop: 192, clientHeight: 300, scrollHeight: 500 })).toBe(true);

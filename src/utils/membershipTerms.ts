@@ -14,4 +14,6 @@ export const hasReachedTermsEnd = ({
   clientHeight,
   scrollHeight,
 }: Pick<HTMLElement, "scrollTop" | "clientHeight" | "scrollHeight">): boolean =>
+  clientHeight > 0 &&
+  scrollHeight > 0 &&
   scrollTop + clientHeight >= scrollHeight - 8;

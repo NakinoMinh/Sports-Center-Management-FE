@@ -22,6 +22,7 @@ export function MembershipTermsDialog({ terms, busy, error, onAccept, onClose }:
     setScrolled(false);
     setChecks({});
     updateReadState();
+    const frame = window.requestAnimationFrame(updateReadState);
     const observer = typeof ResizeObserver === "undefined"
       ? null
       : new ResizeObserver(updateReadState);
@@ -29,6 +30,7 @@ export function MembershipTermsDialog({ terms, busy, error, onAccept, onClose }:
     window.addEventListener("resize", updateReadState);
     return () => {
       observer?.disconnect();
+      window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", updateReadState);
     };
   }, [terms.version, terms.contentHash, updateReadState]);
