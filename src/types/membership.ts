@@ -4,7 +4,7 @@ export type MembershipActor = Omit<User, "passwordHash">;
 export type MembershipDuration = 1 | 3 | 6 | 12 | 24;
 export type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CARD";
 export type MembershipOrderKind =
-  "REGISTER" | "RENEW" | "UPGRADE" | "DOWNGRADE";
+  "REGISTER" | "RENEW" | "UPGRADE" | "DOWNGRADE" | "CHANGE";
 export type SubscriptionDisplayStatus =
   | "ACTIVE"
   | "SUSPENDED"
@@ -51,10 +51,36 @@ export interface MembershipQuote extends MembershipOrderInput {
   packagePrice: number;
   previousSubscriptionId?: string;
   previousPackagePrice?: number;
-  /** Prorated unused value, rounded once to whole VND. Absent on legacy invoices. */
-  creditAmount?: number;
-  remainingDays?: number;
-  previousPeriodDays?: number;
+}
+
+export interface MembershipTermsSection {
+  id: string;
+  title: string;
+  body: string;
+}
+
+export interface MembershipTermsAcknowledgement {
+  id: string;
+  label: string;
+}
+
+export interface CurrentMembershipTerms {
+  version: string;
+  title: string;
+  effectiveFrom: string;
+  contentHash: string;
+  sections: MembershipTermsSection[];
+  requiredAcknowledgements: MembershipTermsAcknowledgement[];
+  accepted: boolean;
+  acceptedAtUtc?: string;
+}
+
+export interface MemberTermsStatus {
+  memberId: string;
+  currentVersion: string;
+  accepted: boolean;
+  acceptedVersion?: string;
+  acceptedAtUtc?: string;
 }
 
 /** PENDING_PAYMENT does not grant access. CONFIRMED is paid; dates determine ACTIVE/scheduled/expired. */

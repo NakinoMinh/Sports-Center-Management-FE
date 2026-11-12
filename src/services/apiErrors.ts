@@ -82,6 +82,12 @@ const MESSAGES: Record<string, string> = {
   // --- Membership & Sprint 3 Counter / Invoice / Reports (UC33–UC39) ---
   MEMBER_HAS_MEMBERSHIP_HISTORY:
     "Thành viên này đã có lịch sử đăng ký gói nên không thể xóa. Hãy ngừng hoạt động tài khoản thay vì xóa.",
+  TERMS_ACCEPTANCE_REQUIRED:
+    "Học viên phải tự đăng nhập, đọc kỹ và chấp nhận toàn bộ điều khoản hiện hành trước khi đăng ký gói.",
+  TERMS_VERSION_MISMATCH:
+    "Điều khoản vừa được cập nhật. Vui lòng tải lại, đọc phiên bản mới nhất và xác nhận lại.",
+  CONFIRMED_SUBSCRIPTION_CANNOT_BE_CANCELED:
+    "Gói đã thanh toán và xác nhận không thể hủy. Việc gia hạn, nâng hoặc hạ gói chỉ áp dụng cho kỳ tiếp theo.",
   DUPLICATE_EMAIL:
     "Email này đã được đăng ký cho tài khoản khác. Vui lòng kiểm tra lại hoặc dùng chức năng gia hạn cho hội viên đã có.",
   DUPLICATE_PHONE:

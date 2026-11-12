@@ -95,27 +95,56 @@ export const orderKindLabels: Record<MembershipOrderKind, string> = {
   RENEW: "Gia hạn",
   UPGRADE: "Nâng gói",
   DOWNGRADE: "Hạ gói theo lịch",
+  CHANGE: "Đổi gói theo lịch",
 };
 
 /** Resolve the action from entitlements, never from the button or a caller-provided kind. */
 export function resolveOrderKind(
   subscriptions: MemberSubscription[],
   pkg: MembershipPackage,
+  today = todayDate(),
 ): MembershipOrderKind {
   const confirmed = subscriptions.filter(
     (s) => s.status === "CONFIRMED" && !s.replacedOn,
   );
-  const active = confirmed.find((s) => getSubscriptionStatus(s) === "ACTIVE");
-  const future = [...confirmed]
-    .filter((s) => s.endDate >= todayDate())
-    .sort((a, b) => b.endDate.localeCompare(a.endDate))[0];
-  const reference = active ?? future;
-  if (!reference) return confirmed.length ? "RENEW" : "REGISTER";
-  if (reference.packageId === pkg.id || reference.packagePrice === pkg.price)
-    return "RENEW";
+  const reference = [...confirmed].sort((a, b) => b.endDate.localeCompare(a.endDate))[0];
+  if (!reference) return "REGISTER";
+  const samePackage = reference.packageId === pkg.id;
+  if (reference.endDate < today) return samePackage ? "RENEW" : "REGISTER";
+  if (samePackage) return "RENEW";
   if (pkg.price < reference.packagePrice) return "DOWNGRADE";
-  // Preserve already-paid future periods; the new package follows them in full.
-  return active && !confirmed.some((s) => s.startDate > todayDate())
-    ? "UPGRADE"
-    : "RENEW";
+  if (pkg.price > reference.packagePrice) return "UPGRADE";
+  return "CHANGE";
+}
+
+export function buildMembershipQuote(
+  member: import("../types/membership").MembershipActor,
+  subscriptions: MemberSubscription[],
+  pkg: MembershipPackage,
+  paymentMethod: import("../types/membership").PaymentMethod,
+  today = todayDate(),
+): import("../types/membership").MembershipQuote {
+  const latest = subscriptions
+    .filter((item) => item.status === "CONFIRMED" && !item.replacedOn)
+    .sort((a, b) => b.endDate.localeCompare(a.endDate))[0];
+  const startDate = latest && latest.endDate >= today
+    ? addDateDays(latest.endDate, 1)
+    : today;
+  return {
+    memberId: member.id,
+    memberName: member.fullName,
+    memberEmail: member.email,
+    packageId: pkg.id,
+    packageName: pkg.name,
+    packagePrice: pkg.price,
+    durationMonths: pkg.durationMonths,
+    benefits: pkg.benefits,
+    paymentMethod,
+    kind: resolveOrderKind(subscriptions, pkg, today),
+    amount: pkg.price,
+    startDate,
+    endDate: addDateDays(addMonthsClamped(startDate, pkg.durationMonths), -1),
+    previousSubscriptionId: latest?.id,
+    previousPackagePrice: latest?.packagePrice,
+  };
 }
