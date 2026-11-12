@@ -42,6 +42,17 @@ export interface CoachOption {
   specializations: string[];
 }
 
+/** Hồ sơ công khai tối thiểu của HLV; tuyệt đối không chứa thông tin liên hệ. */
+export interface CoachPublicProfile {
+  accountId: string;
+  fullName: string;
+  workSchedule: string;
+  disciplines: Array<{
+    disciplineId: string;
+    disciplineName: string;
+  }>;
+}
+
 /**
  * Trạng thái lớp.
  * - `DRAFT`: đang soạn, chưa cho đặt chỗ.
