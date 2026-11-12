@@ -4739,3 +4739,6 @@ textarea {
 .homework-history-heading h3 { margin: 0; font-size: 1rem; color: #203a2d; }
 .homework-history-card > p { margin: 0.8rem 0; color: #4d6256; line-height: 1.65; white-space: pre-line; }
 .homework-history-context { display: flex; flex-wrap: wrap; gap: 0.45rem 1rem; color: #687b70; font-size: 0.8rem; }
+.member-homework-groups { display: grid; gap: 1.4rem; }
+.member-homework-group { display: grid; gap: 0.75rem; }
+.member-homework-group > h3 { margin: 0; color: #50645a; font-size: 0.86rem; letter-spacing: 0.02em; }
