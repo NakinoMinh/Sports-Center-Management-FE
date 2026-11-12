@@ -17,15 +17,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog } from "../../components/common/Dialog";
-import {
-  addDateDays,
-  addMonthsClamped,
-  getSubscriptionStatus,
-  parseDate,
-  resolveOrderKind,
-  orderKindLabels,
-  todayDate,
-} from "../../services/membershipService";
+import { buildMembershipQuote, getSubscriptionStatus, resolveOrderKind, orderKindLabels } from "../../services/membershipService";
 import {
   membershipApi,
   subscriptionFromInvoice,
@@ -42,6 +34,11 @@ import type {
 import { durationLabel, formatDate, formatMoney } from "../../utils/format";
 import { InvoiceDocument } from "../../components/membership/InvoiceDocument";
 import { CounterRegistrationForm } from "../../components/membership/CounterRegistrationForm";
+import { MembershipTermsDialog } from "../../components/membership/MembershipTermsDialog";
+import { MemberTermsStatus } from "../../components/membership/MemberTermsStatus";
+import { membershipTermsApi } from "../../services/membershipTermsApi";
+import { describeError } from "../../services/apiErrors";
+import type { CurrentMembershipTerms, MemberTermsStatus as TermsStatus } from "../../types/membership";
 
 const paymentLabels: Record<PaymentMethod, string> = {
   CASH: "Tiền mặt tại quầy",
@@ -89,6 +86,12 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
   const [invoice, setInvoice] = useState<MembershipInvoice | null>(null);
   const [registering, setRegistering] = useState(false);
   const [canceling, setCanceling] = useState(false);
+  const [terms, setTerms] = useState<CurrentMembershipTerms | null>(null);
+  const [counterTermsStatus, setCounterTermsStatus] = useState<TermsStatus | null>(null);
+  const [termsBusy, setTermsBusy] = useState(false);
+  const [termsError, setTermsError] = useState("");
+  const [showTerms, setShowTerms] = useState(false);
+  const [intendedPackage, setIntendedPackage] = useState<MembershipPackage | null>(null);
   const isCounter = mode === "receptionist";
   const memberId = isCounter ? selectedMember : (currentUser?.id ?? "");
 
@@ -105,6 +108,11 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
         ? await membershipApi.listInvoices({ memberId })
         : [];
       const memberSubs = memberInvoices.map(subscriptionFromInvoice);
+      if (isCounter) {
+        setCounterTermsStatus(memberId ? await membershipTermsApi.getMemberStatus(memberId) : null);
+      } else {
+        setTerms(await membershipTermsApi.getCurrent());
+      }
       setSnapshot({
         packages: publicPackages,
         members: membersList,
@@ -128,6 +136,19 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
       setLoading(false);
     }
   }, [currentUser, isCounter, memberId, submittedEmailSearch]);
+
+  const refreshCounterTerms = useCallback(async () => {
+    if (!memberId || !isCounter) return;
+    setTermsBusy(true);
+    try {
+      setCounterTermsStatus(await membershipTermsApi.getMemberStatus(memberId));
+      setTermsError("");
+    } catch (err) {
+      setTermsError(describeError(err));
+    } finally {
+      setTermsBusy(false);
+    }
+  }, [isCounter, memberId]);
 
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect
@@ -167,86 +188,32 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
   const kind = confirmed.length ? "RENEW" : "REGISTER";
   const member = snapshot.members.find((item) => item.id === memberId);
 
-  function selectPackage(pkg: MembershipPackage) {
+  function openQuote(pkg: MembershipPackage) {
     if (!currentUser) return;
     setError("");
     setNotice("");
     setQuoteError("");
     try {
       const target = member ?? currentUser;
-      const confirmedSubs = snapshot.subscriptions.filter(
-        (sub) => sub.status === "CONFIRMED" && !sub.replacedOn,
-      );
-      const today = todayDate();
-      const latestEnd = confirmedSubs.reduce(
-        (latest, item) => (item.endDate > latest ? item.endDate : latest),
-        "",
-      );
-      const orderKind = resolveOrderKind(snapshot.subscriptions, pkg);
-      const startDate =
-        orderKind !== "UPGRADE" && latestEnd >= today
-          ? addDateDays(latestEnd, 1)
-          : today;
-      const endDate = addDateDays(
-        addMonthsClamped(startDate, pkg.durationMonths),
-        -1,
-      );
-
-      let amount = pkg.price;
-      let previousSubscriptionId: string | undefined;
-      let previousPackagePrice: number | undefined;
-      let previousPeriodDays: number | undefined;
-      let remainingDays: number | undefined;
-      let creditAmount: number | undefined;
-
-      if (orderKind === "UPGRADE" && current) {
-        previousSubscriptionId = current.id;
-        previousPackagePrice = current.packagePrice;
-        previousPeriodDays = Math.max(
-          1,
-          Math.round(
-            (parseDate(current.endDate).getTime() -
-              parseDate(current.startDate).getTime()) /
-              86400000,
-          ) + 1,
-        );
-        remainingDays = Math.max(
-          0,
-          Math.round(
-            (parseDate(current.endDate).getTime() - parseDate(today).getTime()) /
-              86400000,
-          ) + 1,
-        );
-        creditAmount = Math.round(
-          (current.packagePrice * remainingDays) / previousPeriodDays,
-        );
-        amount = Math.max(0, pkg.price - creditAmount);
-      }
-
-      setQuote({
-        memberId: target.id,
-        memberName: target.fullName,
-        memberEmail: target.email,
-        packageId: pkg.id,
-        packageName: pkg.name,
-        packagePrice: pkg.price,
-        durationMonths: pkg.durationMonths,
-        benefits: pkg.benefits,
-        amount,
-        startDate,
-        endDate,
-        kind: orderKind,
-        paymentMethod: "CASH",
-        previousSubscriptionId,
-        previousPackagePrice,
-        previousPeriodDays,
-        remainingDays,
-        creditAmount,
-      });
+      setQuote(buildMembershipQuote(target, snapshot.subscriptions, pkg, "CASH"));
     } catch (err) {
       refresh();
       setError(err instanceof Error ? err.message : "Không thể lập đăng ký.");
     }
+  }
+
+  function selectPackage(pkg: MembershipPackage) {
+    if (isCounter && !counterTermsStatus?.accepted) {
+      setError("Học viên chưa tự chấp nhận điều khoản hiện hành. Không thể tạo đơn gói tại quầy.");
+      return;
+    }
+    if (!isCounter && !terms?.accepted) {
+      setIntendedPackage(pkg);
+      setTermsError("");
+      setShowTerms(true);
+      return;
+    }
+    openQuote(pkg);
   }
 
   async function confirmOrder() {
@@ -399,12 +366,14 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
             </select>
           </label>
           {member && (
-            <div className="selected-member">
-              <CheckCircle2 size={18} />
-              <span>
-                Đang hỗ trợ <strong>{member.fullName}</strong> · {member.email}
-              </span>
-            </div>
+            <>
+              <div className="selected-member">
+                <CheckCircle2 size={18} />
+                <span>Đang hỗ trợ <strong>{member.fullName}</strong> · {member.email}</span>
+              </div>
+              <MemberTermsStatus status={counterTermsStatus} busy={termsBusy} onRefresh={refreshCounterTerms} />
+              {termsError && <p className="form-error" role="alert">{termsError}</p>}
+            </>
           )}
         </section>
       )}
@@ -539,11 +508,9 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
             <>
               <div className="info-note">
                 <p>
-                  Cùng gói hoặc cùng giá: gia hạn nối tiếp. Chọn gói giá cao
-                  hơn: trừ giá trị ngày còn lại và bắt đầu đủ kỳ hạn mới khi
-                  thanh toán. Gói giá thấp hơn bắt đầu sau kỳ đã trả tiền. Nếu
-                  đã trả trước các kỳ tương lai, gói mới sẽ nối tiếp sau toàn bộ
-                  các kỳ đó, thanh toán đủ giá để bảo toàn thời gian đã mua.
+                  Mọi gia hạn, nâng gói, hạ gói hoặc đổi gói đều được tính nguyên
+                  giá và bắt đầu sau ngày kết thúc kỳ đã thanh toán gần nhất.
+                  Gói hiện tại không thay đổi và không thể hủy sau khi thanh toán.
                 </p>
               </div>
               <div className="section-heading">
@@ -606,7 +573,8 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
                           isCurrentSuspended ||
                           !!upcomingSub ||
                           !memberId ||
-                          !!error
+                          !!error ||
+                          (isCounter && !counterTermsStatus?.accepted)
                         }
                         onClick={() => selectPackage(pkg)}
                       >
@@ -745,6 +713,29 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
           )}
         </>
       )}
+      {showTerms && terms && (
+        <MembershipTermsDialog
+          terms={terms}
+          busy={termsBusy}
+          error={termsError}
+          onClose={() => { setShowTerms(false); setIntendedPackage(null); setTermsError(""); }}
+          onAccept={async (version, contentHash) => {
+            setTermsBusy(true); setTermsError("");
+            try {
+              await membershipTermsApi.accept(version, contentHash);
+              const currentTerms = await membershipTermsApi.getCurrent();
+              setTerms(currentTerms);
+              setShowTerms(false);
+              const selected = intendedPackage;
+              setIntendedPackage(null);
+              if (selected) openQuote(selected);
+            } catch (err) {
+              setTermsError(describeError(err));
+              try { setTerms(await membershipTermsApi.getCurrent()); } catch { /* keep the actionable error */ }
+            } finally { setTermsBusy(false); }
+          }}
+        />
+      )}
       {quote && (
         <Dialog
           title={`Xác nhận: ${orderKindLabels[quote.kind]}`}
@@ -821,31 +812,13 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
               ))}
             </select>
           </label>
-          {quote.kind === "UPGRADE" && (
-            <div className="info-note">
-              <p>
-                Giá trị còn lại = {formatMoney(quote.previousPackagePrice ?? 0)}{" "}
-                × {quote.remainingDays}/{quote.previousPeriodDays} ngày ={" "}
-                {formatMoney(quote.creditAmount ?? 0)} (làm tròn đến đồng).
-                <br />
-                Cần trả = {formatMoney(quote.packagePrice)} −{" "}
-                {formatMoney(quote.creditAmount ?? 0)} ={" "}
-                <strong>{formatMoney(quote.amount)}</strong>. Gói mới có đủ{" "}
-                {quote.durationMonths} tháng từ ngày thanh toán. Báo giá chỉ có
-                hiệu lực trong ngày; sang ngày khác cần hủy và lập lại.
-              </p>
-            </div>
-          )}
-          {quote.kind === "DOWNGRADE" && (
-            <div className="info-note">
-              <p>
-                Giữ quyền lợi gói đã thanh toán đến hết kỳ. Gói giá thấp hơn chỉ
-                bắt đầu từ {formatDate(quote.startDate)}, sau khi đã xác nhận
-                thanh toán. Nếu có các kỳ trả trước, lịch hạ nằm sau toàn bộ các
-                kỳ đó.
-              </p>
-            </div>
-          )}
+          <div className="info-note">
+            <p>
+              Gói này được tính nguyên giá <strong>{formatMoney(quote.packagePrice)}</strong>
+              {" "}và bắt đầu theo lịch từ <strong>{formatDate(quote.startDate)}</strong>.
+              Gói hiện tại không thay đổi; không nâng, hạ hoặc đổi gói giữa kỳ.
+            </p>
+          </div>
           <div className="info-note">
             <Clock3 size={18} />
             <p>
@@ -947,16 +920,13 @@ export function MembershipPage({ mode }: { mode: "member" | "receptionist" }) {
       )}
       {registering && currentUser && (
         <CounterRegistrationForm
-          actor={currentUser}
-          packages={snapshot.packages}
           onClose={() => setRegistering(false)}
-          onCreated={(newMember, order) => {
+          onCreated={(newMember, emailDelivery) => {
             setRegistering(false);
             setSelectedMember(newMember.id);
-            setInvoice(order.invoice);
             void refresh();
             setNotice(
-              `Đã tạo thành viên ${newMember.fullName} và yêu cầu gói (${order.invoice.number}). Vui lòng xác nhận thu tiền mặt để kích hoạt.`,
+              `Đã tạo tài khoản cho ${newMember.fullName}${emailDelivery === "SENT" ? " và gửi thông tin đăng nhập qua email" : ""}. Học viên phải tự đăng nhập và chấp nhận điều khoản trước khi đăng ký gói.`,
             );
           }}
         />

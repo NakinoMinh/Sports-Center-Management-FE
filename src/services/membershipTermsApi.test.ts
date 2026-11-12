@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "./apiClient";
 import { membershipTermsApi } from "./membershipTermsApi";
 
 const storage = (): Storage => ({
@@ -51,7 +50,7 @@ describe("membershipTermsApi", () => {
       error: { code: "TERMS_VERSION_MISMATCH", message: "Reload" }, traceId: "trace-1",
     }, 409)));
 
-    await expect(membershipTermsApi.accept("old", "b".repeat(64))).rejects.toMatchObject<ApiError>({
+    await expect(membershipTermsApi.accept("old", "b".repeat(64))).rejects.toMatchObject({
       status: 409, code: "TERMS_VERSION_MISMATCH",
     });
   });
