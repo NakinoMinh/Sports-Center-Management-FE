@@ -4,6 +4,15 @@ Frontend cho hệ thống quản lý trung tâm thể thao, xây dựng bằng R
 
 Repository: [NakinoMinh/Sports-Center-Management-FE](https://github.com/NakinoMinh/Sports-Center-Management-FE)
 
+## Luồng đăng ký gói hiện hành
+
+- Quầy lễ tân chỉ tạo tài khoản học viên. Học viên phải tự đăng nhập, cuộn đọc hết điều khoản và đánh dấu đủ các xác nhận bắt buộc; nhân viên không thể đồng ý thay.
+- Khi hỗ trợ tại quầy, giao diện chỉ cho lập đơn nếu API xác nhận học viên đã chấp nhận đúng phiên bản điều khoản hiện hành.
+- Gói đã thanh toán không thể hủy hay thay đổi giữa kỳ. Gia hạn, nâng, hạ hoặc đổi gói được đặt trước cho kỳ kế tiếp, tính nguyên giá và hiển thị chính xác ngày bắt đầu dự kiến.
+- Hóa đơn chưa thanh toán vẫn có thể hủy. UI luôn tải lại trạng thái từ backend; LocalStorage không quyết định quyền mua hoặc quyền tập.
+
+Các mã lỗi cần hiển thị trực tiếp gồm `TERMS_ACCEPTANCE_REQUIRED`, `TERMS_VERSION_MISMATCH` và `CONFIRMED_SUBSCRIPTION_CANNOT_BE_CANCELED`.
+
 ## Tài liệu định hướng phát triển
 
 - [PRODUCT.md](PRODUCT.md): yêu cầu toàn dự án, bốn actor, sáu flow, ma trận đối chiếu code FE/BE và phần còn thiếu.
@@ -79,9 +88,7 @@ main.tsx → App.tsx → AuthProvider → ToastProvider
 - **Ràng buộc Gói tập khi Check-in và Bảo lưu:**
   - Chặn check-in khi gói tập đang trong trạng thái bảo lưu (`MEMBERSHIP_SUSPENDED`), chưa tới ngày bắt đầu hoặc đã hết hạn.
   - Khi tạm ngưng gói tập (`SUSPEND`), tự động hủy các lượt đặt lịch lớp học sắp tới của hội viên và hoàn lại chỗ trống (`BookedCount`) cho lớp.
-- **Chuẩn hóa Nghiệp vụ Nâng cấp (`UPGRADE`) & Hạ cấp (`DOWNGRADE`) Gói tập:**
-  - **Nâng cấp (`UPGRADE`):** Tính toán tự động phần tiền dư chưa sử dụng của gói hiện tại theo số ngày còn lại (`Prorated Credit`), khấu trừ trực tiếp vào số tiền thanh toán trên hóa đơn, kích hoạt gói mới ngay trong ngày và đóng gói cũ ở ngày liền trước. Hiển thị bảng khấu trừ chi tiết trên phiếu báo giá (`MembershipPage.tsx`) và biên lai (`InvoiceDocument.tsx`).
-  - **Hạ cấp (`DOWNGRADE`):** Giữ nguyên quyền lợi gói hiện tại cho đến hết hạn và tự động nối tiếp gói mới từ ngày kế tiếp (`EndDate + 1`).
+- **Chuẩn hóa Gia hạn / Nâng / Hạ / Đổi Gói:** Mọi thay đổi đều giữ nguyên gói hiện tại, tính nguyên giá gói mới và bắt đầu từ `EndDate + 1` của kỳ đã thanh toán gần nhất. Không có khấu trừ theo ngày, kích hoạt giữa kỳ hoặc hủy gói đã xác nhận.
 - **Bảo vệ toàn vẹn dữ liệu Tài khoản, Lớp học & Lịch tập:**
   - Chặn vô hiệu hóa tài khoản HLV khi vẫn còn lịch dạy `SCHEDULED` trong tương lai (`COACH_HAS_UPCOMING_SESSIONS`).
   - Khi khóa hoặc xóa mềm Hội viên, tự động giải phóng chỗ các buổi học sắp tới và hủy toàn bộ hóa đơn/đơn đăng ký gói tập `PENDING_PAYMENT` đang chờ thu tiền.
