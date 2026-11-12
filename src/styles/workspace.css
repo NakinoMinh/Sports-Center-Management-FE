@@ -4730,3 +4730,12 @@ textarea {
 .coach-discipline-list { display: flex; flex-wrap: wrap; gap: 0.55rem; margin: 0; padding: 0; list-style: none; }
 .coach-discipline-list li { padding: 0.42rem 0.7rem; border-radius: 999px; background: #eaf5ef; color: #165844; font-weight: 650; }
 .coach-profile-state { margin: 0; }
+
+.coach-homework-history { margin-top: 1.5rem; }
+.homework-history-list { display: grid; gap: 0.9rem; }
+.homework-history-card { padding: 1rem 1.1rem; border: 1px solid #dbe8e0; border-radius: 0.9rem; background: #fbfdfb; }
+.homework-history-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.homework-history-heading time { display: block; margin-bottom: 0.25rem; color: #718178; font-size: 0.78rem; font-weight: 650; }
+.homework-history-heading h3 { margin: 0; font-size: 1rem; color: #203a2d; }
+.homework-history-card > p { margin: 0.8rem 0; color: #4d6256; line-height: 1.65; white-space: pre-line; }
+.homework-history-context { display: flex; flex-wrap: wrap; gap: 0.45rem 1rem; color: #687b70; font-size: 0.8rem; }
