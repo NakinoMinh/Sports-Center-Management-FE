@@ -33,7 +33,7 @@ export function RevenueReportResults({ report }: { report: RevenueReport }) {
       <div className="panel-heading">
         <div>
           <h2 id="revenue-details-title">Doanh thu theo {report.groupBy === "MONTH" ? "tháng" : "ngày"}</h2>
-          <p>Chỉ tính hóa đơn tiền mặt đã thanh toán; số tiền đã bao gồm khấu trừ khi nâng gói.</p>
+          <p>Chỉ tính hóa đơn tiền mặt đã thanh toán; gia hạn, nâng, hạ hoặc đổi gói đều ghi nhận nguyên giá đã thu.</p>
         </div>
       </div>
       {report.paidInvoiceCount === 0 && <p className="report-empty">Chưa có hóa đơn tiền mặt đã thanh toán trong kỳ này.</p>}

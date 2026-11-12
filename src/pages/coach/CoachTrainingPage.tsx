@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { Dialog } from "../../components/common/Dialog";
+import { useAuth } from "../../hooks/useAuth";
 import { describeError } from "../../services/apiErrors";
 import {
   homeworkApi,
@@ -55,6 +56,8 @@ const formatAssignedAt = (value: string): string =>
   }).format(new Date(value));
 
 export function CoachTrainingPage() {
+  const { currentUser } = useAuth();
+  const canUseHomework = currentUser?.role === "COACH";
   const [tab, setTab] = useState<TabId>("students");
   const [workspace, setWorkspace] = useState<CoachWorkspaceDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,6 +65,8 @@ export function CoachTrainingPage() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [homeworkHistory, setHomeworkHistory] = useState<HomeworkAssignmentDto[]>([]);
+  const [homeworkLoading, setHomeworkLoading] = useState(false);
+  const [homeworkError, setHomeworkError] = useState("");
 
   // Dialog states
   const [editingStudent, setEditingStudent] = useState<CoachStudentProfileDto | null>(null);
@@ -127,12 +132,8 @@ export function CoachTrainingPage() {
     setLoading(true);
     setError("");
     try {
-      const [data, assignedHomework] = await Promise.all([
-        trainingOperationsApi.getCoachWorkspace(),
-        homeworkApi.getCoachHistory(),
-      ]);
+      const data = await trainingOperationsApi.getCoachWorkspace();
       setWorkspace(data);
-      setHomeworkHistory(assignedHomework);
       if (data.students.length > 0) {
         setPlanForm((prev) => ({
           ...prev,
@@ -170,9 +171,27 @@ export function CoachTrainingPage() {
     }
   }, []);
 
+  const loadHomeworkHistory = useCallback(async () => {
+    if (!canUseHomework) {
+      setHomeworkHistory([]);
+      setHomeworkError("");
+      return;
+    }
+    setHomeworkLoading(true);
+    setHomeworkError("");
+    try {
+      setHomeworkHistory(await homeworkApi.getCoachHistory());
+    } catch (err) {
+      setHomeworkError(describeError(err));
+    } finally {
+      setHomeworkLoading(false);
+    }
+  }, [canUseHomework]);
+
   useEffect(() => {
     void loadWorkspace();
-  }, [loadWorkspace]);
+    void loadHomeworkHistory();
+  }, [loadHomeworkHistory, loadWorkspace]);
 
   function openStudentGoalModal(student: CoachStudentProfileDto) {
     setEditingStudent(student);
@@ -334,18 +353,21 @@ export function CoachTrainingPage() {
           </p>
         </div>
         <div className="header-actions-group">
-          <button
+          {canUseHomework && <button
             type="button"
             className="button primary"
             onClick={() => setHomeworkModalOpen(true)}
           >
             <Bell size={16} /> Giao bài tập về nhà
-          </button>
+          </button>}
           <button
             type="button"
             className="button secondary"
-            onClick={() => void loadWorkspace()}
-            disabled={loading}
+            onClick={() => {
+              void loadWorkspace();
+              void loadHomeworkHistory();
+            }}
+            disabled={loading || homeworkLoading}
           >
             <RefreshCw size={16} /> Làm mới
           </button>
@@ -355,6 +377,14 @@ export function CoachTrainingPage() {
       {error && (
         <div className="error-notice" role="alert">
           <span>{error}</span>
+        </div>
+      )}
+      {homeworkError && (
+        <div className="error-notice" role="alert">
+          <span>Không tải được lịch sử bài tập: {homeworkError}</span>
+          <button type="button" className="button secondary" onClick={() => void loadHomeworkHistory()}>
+            Thử lại
+          </button>
         </div>
       )}
       {notice && (
@@ -1153,7 +1183,7 @@ export function CoachTrainingPage() {
         </>
       )}
 
-      <section className="panel coach-homework-history">
+      {canUseHomework && <section className="panel coach-homework-history">
         <div className="panel-heading">
           <div>
             <h2>Lịch sử bài tập đã giao</h2>
@@ -1161,7 +1191,9 @@ export function CoachTrainingPage() {
           </div>
           <span className="count-badge">{homeworkHistory.length} lượt giao</span>
         </div>
-        {homeworkHistory.length === 0 ? (
+        {homeworkLoading ? (
+          <div className="empty-state" role="status">Đang tải lịch sử bài tập...</div>
+        ) : homeworkHistory.length === 0 ? (
           <div className="empty-state">
             <BookOpen size={32} />
             <h3>Chưa giao bài tập về nhà</h3>
@@ -1190,7 +1222,7 @@ export function CoachTrainingPage() {
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
       {editingStudent && (
         <Dialog
@@ -1274,7 +1306,7 @@ export function CoachTrainingPage() {
         </Dialog>
       )}
 
-      {homeworkModalOpen && workspace && (
+      {canUseHomework && homeworkModalOpen && workspace && (
         <Dialog
           title="Giao bài tập về nhà"
           onClose={() => setHomeworkModalOpen(false)}
