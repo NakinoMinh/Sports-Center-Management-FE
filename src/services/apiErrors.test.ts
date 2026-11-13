@@ -58,6 +58,23 @@ describe("describeError", () => {
     ).toMatch(/Yêu cầu không hợp lệ/);
   });
 
+  it("explains why a room or sport cannot be deactivated", () => {
+    expect(describeError(new ApiError("Room has sessions.", 409, "ROOM_HAS_UPCOMING_SESSIONS")))
+      .toMatch(/buổi học sắp tới/);
+    expect(describeError(new ApiError("Sport has classes.", 409, "SPORT_HAS_ACTIVE_CLASSES")))
+      .toMatch(/lớp đang mở/);
+  });
+
+  it("prefers the server's Vietnamese envelope message over the generic 409", () => {
+    const message = "Không thể ngừng vì đang có 3 buổi học sắp tới.";
+    expect(describeError(new ApiError(message, 409, "SOME_NEW_RULE"))).toBe(message);
+  });
+
+  it("keeps the generic 409 when the envelope message is English", () => {
+    expect(describeError(new ApiError("Conflict.", 409, "SOME_NEW_RULE")))
+      .toMatch(/Dữ liệu bị trùng/);
+  });
+
   it("keeps an unmapped code visible so a bug report can quote it", () => {
     const message = describeError(
       new ApiError("Something odd happened.", 418, "TEAPOT_ON_FIRE"),

@@ -19,6 +19,31 @@ const MESSAGES: Record<string, string> = {
   DEMO_PAYMENT_NOT_CONFIGURED: "Chưa thể xử lý thanh toán. Vui lòng liên hệ trung tâm.",
   DEMO_PAYMENT_REJECTED: "Không thể thanh toán hóa đơn này. Hãy tải lại hóa đơn hoặc tạo yêu cầu mới.",
   VNPAY_NOT_CONFIGURED: "Thanh toán VNPAY chưa được trung tâm cấu hình. Hóa đơn vẫn đang chờ; vui lòng liên hệ trung tâm.",
+  BANK_TRANSFER_NOT_CONFIGURED:
+    "Trung tâm chưa cấu hình tài khoản nhận chuyển khoản. Hóa đơn vẫn đang chờ; vui lòng thanh toán tại quầy.",
+  INVOICE_ALREADY_PAID:
+    "Hóa đơn này đã được thanh toán. Hãy mở biên lai, không thu tiền thêm lần nữa.",
+  PAYMENT_AMOUNT_MISMATCH:
+    "Số tiền xác nhận không khớp với hóa đơn. Hãy tải lại hóa đơn và nhập đúng số tiền.",
+  PAYMENT_CONCURRENCY_CONFLICT:
+    "Hóa đơn vừa được xử lý ở nơi khác. Hãy tải lại hóa đơn và biên lai trước khi thao tác tiếp.",
+  INVALID_CASH_CONFIRMATION:
+    "Hãy tích xác nhận đã nhận tiền và nhập số tiền là số nguyên dương (VNĐ).",
+  CASH_ONLY:
+    "Phương thức thanh toán của hóa đơn không khớp với cách xác nhận này. Hãy tải lại hóa đơn.",
+  INVALID_INVOICE_STATE:
+    "Hóa đơn không còn ở trạng thái chờ chuyển khoản. Hãy tải lại hóa đơn.",
+  INVALID_SUBSCRIPTION_STATE:
+    "Đơn gói của hóa đơn này không còn chờ thanh toán. Hãy tải lại hóa đơn hoặc tạo yêu cầu mới.",
+  ORDER_KIND_NOT_SUPPORTED:
+    "Loại đơn này chưa hỗ trợ thanh toán trực tuyến. Vui lòng thanh toán tại quầy lễ tân.",
+  PACKAGE_CHANGED:
+    "Thông tin gói tập vừa thay đổi. Hãy tải lại danh sách gói và tạo đơn mới trước khi thanh toán.",
+  UPGRADE_QUOTE_EXPIRED:
+    "Báo giá nâng gói đã hết hạn. Hãy tạo lại đơn nâng gói để có báo giá mới.",
+  MEMBER_NOT_FOUND: "Không tìm thấy tài khoản thành viên. Hãy tải lại danh sách.",
+  INTERNAL_ERROR:
+    "Chưa hoàn tất được thao tác do lỗi máy chủ. Vui lòng thử lại sau ít phút.",
   // --- Authentication and session ---
   UNAUTHORIZED: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
   FORBIDDEN: "Tài khoản của bạn không có quyền thực hiện thao tác này.",
@@ -146,10 +171,14 @@ const MESSAGES: Record<string, string> = {
     "Tên bộ môn đã tồn tại. Hãy chọn tên khác dễ phân biệt hơn.",
   SPORT_INACTIVE:
     "Bộ môn này đã ngừng hoạt động nên không dùng để tạo lớp mới.",
+  SPORT_HAS_ACTIVE_CLASSES:
+    "Không thể ngừng bộ môn vì còn lớp đang mở hoặc buổi học sắp tới thuộc bộ môn này. Hãy đóng lớp hoặc hủy các buổi tương lai trước.",
 
   ROOM_NOT_FOUND: "Không tìm thấy phòng đã chọn. Hãy tải lại danh sách.",
   ROOM_NAME_DUPLICATE: "Tên phòng đã tồn tại. Vui lòng chọn tên phòng khác.",
   ROOM_INACTIVE: "Phòng này đã ngừng hoạt động nên không dùng cho lịch mới.",
+  ROOM_HAS_UPCOMING_SESSIONS:
+    "Không thể ngừng phòng vì còn buổi học sắp tới xếp tại phòng này. Hãy chuyển phòng hoặc hủy các buổi đó trước.",
   ROOM_CAPACITY_BELOW_SCHEDULE:
     "Không thể giảm sức chứa phòng vì có buổi học chưa bắt đầu đang sử dụng sức chứa lớn hơn. Vui lòng kiểm tra lịch học trước.",
 
@@ -212,6 +241,9 @@ const MESSAGES: Record<string, string> = {
   // Flow 2 phía trên. Khai báo lại ở đây làm trùng khóa trong cùng một object
   // literal (TS1117) và chỉ một thông điệp sống sót.
 };
+
+/** Có dấu tiếng Việt: câu viết cho người dùng chứ không phải thông điệp kỹ thuật. */
+const VIETNAMESE_TEXT = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
 
 /** Messages by HTTP status, used when the server sends no code. */
 const STATUS_MESSAGES: Record<number, string> = {
@@ -302,6 +334,12 @@ export function describeError(error: unknown): string {
         ? `${error.serverText} (mã lỗi: ${error.code})`
         : error.serverText;
     }
+
+    // Phần lớn lỗi nghiệp vụ của server đã có câu tiếng Việt nói rõ lý do và việc
+    // cần làm ("đang có 10 buổi học sắp tới…"). Mã nào chưa kịp khai báo trong
+    // MESSAGES thì câu đó vẫn đúng hơn câu chung theo HTTP status, vốn khiến mọi
+    // 409 thành "Dữ liệu bị trùng". Câu tiếng Anh (cho lập trình viên) vẫn đi đường cũ.
+    if (VIETNAMESE_TEXT.test(error.message)) return error.message;
 
     if (STATUS_MESSAGES[error.status]) return STATUS_MESSAGES[error.status];
 
