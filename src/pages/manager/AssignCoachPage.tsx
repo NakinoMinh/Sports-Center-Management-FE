@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
-  Clock3,
   MapPin,
   RefreshCw,
   Search,
@@ -9,201 +8,146 @@ import {
   UserRoundCheck,
 } from "lucide-react";
 import { Dialog } from "../../components/common/Dialog";
+import { useToast } from "../../hooks/useToast";
 import { describeError } from "../../services/apiErrors";
 import { assignCoachApi } from "../../services/assignCoachApi";
+import { classApi } from "../../services/classApi";
 import type { ClassSession, CoachOption } from "../../types/assignCoach";
+import type { TrainingClass } from "../../types/classes";
 import {
-  CENTER_TIME_SLOTS,
-  formatSlotLabel,
-  isCoachSuitableForSport,
-  matchesTimeSlot,
-  timeRangesOverlap,
-} from "../../utils/classSchedule";
+  CLASS_ASSIGNMENT_STATUS_LABELS,
+  getClassAssignmentSummary,
+  getClassCoachAvailability,
+} from "../../utils/coachAssignment";
+import { formatDate } from "../../utils/format";
+import * as v from "../../utils/validation";
 import "../../styles/assign-coach.css";
 
-const hasSessionStarted = (startsAt: string): boolean => {
-  const startTime = Date.parse(startsAt);
-
-  // Không cho phân công nếu thời gian không hợp lệ
-  if (!Number.isFinite(startTime)) {
-    return true;
-  }
-
-  return Date.now() >= startTime;
-};
-
-const statusLabels: Record<string, string> = {
-  SCHEDULED: "Đã lên lịch",
-  COMPLETED: "Đã hoàn thành",
-  CANCELED: "Đã hủy",
-  CANCELLED: "Đã hủy",
-  ONGOING: "Đang diễn ra",
-};
-
-const formatDate = (date: string): string => {
-  if (!date) return "—";
-
-  const parts = date.slice(0, 10).split("-");
-  if (parts.length !== 3) return date;
-
-  return `${parts[2]}/${parts[1]}/${parts[0]}`;
-};
-
 export function AssignCoachPage() {
+  const toast = useToast();
+  const [classes, setClasses] = useState<TrainingClass[]>([]);
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [coaches, setCoaches] = useState<CoachOption[]>([]);
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [formError, setFormError] = useState("");
-
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [hasLoadError, setHasLoadError] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [slotFilter, setSlotFilter] = useState("ALL");
-
-  const [selectedSession, setSelectedSession] = useState<ClassSession | null>(
-    null,
-  );
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedCoachId, setSelectedCoachId] = useState("");
+  const [coachError, setCoachError] = useState("");
 
   const refresh = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
+    setIsLoading(true);
     try {
-      const [sessionData, coachData] = await Promise.all([
+      const [classData, sessionData, coachData] = await Promise.all([
+        classApi.listClasses(),
         assignCoachApi.getSessions(),
         assignCoachApi.getCoaches(),
       ]);
-
+      setClasses(classData);
       setSessions(sessionData);
       setCoaches(coachData);
-    } catch (err) {
-      setError(describeError(err));
+      setHasLoadError(false);
+    } catch (error) {
+      setHasLoadError(true);
+      toast.error(describeError(error));
     } finally {
-      setLoading(false);
+      setIsLoading(false);
+      setHasLoaded(true);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  const filteredSessions = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+  const classAssignments = useMemo(
+    () => classes.map((trainingClass) => ({
+      trainingClass,
+      ...getClassAssignmentSummary(trainingClass.id, sessions),
+    })),
+    [classes, sessions],
+  );
 
-    return sessions.filter((session) => {
-      const matchesSearch =
-        !keyword ||
-        session.className.toLowerCase().includes(keyword) ||
-        session.sportName.toLowerCase().includes(keyword) ||
-        session.coachName.toLowerCase().includes(keyword) ||
-        session.roomName.toLowerCase().includes(keyword);
-
-      const matchesStatus =
-        statusFilter === "ALL" || session.status === statusFilter;
-
-      const matchesSlot = matchesTimeSlot(session, slotFilter);
-
-      return matchesSearch && matchesStatus && matchesSlot;
+  const filteredClasses = useMemo(() => {
+    const keyword = search.trim().toLocaleLowerCase("vi");
+    return classAssignments.filter(({ trainingClass, coachName, roomNames, status }) => {
+      const matchesSearch = !keyword ||
+        [trainingClass.name, trainingClass.sportName, coachName, ...roomNames].some(
+          (value) => value.toLocaleLowerCase("vi").includes(keyword),
+        );
+      return matchesSearch && (statusFilter === "ALL" || status === statusFilter);
     });
-  }, [sessions, search, statusFilter, slotFilter]);
+  }, [classAssignments, search, statusFilter]);
 
-  const openAssignDialog = (session: ClassSession) => {
-    setSelectedSession(session);
-    setSelectedCoachId(session.coachId ?? "");
-    setFormError("");
-    setNotice("");
-  };
+  const selectedAssignment = classAssignments.find(
+    ({ trainingClass }) => trainingClass.id === selectedClassId,
+  );
+  const selectedClass = selectedAssignment?.trainingClass;
+  const coachOptions = useMemo(
+    () => {
+      const trainingClass = classes.find((item) => item.id === selectedClassId);
+      return trainingClass ? coaches.map((coach) => ({
+        coach,
+        ...getClassCoachAvailability(coach, trainingClass, sessions),
+      })) : [];
+    },
+    [classes, coaches, selectedClassId, sessions],
+  );
+  const hasAvailableCoach = coachOptions.some((option) => option.isAvailable);
 
-  const closeAssignDialog = () => {
-    if (saving) return;
+  function handleOpenAssignDialog(classId: string, currentCoachId: string) {
+    setSelectedClassId(classId);
+    setSelectedCoachId(currentCoachId);
+    setCoachError("");
+  }
 
-    setSelectedSession(null);
+  function handleCloseAssignDialog() {
+    if (isSaving) return;
+    setSelectedClassId(null);
     setSelectedCoachId("");
-    setFormError("");
-  };
+    setCoachError("");
+  }
 
-  const handleAssignCoach = async () => {
-    if (!selectedSession) return;
-    if (
-      selectedSession.status !== "SCHEDULED" ||
-      hasSessionStarted(selectedSession.startsAt)
-    ) {
-      setFormError(
-        "Buổi học đã bắt đầu, đã hủy hoặc không còn cho phép thay đổi huấn luyện viên.",
-      );
-      return;
-    }
-    if (!selectedCoachId) {
-      setFormError("Vui lòng chọn huấn luyện viên.");
-      return;
-    }
-
-    if (selectedCoachId === selectedSession.coachId) {
-      setFormError("Huấn luyện viên này đã được phân công cho buổi học.");
-      return;
-    }
-    const selectedCoach = coaches.find(
-      (coach) => coach.accountId === selectedCoachId,
+  async function handleAssignCoach() {
+    if (!selectedClass || isSaving) return;
+    const errors = v.validateForm(
+      { coachId: selectedCoachId },
+      { coachId: v.required("Huấn luyện viên phụ trách") },
     );
-
-    if (!selectedCoach || selectedCoach.status.toLowerCase() !== "active") {
-      setFormError(
-        "Huấn luyện viên đã chọn không còn hoạt động. Vui lòng chọn huấn luyện viên khác.",
-      );
+    if (v.hasErrors(errors)) {
+      setCoachError(errors.coachId ?? "");
       return;
     }
-
-    if (
-      !isCoachSuitableForSport(
-        { disciplines: selectedCoach.disciplines },
-        selectedSession.sportName,
-        selectedSession.sportId,
-      )
-    ) {
-      setFormError(
-        `Huấn luyện viên ${selectedCoach.fullName} không phụ trách bộ môn ${selectedSession.sportName}. Hãy chọn huấn luyện viên phù hợp.`,
-      );
-      return;
-    }
-
-    const conflictingSession = sessions.find(
-      (item) =>
-        item.id !== selectedSession.id &&
-        item.status === "SCHEDULED" &&
-        item.coachId === selectedCoachId &&
-        item.date.slice(0, 10) === selectedSession.date.slice(0, 10) &&
-        timeRangesOverlap(item, selectedSession),
+    const selectedOption = coachOptions.find(
+      (option) => option.coach.accountId === selectedCoachId,
     );
-    if (conflictingSession) {
-      setFormError(
-        `Huấn luyện viên ${selectedCoach.fullName} đã có lịch dạy lớp ${conflictingSession.className} (${conflictingSession.startTime} - ${conflictingSession.endTime}) trùng khung giờ này.`,
-      );
+    if (!selectedOption?.isAvailable) {
+      setCoachError(selectedOption?.reason ?? "Vui lòng chọn huấn luyện viên trong danh sách.");
       return;
     }
 
-    setSaving(true);
-    setFormError("");
-
+    setIsSaving(true);
+    setCoachError("");
     try {
-      await assignCoachApi.assignCoach(selectedSession.id, selectedCoachId);
-
-      const updatedSessions = await assignCoachApi.getSessions();
-      setSessions(updatedSessions);
-
-      setNotice("Phân công huấn luyện viên thành công.");
-      setSelectedSession(null);
+      await assignCoachApi.assignClassCoach(
+        selectedClass,
+        selectedCoachId,
+      );
+      setSelectedClassId(null);
       setSelectedCoachId("");
-    } catch (err) {
-      setFormError(describeError(err));
+      toast.success("Phân công huấn luyện viên thành công.");
+    } catch (error) {
+      const message = describeError(error);
+      setCoachError(message);
+      toast.error(message);
     } finally {
-      setSaving(false);
+      await refresh();
+      setIsSaving(false);
     }
-  };
+  }
 
   return (
     <>
@@ -212,17 +156,15 @@ export function AssignCoachPage() {
           <span className="eyebrow">QUẢN LÝ TRUNG TÂM</span>
           <h1>Phân công huấn luyện viên</h1>
           <p>
-            Quản lý và phân công huấn luyện viên đúng chuyên môn phụ trách các
-            buổi học theo khung giờ (Slot) cố định tại phòng tập.
+            Quản lý và phân công huấn luyện viên đúng chuyên môn phụ trách từng lớp học.
           </p>
         </div>
-
         <div className="page-actions">
           <button
             type="button"
             className="button secondary"
             onClick={() => void refresh()}
-            disabled={loading}
+            disabled={isLoading || isSaving}
           >
             <RefreshCw size={17} aria-hidden="true" />
             Làm mới
@@ -230,30 +172,15 @@ export function AssignCoachPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="error-notice" role="alert">
-          {error}
-        </div>
-      )}
-
-      {notice && (
-        <div className="success-notice" role="status">
-          {notice}
-        </div>
-      )}
-
-      <section className="panel">
+      <section className="panel" aria-busy={isLoading}>
         <div className="panel-heading">
           <div>
-            <h2>Danh sách buổi học theo Khung giờ (Slot)</h2>
+            <h2>Danh sách lớp học</h2>
             <p>
-              Hiển thị {filteredSessions.length}/{sessions.length} buổi học ·
-              Mọi buổi học đều do HLV quản lý theo slot cố định (không có giờ
-              tập tự do).
+              Hiển thị {filteredClasses.length}/{classes.length} lớp học.
             </p>
           </div>
         </div>
-
         <div className="toolbar">
           <label className="search-field">
             <Search size={17} aria-hidden="true" />
@@ -261,27 +188,13 @@ export function AssignCoachPage() {
               type="search"
               value={search}
               placeholder="Tìm lớp, bộ môn, huấn luyện viên, phòng..."
-              aria-label="Tìm kiếm buổi học"
+              aria-label="Tìm kiếm lớp học"
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
-
-          <select
-            value={slotFilter}
-            aria-label="Lọc theo khung giờ"
-            onChange={(event) => setSlotFilter(event.target.value)}
-          >
-            <option value="ALL">Tất cả khung giờ (Slot)</option>
-            {CENTER_TIME_SLOTS.map((slot) => (
-              <option key={slot.id} value={slot.id}>
-                {slot.name} · {slot.startTime} – {slot.endTime}
-              </option>
-            ))}
-          </select>
-
           <select
             value={statusFilter}
-            aria-label="Lọc trạng thái buổi học"
+            aria-label="Lọc trạng thái"
             onChange={(event) => setStatusFilter(event.target.value)}
           >
             <option value="ALL">Tất cả trạng thái</option>
@@ -291,19 +204,19 @@ export function AssignCoachPage() {
           </select>
         </div>
 
-        {loading ? (
+        {isLoading && !hasLoaded ? (
           <div className="empty-state" role="status">
-            Đang tải danh sách buổi học...
+            Đang tải danh sách lớp học...
           </div>
-        ) : filteredSessions.length === 0 ? (
+        ) : filteredClasses.length === 0 ? (
           <div className="empty-state">
             <CalendarDays size={32} aria-hidden="true" />
             <p>
-              {error
-                ? "Không thể tải danh sách buổi học."
-                : sessions.length === 0
-                  ? "Chưa có buổi học nào trong hệ thống."
-                  : "Không tìm thấy buổi học phù hợp."}
+              {hasLoadError
+                ? "Không thể tải danh sách lớp học. Vui lòng bấm Làm mới để thử lại."
+                : classes.length === 0
+                  ? "Chưa có lớp học nào trong hệ thống."
+                  : "Không tìm thấy lớp học phù hợp."}
             </p>
           </div>
         ) : (
@@ -311,205 +224,139 @@ export function AssignCoachPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Buổi học & Bộ môn</th>
+                  <th>Lớp học &amp; Bộ môn</th>
                   <th>Ngày học</th>
-                  <th>Khung giờ (Slot)</th>
                   <th>Phòng tập</th>
                   <th>HLV quản lý</th>
                   <th>Trạng thái</th>
                   <th>Thao tác</th>
                 </tr>
               </thead>
-
               <tbody>
-                {filteredSessions.map((session) => (
-                  <tr key={session.id}>
-                    <td>
-                      <strong>
-                        {session.className || `Buổi học #${session.id}`}
-                      </strong>{" "}
-                      <div>
-                        <small>Bộ môn: {session.sportName}</small>
-                      </div>
-                    </td>
-
-                    <td>
-                      <CalendarDays size={15} aria-hidden="true" />{" "}
-                      {formatDate(session.date)}
-                    </td>
-
-                    <td>
-                      <Clock3 size={15} aria-hidden="true" />{" "}
-                      {formatSlotLabel(session.startTime, session.endTime)}
-                    </td>
-
-                    <td>
-                      <MapPin size={15} aria-hidden="true" /> {session.roomName}
-                    </td>
-
-                    <td>{session.coachName || "Chưa phân công"}</td>
-
-                    <td>{statusLabels[session.status] ?? session.status}</td>
-
-                    <td>
-                      <button
-                        type="button"
-                        className="button secondary"
-                        onClick={() => openAssignDialog(session)}
-                        disabled={
-                          session.status !== "SCHEDULED" ||
-                          hasSessionStarted(session.startsAt)
-                        }
-                      >
-                        <UserRoundCheck size={15} aria-hidden="true" />
-                        Phân công
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredClasses.map(({ trainingClass, upcomingSessions, coachId, coachName, roomName, roomNames, startDate, endDate, status }) => {
+                  const canAssign = trainingClass.status !== "ARCHIVED" && upcomingSessions.length > 0;
+                  return (
+                    <tr key={trainingClass.id}>
+                      <td>
+                        <strong>{trainingClass.name}</strong>
+                        <small className="cell-caption">Bộ môn: {trainingClass.sportName}</small>
+                      </td>
+                      <td>
+                        <CalendarDays size={15} aria-hidden="true" />{" "}
+                        {formatDate(startDate)}
+                        {endDate !== startDate && ` – ${formatDate(endDate)}`}
+                      </td>
+                      <td title={roomNames.join(", ")}>
+                        <MapPin size={15} aria-hidden="true" /> {roomName}
+                      </td>
+                      <td>{coachName || "Chưa phân công"}</td>
+                      <td>{CLASS_ASSIGNMENT_STATUS_LABELS[status]}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="button secondary"
+                          onClick={() => handleOpenAssignDialog(trainingClass.id, coachId)}
+                          disabled={!canAssign || isSaving || isLoading}
+                        >
+                          <UserRoundCheck size={15} aria-hidden="true" />
+                          Phân công
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </section>
 
-      {selectedSession && (
+      {selectedClass && selectedAssignment && (
         <Dialog
           title="Phân công huấn luyện viên phù hợp"
-          description={`Buổi học: ${selectedSession.className} · Bộ môn: ${selectedSession.sportName}`}
-          onClose={closeAssignDialog}
+          description={`Lớp: ${selectedClass.name} · Bộ môn: ${selectedClass.sportName}`}
+          onClose={handleCloseAssignDialog}
           footer={
             <>
               <button
                 type="button"
                 className="button secondary"
-                onClick={closeAssignDialog}
-                disabled={saving}
+                onClick={handleCloseAssignDialog}
+                disabled={isSaving}
               >
                 Hủy
               </button>
-
               <button
                 type="button"
                 className="button primary"
                 onClick={() => void handleAssignCoach()}
-                disabled={saving || !selectedCoachId}
+                disabled={isSaving || !selectedCoachId}
               >
-                {saving ? "Đang lưu..." : "Lưu phân công"}
+                {isSaving ? "Đang lưu..." : "Lưu phân công"}
               </button>
             </>
           }
         >
           <div className="assign-coach-form">
             <div className="assign-coach-info">
-              <span className="assign-coach-label">
-                Buổi học · Bộ môn {selectedSession.sportName}
-              </span>
-              <strong>
-                {selectedSession.className || `Buổi học #${selectedSession.id}`}
-              </strong>
-
+              <span className="assign-coach-label">Lớp học · Bộ môn {selectedClass.sportName}</span>
+              <strong>{selectedClass.name}</strong>
               <span className="assign-coach-meta">
                 <CalendarDays size={15} aria-hidden="true" />
-                {formatDate(selectedSession.date)}
-                <Clock3 size={15} aria-hidden="true" />
-                {formatSlotLabel(
-                  selectedSession.startTime,
-                  selectedSession.endTime,
-                )}
+                {formatDate(selectedAssignment.startDate)}
+                {selectedAssignment.endDate !== selectedAssignment.startDate &&
+                  ` – ${formatDate(selectedAssignment.endDate)}`}
                 <MapPin size={15} aria-hidden="true" />
-                {selectedSession.roomName}
+                {selectedAssignment.roomName}
               </span>
             </div>
-
             <p className="info-note">
               <ShieldCheck size={16} aria-hidden="true" />
               <span>
                 Chỉ những huấn luyện viên đang hoạt động, có chuyên môn{" "}
-                <strong>{selectedSession.sportName}</strong> và không trùng lịch
-                ở khung giờ này mới được phép phân công.
+                <strong>{selectedClass.sportName}</strong> và không trùng lịch
+                mới được phép phân công phụ trách lớp này.
               </span>
             </p>
-
             <div className="assign-coach-field">
               <label htmlFor="assigned-coach">
-                Huấn luyện viên phụ trách (chuyên môn {selectedSession.sportName}) *
+                Huấn luyện viên phụ trách (chuyên môn {selectedClass.sportName}) *
               </label>
-
               <select
                 id="assigned-coach"
                 value={selectedCoachId}
                 onChange={(event) => {
                   setSelectedCoachId(event.target.value);
-                  setFormError("");
+                  setCoachError("");
                 }}
-                disabled={saving}
+                disabled={isSaving}
+                aria-invalid={Boolean(coachError)}
+                aria-describedby={`assigned-coach-help${coachError ? " assigned-coach-error" : ""}`}
               >
                 <option value="">-- Chọn huấn luyện viên phù hợp --</option>
-
-                {coaches.map((coach) => {
-                  const expertise = (coach.disciplines ?? [])
-                    .filter((item) => item.isActive)
-                    .map((item) => item.disciplineName)
+                {coachOptions.map(({ coach, isAvailable, reason }) => {
+                  const expertise = coach.disciplines
+                    .filter((discipline) => discipline.isActive)
+                    .map((discipline) => discipline.disciplineName)
                     .join(", ");
-                  const isInactive = coach.status.toLowerCase() !== "active";
-                  const isSportMatched = isCoachSuitableForSport(
-                    { disciplines: coach.disciplines },
-                    selectedSession.sportName,
-        selectedSession.sportId,
-                  );
-                  const conflictingSession = sessions.find(
-                    (item) =>
-                      item.id !== selectedSession.id &&
-                      item.status === "SCHEDULED" &&
-                      item.coachId === coach.accountId &&
-                      item.date.slice(0, 10) ===
-                        selectedSession.date.slice(0, 10) &&
-                      timeRangesOverlap(item, selectedSession),
-                  );
-                  const isCurrentCoach =
-                    coach.accountId === selectedSession.coachId;
-                  const isDisabled =
-                    !isCurrentCoach &&
-                    (isInactive || !isSportMatched || Boolean(conflictingSession));
-
-                  let statusSuffix = " — Phù hợp · Rảnh khung giờ này";
-                  if (isCurrentCoach) {
-                    statusSuffix = " — Đang phụ trách buổi này";
-                  } else if (isInactive) {
-                    statusSuffix = " — Ngừng hoạt động";
-                  } else if (!isSportMatched) {
-                    statusSuffix = ` — Khác bộ môn (${selectedSession.sportName})`;
-                  } else if (conflictingSession) {
-                    statusSuffix = ` — Trùng lịch lớp ${conflictingSession.className} (${conflictingSession.startTime}-${conflictingSession.endTime})`;
-                  }
-
                   return (
-                    <option
-                      key={coach.accountId}
-                      value={coach.accountId}
-                      disabled={isDisabled}
-                    >
-                      {coach.fullName}
-                      {expertise ? ` [${expertise}]` : ""}
-                      {statusSuffix}
+                    <option key={coach.accountId} value={coach.accountId} disabled={!isAvailable}>
+                      {coach.fullName}{expertise ? ` [${expertise}]` : ""} — {reason}
                     </option>
                   );
                 })}
               </select>
-
-              {coaches.length === 0 && (
-                <p className="assign-coach-hint">
-                  Chưa có huấn luyện viên đang hoạt động.
+              <small id="assigned-coach-help" className="assign-coach-hint">
+                {hasAvailableCoach
+                  ? "Chỉ chọn HLV đang hoạt động, đúng chuyên môn và không trùng bất kỳ buổi học nào của lớp."
+                  : "Chưa có HLV khác phù hợp với toàn bộ lịch học của lớp. Vui lòng kiểm tra chuyên môn và lịch dạy."}
+              </small>
+              {coachError && (
+                <p id="assigned-coach-error" className="form-error" role="alert">
+                  {coachError}
                 </p>
               )}
             </div>
-
-            {formError && (
-              <div className="error-notice" role="alert">
-                {formError}
-              </div>
-            )}
           </div>
         </Dialog>
       )}
