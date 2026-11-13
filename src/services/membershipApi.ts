@@ -350,17 +350,18 @@ export const membershipApi = {
     return orderFromReceipt(result);
   },
 
+  // PayMembershipInvoiceAPIViewModel bắt buộc `amount` và chỉ ghi nhận đã thu
+  // khi `confirmReceivedCash` là true; gửi sai tên trường thì API trả 400
+  // "The Amount field is required." trước cả khi chạm tới nghiệp vụ.
   async payInvoice(
     invoiceId: string,
     paymentMethod: PaymentMethod,
-    receivedAmount?: number,
+    amount: number,
+    confirmReceivedCash = true,
   ): Promise<MembershipOrder> {
     const result = await apiRequest<ReceiptDto>(`/MembershipInvoice/${invoiceId}/pay`, {
       method: "POST",
-      body: JSON.stringify({
-        paymentMethod,
-        ...(receivedAmount !== undefined ? { receivedAmount } : {}),
-      }),
+      body: JSON.stringify({ paymentMethod, amount, confirmReceivedCash }),
     });
     return orderFromReceipt(result);
   },

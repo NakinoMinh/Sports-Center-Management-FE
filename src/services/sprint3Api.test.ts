@@ -126,6 +126,13 @@ describe("Sprint 3 API & Reporting (UC33 – UC39)", () => {
     const paidOrder = await membershipApi.payInvoice("101", "CASH", 500000);
     expect(paidOrder.invoice.status).toBe("PAID");
     expect(paidOrder.subscription.status).toBe("CONFIRMED");
+    // Tên trường phải khớp PayMembershipInvoiceAPIViewModel, nếu không API chặn
+    // ngay ở model binding với "The Amount field is required.".
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      paymentMethod: "CASH",
+      amount: 500000,
+      confirmReceivedCash: true,
+    });
 
     const paged = await membershipApi.searchInvoices({
       status: "PAID",
