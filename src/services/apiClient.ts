@@ -83,17 +83,26 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
   readonly details?: unknown;
+  /**
+   * Chỉ được gán khi server trả về body dạng text thuần. Các controller dùng
+   * `BadRequest("<tiếng Việt>")` để nói rõ ô nào sai, còn envelope JSON thì
+   * `message` là tiếng Anh dành cho lập trình viên. Phân biệt hai nguồn này ở
+   * đây để `describeError` biết câu nào đưa thẳng cho người dùng được.
+   */
+  readonly serverText?: string;
 
   constructor(
     message: string,
     status: number,
     code?: string,
     details?: unknown,
+    serverText?: string,
   ) {
     super(message);
     this.status = status;
     this.code = code;
     this.details = details;
+    this.serverText = serverText;
   }
 }
 
@@ -159,6 +168,7 @@ export async function apiRequest<T>(
       response.status,
       envelope?.error?.code,
       envelope?.error?.details,
+      typeof body === "string" && body.trim() ? body.trim() : undefined,
     );
     if (response.status === 401 && accessToken && endsSession(apiError.code)) {
       clearExpiredSession();

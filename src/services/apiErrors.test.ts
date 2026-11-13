@@ -11,7 +11,7 @@ import {
 describe("describeError", () => {
   it("explains the member cancellation deadline", () => {
     expect(describeError(new ApiError("Cancellation deadline passed.", 409, "REGISTRATION_CANCELLATION_TOO_LATE")))
-      .toBe("Chỉ được hủy trước giờ học ít nhất 7 tiếng. Vui lòng liên hệ lễ tân để được hỗ trợ.");
+      .toBe("Chỉ được hủy lớp trước giờ khai giảng ít nhất 7 tiếng. Lớp đã bắt đầu thì không hủy được nữa; vui lòng liên hệ lễ tân.");
   });
   it("translates a known backend code instead of showing its English text", () => {
     const error = new ApiError(
@@ -41,6 +41,21 @@ describe("describeError", () => {
 
   it("falls back to the status message when there is no code", () => {
     expect(describeError(new ApiError("", 404))).toMatch(/Không tìm thấy/);
+  });
+
+  it("shows the controller's own Vietnamese text instead of the generic 400", () => {
+    const serverText = "Tiêu đề và mục tiêu kế hoạch cần ít nhất 4 ký tự.";
+    expect(
+      describeError(
+        new ApiError(serverText, 400, undefined, undefined, serverText),
+      ),
+    ).toBe(serverText);
+  });
+
+  it("keeps the generic 400 when the body carried no plain text", () => {
+    expect(
+      describeError(new ApiError("One or more validation errors occurred.", 400)),
+    ).toMatch(/Yêu cầu không hợp lệ/);
   });
 
   it("keeps an unmapped code visible so a bug report can quote it", () => {
