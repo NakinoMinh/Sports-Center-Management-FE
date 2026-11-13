@@ -8,11 +8,18 @@ import type {
   User,
 } from "../types/auth";
 import { ApiError, apiRequest, isApiConfigured } from "./apiClient";
+import {
+  SESSION_KEY,
+  TOKEN_KEY,
+  USER_KEY,
+  clearTabSession,
+  getTabToken,
+  readTabItem,
+  updateTabItem,
+  writeTabSession,
+} from "./authStorage";
 
 export const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
-const TOKEN_KEY = "scms_auth_token";
-const SESSION_KEY = "scms_api_session";
-const USER_KEY = "scms_api_user";
 
 interface AuthSessionDto {
   accessToken: string;
@@ -58,41 +65,23 @@ const apiRoleByUserRole: Record<User["role"], AuthSessionDto["role"]> = {
   RECEPTIONIST: "Receptionist",
 };
 
-const allStores = (): Storage[] => [sessionStorage, localStorage];
-
-const clearSession = (): void => {
-  for (const storage of allStores()) {
-    storage.removeItem(TOKEN_KEY);
-    storage.removeItem(SESSION_KEY);
-    storage.removeItem(USER_KEY);
-  }
-};
-
-const selectedStore = (rememberMe: boolean): Storage =>
-  rememberMe ? localStorage : sessionStorage;
+const clearSession = (): void => clearTabSession();
 
 const readJson = <T,>(key: string): T | null => {
-  for (const storage of allStores()) {
-    const raw: string | null = storage.getItem(key);
-    if (!raw) continue;
-    try {
-      return JSON.parse(raw) as T;
-    } catch {
-      clearSession();
-      return null;
-    }
+  const raw: string | null = readTabItem(key);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    clearSession();
+    return null;
   }
-  return null;
 };
 
-const getStoredToken = (): string | null =>
-  sessionStorage.getItem(TOKEN_KEY) ?? localStorage.getItem(TOKEN_KEY);
+const getStoredToken = (): string | null => getTabToken();
 
-const saveUser = (user: Omit<User, "passwordHash">): void => {
-  const storage: Storage = localStorage.getItem(TOKEN_KEY) ? localStorage : sessionStorage;
-  for (const item of allStores()) item.removeItem(USER_KEY);
-  storage.setItem(USER_KEY, JSON.stringify(user));
-};
+const saveUser = (user: Omit<User, "passwordHash">): void =>
+  updateTabItem(USER_KEY, JSON.stringify(user));
 
 const mergeProfile = (
   user: Omit<User, "passwordHash">,
@@ -139,11 +128,14 @@ const saveSession = (
     iat: now,
     exp: Date.parse(session.expiresAtUtc),
   };
-  clearSession();
-  const storage: Storage = selectedStore(rememberMe);
-  storage.setItem(TOKEN_KEY, session.accessToken);
-  storage.setItem(SESSION_KEY, JSON.stringify(payload));
-  storage.setItem(USER_KEY, JSON.stringify(user));
+  writeTabSession(
+    {
+      [TOKEN_KEY]: session.accessToken,
+      [SESSION_KEY]: JSON.stringify(payload),
+      [USER_KEY]: JSON.stringify(user),
+    },
+    rememberMe,
+  );
   return { success: true, token: session.accessToken, user, message: "Đăng nhập thành công." };
 };
 

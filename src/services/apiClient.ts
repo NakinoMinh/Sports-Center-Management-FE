@@ -1,3 +1,5 @@
+import { clearTabSession, getTabToken } from "./authStorage";
+
 const configuredBaseUrl = (): string =>
   (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/$/, "");
 
@@ -5,9 +7,7 @@ export const isApiConfigured = (): boolean =>
   configuredBaseUrl().length > 0 &&
   (import.meta.env.MODE !== "test" || import.meta.env.VITE_API_TEST_MODE === "true");
 
-const token = (): string | null =>
-  sessionStorage.getItem("scms_auth_token") ||
-  localStorage.getItem("scms_auth_token");
+const token = (): string | null => getTabToken();
 
 /**
  * Turns a server-relative asset path (e.g. an uploaded avatar at
@@ -50,11 +50,7 @@ const endsSession = (code: string | undefined): boolean =>
 const API_TIMEOUT_MS = 15_000;
 
 const clearExpiredSession = (): void => {
-  for (const storage of [sessionStorage, localStorage]) {
-    storage.removeItem("scms_auth_token");
-    storage.removeItem("scms_demo_session_v1");
-    storage.removeItem("scms_api_user");
-  }
+  clearTabSession();
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(API_UNAUTHORIZED_EVENT));
   }
