@@ -8,6 +8,7 @@
 
 import type {
   ClassRegistration,
+  ClassScheduleBlock,
   ClassSession,
   ClassSessionStatus,
   CoachOption,
@@ -580,4 +581,46 @@ export const deriveCoachOptionsFromSessions = (
       specializations: Array.from(entry.sports),
       isActive: true,
     }));
+};
+
+/** Hủy lớp phải báo trước mốc này, tính từ giờ khai giảng của lớp. */
+export const CLASS_CANCEL_NOTICE_HOURS = 7;
+
+/**
+ * Giờ khai giảng của lớp: buổi sớm nhất trong mọi đợt lịch. Lớp dạy nhiều ca
+ * thì đợt có ngày bắt đầu sớm nhất chưa chắc có giờ sớm nhất, nên so cả ngày
+ * lẫn giờ thay vì chỉ lấy đợt đầu danh sách.
+ */
+export const classOpensAt = (
+  blocks: readonly ClassScheduleBlock[],
+): Date | null => {
+  const starts = blocks
+    .map((block) => new Date(`${block.startDate}T${block.startTime}`))
+    .filter((value) => Number.isFinite(value.getTime()));
+  if (starts.length === 0) return null;
+  return starts.reduce((earliest, value) =>
+    value < earliest ? value : earliest,
+  );
+};
+
+/**
+ * `IN_PROGRESS` nghĩa là lớp đã khai giảng, `CLOSING_SOON` là còn dưới 7 tiếng
+ * nữa khai giảng — cả hai đều không hủy được nữa. `UNKNOWN` khi lớp chưa có
+ * lịch, để màn hình nhường quyền quyết định cho server.
+ */
+export type ClassCancelWindow =
+  | "CANCELABLE"
+  | "CLOSING_SOON"
+  | "IN_PROGRESS"
+  | "UNKNOWN";
+
+export const classCancelWindow = (
+  blocks: readonly ClassScheduleBlock[],
+  now: Date = new Date(),
+): ClassCancelWindow => {
+  const opensAt = classOpensAt(blocks);
+  if (!opensAt) return "UNKNOWN";
+  if (opensAt.getTime() <= now.getTime()) return "IN_PROGRESS";
+  const hoursLeft = (opensAt.getTime() - now.getTime()) / 3600000;
+  return hoursLeft < CLASS_CANCEL_NOTICE_HOURS ? "CLOSING_SOON" : "CANCELABLE";
 };

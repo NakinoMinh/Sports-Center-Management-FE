@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { ClassRegistration, ClassSession } from "../types/classes";
+import type {
+  ClassRegistration,
+  ClassScheduleBlock,
+  ClassSession,
+} from "../types/classes";
 import {
   CENTER_TIME_SLOTS,
   addCalendarDays,
+  classCancelWindow,
   canCancelRegistration,
   canRegisterSession,
   centerTimestamp,
@@ -366,5 +371,53 @@ describe("predefined center time slots and coach/room suitability", () => {
         isActive: true,
       },
     ]);
+  });
+});
+
+describe("classCancelWindow", () => {
+  const blockAt = (startDate: string, startTime: string): ClassScheduleBlock => ({
+    coachId: "c1",
+    coachName: "HLV",
+    roomId: "r1",
+    roomName: "Phòng 1",
+    startDate,
+    endDate: "2026-12-03",
+    startTime,
+    endTime: "17:00",
+    daysOfWeek: [2, 4],
+    sessionCount: 20,
+  });
+
+  const now = new Date("2026-11-10T09:00:00");
+
+  it("cho hủy khi lớp còn hơn 7 tiếng nữa mới khai giảng", () => {
+    expect(classCancelWindow([blockAt("2026-11-10", "17:00")], now)).toBe(
+      "CANCELABLE",
+    );
+  });
+
+  it("chặn khi chỉ còn dưới 7 tiếng nữa khai giảng", () => {
+    expect(classCancelWindow([blockAt("2026-11-10", "15:00")], now)).toBe(
+      "CLOSING_SOON",
+    );
+  });
+
+  it("chặn khi lớp đã khai giảng, dù còn nhiều buổi phía sau", () => {
+    expect(classCancelWindow([blockAt("2026-09-29", "16:00")], now)).toBe(
+      "IN_PROGRESS",
+    );
+  });
+
+  it("lấy buổi sớm nhất trong mọi đợt, không lấy đợt đầu danh sách", () => {
+    expect(
+      classCancelWindow(
+        [blockAt("2026-11-12", "08:00"), blockAt("2026-09-29", "16:00")],
+        now,
+      ),
+    ).toBe("IN_PROGRESS");
+  });
+
+  it("nhường quyết định cho server khi lớp chưa có lịch", () => {
+    expect(classCancelWindow([], now)).toBe("UNKNOWN");
   });
 });

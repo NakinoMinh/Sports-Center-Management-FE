@@ -6,7 +6,11 @@ import { useToast } from "../../hooks/useToast";
 import { ApiError } from "../../services/apiClient";
 import { classApi } from "../../services/classApi";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
-import { describeRecurrence } from "../../utils/classSchedule";
+import {
+  CLASS_CANCEL_NOTICE_HOURS,
+  classCancelWindow,
+  describeRecurrence,
+} from "../../utils/classSchedule";
 import type {
   ClassEnrollment,
   ClassScheduleBlock,
@@ -95,6 +99,16 @@ export function ClassRegistrationPanel({
         ? "Lớp đã đủ số lượng học viên."
         : "";
 
+  // Hủy là bỏ cả khóa nên hạn hủy bám giờ khai giảng của lớp, không bám buổi
+  // kế tiếp. Lễ tân vẫn hủy thay được sau hạn, nên chỉ chặn phía thành viên.
+  const cancelWindow = classCancelWindow(trainingClass.scheduleBlocks);
+  const cancelBlockedReason =
+    isCounter || cancelWindow === "CANCELABLE" || cancelWindow === "UNKNOWN"
+      ? ""
+      : cancelWindow === "IN_PROGRESS"
+        ? "Lớp đã khai giảng nên không thể hủy. Bạn có thể theo dõi lớp trong mục “Lớp đang học”."
+        : `Lớp sắp khai giảng (còn dưới ${CLASS_CANCEL_NOTICE_HOURS} tiếng) nên không thể hủy. Vui lòng liên hệ lễ tân nếu cần hỗ trợ.`;
+
   async function handleRegister() {
     if (!currentUser) return;
     setIsWorking(true);
@@ -153,7 +167,7 @@ export function ClassRegistrationPanel({
         );
       else await classApi.cancelMyClass(trainingClass.id, trimmed);
       toast.success(
-        `Đã hủy đăng ký lớp “${trainingClass.name}”. Các buổi chưa diễn ra được trả lại chỗ.`,
+        `Đã hủy đăng ký lớp “${trainingClass.name}”. Toàn bộ buổi của lớp được trả lại chỗ.`,
       );
       setIsCancelOpen(false);
       setReason("");
@@ -181,14 +195,19 @@ export function ClassRegistrationPanel({
           </span>
           {active && (
             <span className="status-chip active">
-              Đã đăng ký · {active.upcomingSessionCount} buổi sắp tới
+              {cancelWindow === "IN_PROGRESS" ? "Đang học" : "Đã đăng ký"} ·{" "}
+              {active.upcomingSessionCount} buổi còn lại
             </span>
           )}
         </p>
       )}
 
       <div className="session-registration-actions">
-        {active ? (
+        {active && cancelBlockedReason ? (
+          <p className="session-registration-reason" role="status">
+            {cancelBlockedReason}
+          </p>
+        ) : active ? (
           <button
             type="button"
             className="button secondary"
@@ -198,12 +217,7 @@ export function ClassRegistrationPanel({
               setReasonError("");
               setDialogError("");
             }}
-            disabled={isWorking || active.upcomingSessionCount === 0}
-            title={
-              active.upcomingSessionCount === 0
-                ? "Mọi buổi đã đăng ký đều đã diễn ra."
-                : undefined
-            }
+            disabled={isWorking}
           >
             <CalendarX size={17} aria-hidden="true" />
             Hủy đăng ký lớp
@@ -266,8 +280,9 @@ export function ClassRegistrationPanel({
             </p>
           )}
           <p>
-            Hủy sẽ nhả chỗ ở {active.upcomingSessionCount} buổi chưa diễn ra.
-            Các buổi đã học vẫn được giữ trong lịch sử.
+            Bạn sẽ rời cả lớp, không chỉ một buổi: toàn bộ{" "}
+            {active.upcomingSessionCount} buổi của lớp được nhả chỗ. Sau khi lớp
+            khai giảng thì không hủy được nữa.
           </p>
           <div className="field">
             <label htmlFor={`${prefix}-reason`}>

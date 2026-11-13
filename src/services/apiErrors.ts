@@ -182,12 +182,12 @@ const MESSAGES: Record<string, string> = {
   REGISTRATION_ALREADY_CANCELED:
     "Đăng ký này đã được hủy trước đó. Chỗ chỉ được trả lại một lần.",
   REGISTRATION_CANCELLATION_TOO_LATE:
-    "Chỉ được hủy trước giờ học ít nhất 7 tiếng. Vui lòng liên hệ lễ tân để được hỗ trợ.",
+    "Chỉ được hủy lớp trước giờ khai giảng ít nhất 7 tiếng. Lớp đã bắt đầu thì không hủy được nữa; vui lòng liên hệ lễ tân.",
   MEMBERSHIP_NOT_VALID_FOR_SESSION:
     "Gói tập không còn hiệu lực vào ngày diễn ra buổi học. Hãy gia hạn trước khi đăng ký.",
   PACKAGE_NOT_FOUND: "Không tìm thấy gói tập. Hãy tải lại danh sách.",
   PACKAGE_NOT_ELIGIBLE:
-    "Gói tập hiện tại không bao gồm bộ môn của lớp này. Hãy nâng gói hoặc chọn lớp khác.",
+    "Lớp này không nằm trong phạm vi gói tập của bạn. Bạn cần đăng ký gói có bộ môn của lớp này thì mới đăng ký lớp được.",
 
   // --- Thông báo trong ứng dụng (UC31) ---
   NOTIFICATION_NOT_FOUND:
@@ -280,9 +280,9 @@ export function fieldErrorsOf(error: unknown): Record<string, string> {
 /**
  * The message to show the user for any thrown value.
  *
- * Order: known error code -> per-field validation detail -> HTTP status ->
- * the server's own message -> a generic fallback. Always returns Vietnamese for
- * the cases this project produces.
+ * Order: known error code -> per-field validation detail -> the server's plain
+ * text answer -> HTTP status -> the server's own message -> a generic fallback.
+ * Always returns Vietnamese for the cases this project produces.
  */
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -291,6 +291,17 @@ export function describeError(error: unknown): string {
     const fields = fieldErrorsOf(error);
     const firstField = Object.values(fields)[0];
     if (firstField) return firstField;
+
+    // Body text thuần là câu tiếng Việt controller viết sẵn cho người dùng và
+    // nêu đúng ô nào sai ("Tiêu đề và mục tiêu kế hoạch cần ít nhất 4 ký tự.").
+    // Nếu để STATUS_MESSAGES chạy trước thì mọi lỗi 400 đều thành một câu chung
+    // và người dùng không biết phải sửa gì. Envelope JSON vẫn đi đường cũ vì
+    // message trong đó là tiếng Anh.
+    if (error.serverText) {
+      return error.code
+        ? `${error.serverText} (mã lỗi: ${error.code})`
+        : error.serverText;
+    }
 
     if (STATUS_MESSAGES[error.status]) return STATUS_MESSAGES[error.status];
 

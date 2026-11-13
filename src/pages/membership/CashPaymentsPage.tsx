@@ -201,7 +201,12 @@ export function CashPaymentsPage() {
     setBusy(true);
     setDialogError("");
     try {
-      const order = await membershipApi.payInvoice(invoice.id, "CASH");
+      const order = await membershipApi.payInvoice(
+        invoice.id,
+        "CASH",
+        Number(received),
+        checked,
+      );
       await refresh();
       setNotice(
         `Đã xác nhận ${order.invoice.number}: ${formatMoney(order.invoice.amount)}. Gói đã được kích hoạt.`,

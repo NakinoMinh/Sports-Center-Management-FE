@@ -6,6 +6,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
+import { ErrorBoundary } from "../common/ErrorBoundary";
 import {
   BadgeCheck,
   Banknote,
@@ -233,7 +234,12 @@ export function WorkspaceLayout() {
         </header>
 
         <main id="workspace-main" className="workspace-main">
-          <Outlet />
+          {/* Bọc ở đây chứ không bọc cả <Routes>: trang con hỏng thì menu và
+              thanh điều hướng vẫn còn để người dùng đi chỗ khác. Gắn key theo
+              đường dẫn để sang trang khác là lỗi của trang cũ được xóa. */}
+          <ErrorBoundary key={pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
 
         <footer className="workspace-footer">

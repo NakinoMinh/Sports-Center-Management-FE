@@ -4742,3 +4742,72 @@ textarea {
 .member-homework-groups { display: grid; gap: 1.4rem; }
 .member-homework-group { display: grid; gap: 0.75rem; }
 .member-homework-group > h3 { margin: 0; color: #50645a; font-size: 0.86rem; letter-spacing: 0.02em; }
+
+/* Chi tiết lỗi của ErrorBoundary: giữ nguyên xuống dòng của thông điệp gốc
+   nhưng không để chuỗi dài làm tràn ngang khung nội dung. */
+.error-boundary-detail {
+  margin: var(--space-4) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* "Lớp của tôi": mỗi lớp một thẻ, các ca học xếp bên trong lớp đó. */
+.member-class-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.member-class-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.member-class-group-title {
+  margin: 0;
+  font-size: var(--text-base);
+}
+.member-class-group-hint {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+.member-class-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+.member-class-card h3 {
+  margin: 0;
+  color: inherit;
+}
+.member-class-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.member-class-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  font-size: var(--text-sm);
+}
+.member-class-session-date {
+  font-weight: 600;
+}
