@@ -99,9 +99,13 @@ export function ClassRegistrationPanel({
         ? "Lớp đã đủ số lượng học viên."
         : "";
 
-  // Hủy là bỏ cả khóa nên hạn hủy bám giờ khai giảng của lớp, không bám buổi
-  // kế tiếp. Lễ tân vẫn hủy thay được sau hạn, nên chỉ chặn phía thành viên.
-  const cancelWindow = classCancelWindow(trainingClass.scheduleBlocks);
+  // Hủy là bỏ cả khóa nên hạn hủy bám buổi khai giảng, không bám buổi kế tiếp.
+  // Khai giảng tính theo buổi đầu tiên thành viên giữ chỗ (lịch của lượt đăng
+  // ký), để người vào giữa khóa vẫn hủy được trước buổi đầu của họ — giống
+  // luật ở server. Lễ tân vẫn hủy thay được sau hạn, nên chỉ chặn phía thành viên.
+  const cancelWindow = classCancelWindow(
+    active ? active.scheduleBlocks : trainingClass.scheduleBlocks,
+  );
   const cancelBlockedReason =
     isCounter || cancelWindow === "CANCELABLE" || cancelWindow === "UNKNOWN"
       ? ""
