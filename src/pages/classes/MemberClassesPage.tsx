@@ -208,11 +208,16 @@ export function MemberClassesPage({ view }: Props) {
     return Array.from(byClass.values());
   }, [classes, enrollments, registrations]);
 
-  const inProgressClasses = myClasses.filter(
-    (group) =>
-      group.trainingClass !== null &&
-      classCancelWindow(group.trainingClass.scheduleBlocks) === "IN_PROGRESS",
-  );
+  // "Đang học" tính theo buổi đầu tiên của chính thành viên, không theo buổi
+  // khai giảng của cả lớp: người vào giữa khóa chưa học buổi nào vẫn là "chưa
+  // khai giảng" với họ.
+  const inProgressClasses = myClasses.filter((group) => {
+    const blocks =
+      group.enrollment?.status === "BOOKED"
+        ? group.enrollment.scheduleBlocks
+        : group.trainingClass?.scheduleBlocks;
+    return blocks !== undefined && classCancelWindow(blocks) === "IN_PROGRESS";
+  });
   const upcomingClasses = myClasses.filter(
     (group) => !inProgressClasses.includes(group),
   );
