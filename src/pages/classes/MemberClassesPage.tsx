@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { ClassRegistrationPanel } from "../../components/classes/ClassRegistrationPanel";
 import { CoachProfileTrigger } from "../../components/classes/CoachProfileTrigger";
+import { MemberClassCard } from "../../components/classes/MemberClassCard";
+import type { MemberClassGroup } from "../../components/classes/MemberClassCard";
 import { ScheduleBlockList } from "../../components/classes/ScheduleBlockList";
 import { SlotFilterBar } from "../../components/classes/SlotFilterBar";
 import { useAuth } from "../../hooks/useAuth";
@@ -31,6 +33,7 @@ import {
   CENTER_TIME_SLOTS,
   addCalendarDays,
   byStartTime,
+  classCancelWindow,
   centerToday,
   classStatusLabels,
   deriveCoachOptionsFromSessions,
@@ -173,6 +176,45 @@ export function MemberClassesPage({ view }: Props) {
         };
       }),
     [registrations, week.from],
+  );
+
+  // Thành viên đăng ký theo lớp, nên "lớp của tôi" gom ca học vào đúng lớp của
+  // nó thay vì trải phẳng từng buổi thành một thẻ riêng.
+  const myClasses = useMemo<MemberClassGroup[]>(() => {
+    const byClass = new Map<string, MemberClassGroup>();
+    for (const registration of registrations) {
+      const classId = registration.session.classId;
+      let group = byClass.get(classId);
+      if (!group) {
+        group = {
+          classId,
+          className: registration.session.className,
+          sportName: registration.session.sportName,
+          sessions: [],
+          trainingClass: classes.find((item) => item.id === classId) ?? null,
+          enrollment: enrollmentFor(enrollments, classId),
+        };
+        byClass.set(classId, group);
+      }
+      group.sessions.push(registration);
+    }
+    for (const group of byClass.values()) {
+      group.sessions.sort(
+        (first, second) =>
+          first.session.date.localeCompare(second.session.date) ||
+          first.session.startTime.localeCompare(second.session.startTime),
+      );
+    }
+    return Array.from(byClass.values());
+  }, [classes, enrollments, registrations]);
+
+  const inProgressClasses = myClasses.filter(
+    (group) =>
+      group.trainingClass !== null &&
+      classCancelWindow(group.trainingClass.scheduleBlocks) === "IN_PROGRESS",
+  );
+  const upcomingClasses = myClasses.filter(
+    (group) => !inProgressClasses.includes(group),
   );
 
   const isDiscover = view === "DISCOVER";
@@ -516,76 +558,40 @@ export function MemberClassesPage({ view }: Props) {
                 ))}
               </div>
             ) : (
-              <div className="member-registration-list">
-                {registrations.map((registration) => (
-                  <article
-                    className="member-registration-card"
-                    key={registration.id}
-                  >
-                    <div className="member-registration-main">
-                      <div>
-                        <span className="eyebrow">
-                          {registration.session.sportName}
-                        </span>
-                        <h2>{registration.session.className}</h2>
-                      </div>
-                      <span
-                        className={`status-chip ${registration.status === "BOOKED" ? "active" : "canceled"}`}
-                      >
-                        {registration.status === "BOOKED"
-                          ? sessionStatusLabels[registration.session.status]
-                          : "Đã hủy đăng ký"}
-                      </span>
-                    </div>
-                    <div className="member-session-details">
-                      <span>
-                        <CalendarDays size={15} aria-hidden="true" />{" "}
-                        {formatDate(registration.session.date)}
-                      </span>
-                      <span>
-                        <Clock3 size={15} aria-hidden="true" />{" "}
-                        {formatSlotLabel(
-                          registration.session.startTime,
-                          registration.session.endTime,
-                        )}
-                      </span>
-                      <span>
-                        <UserRound size={15} aria-hidden="true" /> HLV quản lý:{" "}
-                        <CoachProfileTrigger
-                          coachId={registration.session.coachId}
-                          coachName={registration.session.coachName}
-                          loadProfile={coachProfileCache.get}
-                        />
-                      </span>
-                      <span>
-                        <MapPin size={15} aria-hidden="true" /> Phòng:{" "}
-                        {registration.session.roomName}
-                      </span>
-                    </div>
-                    {registration.cancelReason && (
-                      <p className="member-cancel-reason">
-                        Lý do hủy: {registration.cancelReason}
-                      </p>
-                    )}
-                    {registration.status === "BOOKED" &&
-                      (() => {
-                        // Hủy là hủy cả lớp: thành viên đăng ký lớp chứ không
-                        // đăng ký lẻ từng buổi.
-                        const owning = classes.find(
-                          (item) => item.id === registration.session.classId,
-                        );
-                        if (!owning) return null;
-                        return (
-                          <ClassRegistrationPanel
-                            trainingClass={owning}
-                            enrollment={enrollmentFor(enrollments, owning.id)}
-                            onChanged={refresh}
-                            layout="inline"
-                          />
-                        );
-                      })()}
-                  </article>
-                ))}
+              <div className="member-class-groups">
+                {inProgressClasses.length > 0 && (
+                  <div className="member-class-group">
+                    <h3 className="member-class-group-title">
+                      Lớp đang học ({inProgressClasses.length})
+                    </h3>
+                    <p className="member-class-group-hint">
+                      Lớp đã khai giảng nên không hủy được nữa.
+                    </p>
+                    {inProgressClasses.map((group) => (
+                      <MemberClassCard
+                        key={group.classId}
+                        group={group}
+                        onChanged={refresh}
+                        loadCoachProfile={coachProfileCache.get}
+                      />
+                    ))}
+                  </div>
+                )}
+                {upcomingClasses.length > 0 && (
+                  <div className="member-class-group">
+                    <h3 className="member-class-group-title">
+                      Lớp chưa khai giảng ({upcomingClasses.length})
+                    </h3>
+                    {upcomingClasses.map((group) => (
+                      <MemberClassCard
+                        key={group.classId}
+                        group={group}
+                        onChanged={refresh}
+                        loadCoachProfile={coachProfileCache.get}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )
           ) : (
