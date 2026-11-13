@@ -9,8 +9,10 @@ export function VnpayPaymentButton({ invoice }: { invoice: MembershipInvoice }) 
   const [isBusy, setBusy] = useState(false);
   const toast = useToast();
   const [isDemoEnabled, setDemoEnabled] = useState<boolean | null>(null);
-  const isEligible = invoice.status === "PENDING_PAYMENT" && invoice.paymentMethod === "BANK_TRANSFER" &&
-    (invoice.kind === "REGISTER" || invoice.kind === "RENEW");
+  const isEligible = invoice.status === "PENDING_PAYMENT" && invoice.paymentMethod === "BANK_TRANSFER";
+  // Chuyển khoản QR nhận mọi loại đơn (giống thu tại quầy), còn cổng VNPAY ở server chỉ nhận
+  // đăng ký mới / gia hạn. Đơn nâng, hạ, đổi gói vì vậy không được rơi vào ngõ cụt không trả được.
+  const isVnpaySupported = invoice.kind === "REGISTER" || invoice.kind === "RENEW";
   useEffect(() => {
     if (!isEligible) return;
     let disposed = false;
@@ -28,6 +30,9 @@ export function VnpayPaymentButton({ invoice }: { invoice: MembershipInvoice }) 
   }
   if (isDemoEnabled) return <div className="vnpay-payment-action">
     <a className="button primary" href={`/payments/transfer?invoiceId=${invoice.id}`}>Chuyển khoản</a>
+  </div>;
+  if (isDemoEnabled === false && !isVnpaySupported) return <div className="vnpay-payment-action">
+    <p className="invoice-note">Đơn nâng, hạ hoặc đổi gói thanh toán chuyển khoản tại quầy lễ tân; lễ tân xác nhận khi nhận được tiền.</p>
   </div>;
   return <div className="vnpay-payment-action">
     <button className="button primary" disabled={isBusy || isDemoEnabled === null} onClick={handlePay}>
