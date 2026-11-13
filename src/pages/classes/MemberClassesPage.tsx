@@ -13,11 +13,13 @@ import {
   Users,
 } from "lucide-react";
 import { ClassRegistrationPanel } from "../../components/classes/ClassRegistrationPanel";
+import { CoachProfileTrigger } from "../../components/classes/CoachProfileTrigger";
 import { ScheduleBlockList } from "../../components/classes/ScheduleBlockList";
 import { SlotFilterBar } from "../../components/classes/SlotFilterBar";
 import { useAuth } from "../../hooks/useAuth";
 import { describeError } from "../../services/apiErrors";
 import { classApi } from "../../services/classApi";
+import { createCoachProfileCache } from "../../services/coachPublicProfileApi";
 import type {
   ClassEnrollment,
   ClassRegistration,
@@ -76,6 +78,7 @@ export function MemberClassesPage({ view }: Props) {
   const [anchorDate, setAnchorDate] = useState(centerToday());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const coachProfileCache = useMemo(() => createCoachProfileCache(), []);
 
   const refresh = useCallback(async () => {
     if (!currentUser) return;
@@ -329,6 +332,13 @@ export function MemberClassesPage({ view }: Props) {
                       blocks={item.scheduleBlocks}
                       variant="detailed"
                       emptyLabel="Lớp chưa có lịch cụ thể."
+                      renderCoach={(blockCoachId, blockCoachName) => (
+                        <CoachProfileTrigger
+                          coachId={blockCoachId}
+                          coachName={blockCoachName}
+                          loadProfile={coachProfileCache.get}
+                        />
+                      )}
                     />
 
                     {/* Đăng ký là theo lớp: một lượt giữ chỗ cho mọi buổi còn
@@ -357,7 +367,12 @@ export function MemberClassesPage({ view }: Props) {
                           <div className="member-session-details">
                             <span>
                               <UserRound size={14} aria-hidden="true" /> HLV quản
-                              lý: {session.coachName}
+                              lý:{" "}
+                              <CoachProfileTrigger
+                                coachId={session.coachId}
+                                coachName={session.coachName}
+                                loadProfile={coachProfileCache.get}
+                              />
                             </span>
                             <span>
                               <MapPin size={14} aria-hidden="true" /> Phòng:{" "}
@@ -470,7 +485,14 @@ export function MemberClassesPage({ view }: Props) {
                             </div>
                             <div className="week-session-title">
                               <strong>{registration.session.className}</strong>
-                              <span>HLV: {registration.session.coachName}</span>
+                              <span>
+                                HLV:{" "}
+                                <CoachProfileTrigger
+                                  coachId={registration.session.coachId}
+                                  coachName={registration.session.coachName}
+                                  loadProfile={coachProfileCache.get}
+                                />
+                              </span>
                               <span>
                                 Phòng: {registration.session.roomName}
                               </span>
@@ -529,7 +551,11 @@ export function MemberClassesPage({ view }: Props) {
                       </span>
                       <span>
                         <UserRound size={15} aria-hidden="true" /> HLV quản lý:{" "}
-                        {registration.session.coachName}
+                        <CoachProfileTrigger
+                          coachId={registration.session.coachId}
+                          coachName={registration.session.coachName}
+                          loadProfile={coachProfileCache.get}
+                        />
                       </span>
                       <span>
                         <MapPin size={15} aria-hidden="true" /> Phòng:{" "}

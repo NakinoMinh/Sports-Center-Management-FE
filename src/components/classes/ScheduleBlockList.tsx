@@ -1,4 +1,5 @@
 import { CalendarDays, Clock3, MapPin, UserRound } from "lucide-react";
+import type { ReactNode } from "react";
 import { describeRecurrence } from "../../utils/classSchedule";
 import type { ClassScheduleBlock } from "../../types/classes";
 
@@ -11,6 +12,8 @@ interface ScheduleBlockListProps {
   variant?: "compact" | "detailed";
   /** Câu hiển thị khi lớp chưa có buổi nào. */
   emptyLabel?: string;
+  /** Cho màn hình thành viên biến tên HLV thành nút mở hồ sơ công khai. */
+  renderCoach?: (coachId: string, coachName: string) => ReactNode;
 }
 
 /**
@@ -25,6 +28,7 @@ export function ScheduleBlockList({
   blocks,
   variant = "compact",
   emptyLabel = "Chưa có lịch",
+  renderCoach,
 }: ScheduleBlockListProps) {
   if (blocks.length === 0) {
     return <small className="cell-caption">{emptyLabel}</small>;
@@ -46,7 +50,7 @@ export function ScheduleBlockList({
               {block.startDate} → {block.endDate} · {block.sessionCount} buổi
             </small>
             <small className="cell-caption">
-              {block.coachName} · {block.roomName}
+              {renderCoach?.(block.coachId, block.coachName) ?? block.coachName} · {block.roomName}
             </small>
           </li>
         ))}
@@ -68,7 +72,8 @@ export function ScheduleBlockList({
           </span>
           <span className="schedule-block-meta">
             <span>
-              <UserRound size={14} aria-hidden="true" /> {block.coachName}
+              <UserRound size={14} aria-hidden="true" />{" "}
+              {renderCoach?.(block.coachId, block.coachName) ?? block.coachName}
             </span>
             <span>
               <MapPin size={14} aria-hidden="true" /> {block.roomName}

@@ -100,7 +100,7 @@ const faqs = [
   {
     question: "Khi chuyển lên gói năm, phí được tính thế nào?",
     answer:
-      "Nếu gói năm có giá cao hơn gói đang dùng và bạn chưa trả trước các kỳ tương lai, giá trị những ngày còn lại của gói hiện tại sẽ được trừ vào giá gói năm. Kỳ 12 tháng mới bắt đầu từ ngày xác nhận thanh toán. Nếu đã trả trước các kỳ tiếp theo, gói mới sẽ nối tiếp sau toàn bộ thời gian đã mua; chi tiết được hiển thị trước khi đăng ký.",
+      "Việc nâng, hạ hoặc đổi gói luôn tính nguyên giá của gói mới và chỉ bắt đầu sau toàn bộ thời gian bạn đã thanh toán. Gói đang sử dụng không bị thay đổi giữa kỳ; thời hạn và số tiền cụ thể được hiển thị trước khi bạn xác nhận yêu cầu.",
   },
   {
     question: "Tôi có thể thanh toán trực tuyến không?",

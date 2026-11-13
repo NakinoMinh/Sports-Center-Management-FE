@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Award,
   BookOpen,
@@ -14,6 +14,10 @@ import { Dialog } from "../../components/common/Dialog";
 import { useAuth } from "../../hooks/useAuth";
 import { describeError } from "../../services/apiErrors";
 import {
+  homeworkApi,
+  type HomeworkAssignmentDto,
+} from "../../services/homeworkApi";
+import {
   trainingOperationsApi,
   type AttendanceStatus,
   type FitnessLevel,
@@ -21,8 +25,9 @@ import {
   type ProgressRating,
 } from "../../services/trainingOperationsApi";
 import { formatDate } from "../../utils/format";
+import { groupHomeworkByAssignedDate } from "../../utils/homeworkHistory";
 
-type MemberTabId = "plans" | "results" | "attendance" | "goal";
+type MemberTabId = "plans" | "homework" | "results" | "attendance" | "goal";
 
 const LEVEL_LABELS: Record<FitnessLevel, string> = {
   BEGINNER: "Cơ bản",
@@ -51,6 +56,9 @@ export function MemberTrainingPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [homeworkHistory, setHomeworkHistory] = useState<HomeworkAssignmentDto[]>([]);
+  const [homeworkLoading, setHomeworkLoading] = useState(true);
+  const [homeworkError, setHomeworkError] = useState("");
 
   const [goalForm, setGoalForm] = useState({
     fitnessGoal: "",
@@ -86,9 +94,22 @@ export function MemberTrainingPage() {
     }
   }, []);
 
+  const loadHomework = useCallback(async () => {
+    setHomeworkLoading(true);
+    setHomeworkError("");
+    try {
+      setHomeworkHistory(await homeworkApi.getMemberHistory());
+    } catch (err) {
+      setHomeworkError(describeError(err));
+    } finally {
+      setHomeworkLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadData();
-  }, [loadData]);
+    void loadHomework();
+  }, [loadData, loadHomework]);
 
   async function handleSaveGoal(event: FormEvent) {
     event.preventDefault();
@@ -121,15 +142,19 @@ export function MemberTrainingPage() {
   const attendedClassCount =
     workspace?.classAttendanceHistory.filter((a) => a.status !== "ABSENT")
       .length ?? 0;
+  const homeworkGroups = useMemo(
+    () => groupHomeworkByAssignedDate(homeworkHistory),
+    [homeworkHistory],
+  );
 
   return (
     <>
       <div className="page-heading">
         <div>
           <span className="eyebrow">HÀNH TRÌNH TẬP LUYỆN CỦA TÔI</span>
-          <h1>Kế hoạch, Kết quả Tập luyện & Lịch sử Điểm danh</h1>
+          <h1>Kế hoạch, Bài tập về nhà & Kết quả Tập luyện</h1>
           <p>
-            Theo dõi mục tiêu cá nhân, giáo án & bài tập về nhà từ huấn luyện viên, nhận xét tiến độ sau mỗi buổi tập và lịch sử điểm danh.
+            Theo dõi riêng kế hoạch tập luyện, lịch sử bài tập HLV đã giao, kết quả từng buổi và lịch sử điểm danh.
           </p>
         </div>
         <div className="header-actions-group">
@@ -143,8 +168,11 @@ export function MemberTrainingPage() {
           <button
             type="button"
             className="button secondary"
-            onClick={() => void loadData()}
-            disabled={loading}
+            onClick={() => {
+              void loadData();
+              void loadHomework();
+            }}
+            disabled={loading || homeworkLoading}
           >
             <RefreshCw size={16} /> Làm mới
           </button>
@@ -154,6 +182,14 @@ export function MemberTrainingPage() {
       {error && (
         <div className="error-notice" role="alert">
           <span>{error}</span>
+        </div>
+      )}
+      {homeworkError && (
+        <div className="error-notice" role="alert">
+          <span>Không tải được lịch sử bài tập: {homeworkError}</span>
+          <button type="button" className="button secondary" onClick={() => void loadHomework()}>
+            Thử lại
+          </button>
         </div>
       )}
       {notice && (
@@ -268,8 +304,19 @@ export function MemberTrainingPage() {
                 onClick={() => setTab("plans")}
               >
                 <ClipboardList size={16} />
-                <span>Giáo án & Bài tập về nhà</span>
+                <span>Kế hoạch tập luyện</span>
                 <span className="workspace-tab-badge">{workspace.plans.length}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "homework"}
+                className={`workspace-tab-btn ${tab === "homework" ? "is-active" : ""}`}
+                onClick={() => setTab("homework")}
+              >
+                <BookOpen size={16} />
+                <span>Lịch sử bài tập về nhà</span>
+                <span className="workspace-tab-badge">{homeworkHistory.length}</span>
               </button>
               <button
                 type="button"
@@ -312,7 +359,7 @@ export function MemberTrainingPage() {
               <section className="panel">
                 <div className="panel-heading">
                   <div>
-                    <h2>Kế hoạch Tập luyện & Bài tập về nhà</h2>
+                    <h2>Kế hoạch Tập luyện</h2>
                     <p>
                       Giáo án cá nhân và giáo án chung của các lớp bạn đang tham gia.
                     </p>
@@ -382,15 +429,62 @@ export function MemberTrainingPage() {
                           </table>
                         </div>
 
-                        {plan.homework && (
-                          <div className="training-homework-box">
-                            <BookOpen size={17} />
-                            <div>
-                              <strong>Bài tập về nhà từ HLV:</strong> {plan.homework}
-                            </div>
-                          </div>
-                        )}
                       </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {tab === "homework" && (
+              <section className="panel member-homework-history">
+                <div className="panel-heading">
+                  <div>
+                    <h2>Lịch sử bài tập về nhà</h2>
+                    <p>Chỉ hiển thị các bài HLV đã giao cho tài khoản của bạn.</p>
+                  </div>
+                  <span className="count-badge">{homeworkHistory.length} bài</span>
+                </div>
+                {homeworkLoading ? (
+                  <div className="empty-state" role="status">Đang tải lịch sử bài tập...</div>
+                ) : homeworkHistory.length === 0 ? (
+                  <div className="empty-state">
+                    <BookOpen size={32} />
+                    <h3>Chưa có bài tập về nhà nào được giao</h3>
+                    <p>Khi HLV giao bài, nội dung sẽ xuất hiện tại đây theo thứ tự mới nhất.</p>
+                  </div>
+                ) : (
+                  <div className="member-homework-groups">
+                    {homeworkGroups.map((group) => (
+                      <section key={group.date} className="member-homework-group">
+                        <h3>{formatDate(group.date)}</h3>
+                        <div className="homework-history-list">
+                          {group.items.map((assignment) => (
+                            <article key={assignment.id} className="homework-history-card">
+                              <div className="homework-history-heading">
+                                <div>
+                                  <time dateTime={assignment.assignedAtUtc}>
+                                    {new Intl.DateTimeFormat("vi-VN", {
+                                      timeZone: "Asia/Ho_Chi_Minh",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    }).format(new Date(assignment.assignedAtUtc))}
+                                  </time>
+                                  <h3>{assignment.title}</h3>
+                                </div>
+                                <span className="status-chip active">HLV {assignment.coachName}</span>
+                              </div>
+                              <p>{assignment.instructions}</p>
+                              {(assignment.className || assignment.sessionLabel) && (
+                                <div className="homework-history-context">
+                                  {assignment.className && <span>Lớp: {assignment.className}</span>}
+                                  {assignment.sessionLabel && <span>Buổi học: {assignment.sessionLabel}</span>}
+                                </div>
+                              )}
+                            </article>
+                          ))}
+                        </div>
+                      </section>
                     ))}
                   </div>
                 )}
@@ -471,15 +565,6 @@ export function MemberTrainingPage() {
                           <strong>Nhận xét của HLV:</strong> {res.coachFeedback}
                         </div>
 
-                        {res.homeworkAssigned && (
-                          <div className="training-homework-box">
-                            <BookOpen size={17} />
-                            <div>
-                              <strong>Bài tập về nhà sau buổi tập:</strong>{" "}
-                              {res.homeworkAssigned}
-                            </div>
-                          </div>
-                        )}
                       </article>
                     ))}
                   </div>

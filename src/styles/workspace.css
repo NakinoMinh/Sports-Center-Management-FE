@@ -4674,3 +4674,71 @@ textarea {
   font-size: 12px;
   color: #eef8f2;
 }
+.membership-terms-scroll {
+  max-height: min(48vh, 480px);
+  overflow-y: auto;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border-color, #d9dee8);
+  border-radius: 0.85rem;
+  background: rgba(15, 23, 42, 0.035);
+  line-height: 1.65;
+}
+
+.membership-terms-section + .membership-terms-section { margin-top: 1.25rem; }
+.membership-terms-section h3 { margin: 0 0 0.4rem; }
+.terms-scroll-end { margin: 1.5rem 0 0; font-weight: 700; }
+.terms-hint { color: #b45309; font-weight: 600; }
+.terms-checks { display: grid; gap: 0.65rem; margin-top: 1rem; }
+.terms-checks label { display: flex; align-items: flex-start; gap: 0.65rem; }
+.terms-checks input { margin-top: 0.25rem; }
+
+.member-terms-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.85rem;
+  padding: 0.9rem 1rem;
+  border-radius: 0.8rem;
+  border: 1px solid;
+}
+.member-terms-status p { margin: 0.3rem 0 0; }
+.member-terms-status.accepted { border-color: #86efac; background: #f0fdf4; color: #166534; }
+.member-terms-status.required { border-color: #fbbf24; background: #fffbeb; color: #92400e; }
+
+.coach-profile-trigger {
+  appearance: none;
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #16634f;
+  font: inherit;
+  font-weight: 650;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.coach-profile-trigger:hover { color: #0d493a; text-decoration-style: solid; }
+.coach-profile-trigger:focus-visible { outline: 2px solid #2c8b6b; outline-offset: 3px; border-radius: 2px; }
+.coach-profile-details { display: grid; gap: 1.4rem; }
+.coach-profile-details section { display: grid; gap: 0.6rem; }
+.coach-profile-details h3, .coach-profile-details p { margin: 0; }
+.coach-profile-details p { color: #66786c; white-space: pre-line; }
+.coach-discipline-list { display: flex; flex-wrap: wrap; gap: 0.55rem; margin: 0; padding: 0; list-style: none; }
+.coach-discipline-list li { padding: 0.42rem 0.7rem; border-radius: 999px; background: #eaf5ef; color: #165844; font-weight: 650; }
+.coach-profile-state { margin: 0; }
+
+.coach-homework-history { margin-top: 1.5rem; }
+.homework-history-list { display: grid; gap: 0.9rem; }
+.homework-history-card { padding: 1rem 1.1rem; border: 1px solid #dbe8e0; border-radius: 0.9rem; background: #fbfdfb; }
+.homework-history-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.homework-history-heading time { display: block; margin-bottom: 0.25rem; color: #718178; font-size: 0.78rem; font-weight: 650; }
+.homework-history-heading h3 { margin: 0; font-size: 1rem; color: #203a2d; }
+.homework-history-card > p { margin: 0.8rem 0; color: #4d6256; line-height: 1.65; white-space: pre-line; }
+.homework-history-context { display: flex; flex-wrap: wrap; gap: 0.45rem 1rem; color: #687b70; font-size: 0.8rem; }
+.member-homework-groups { display: grid; gap: 1.4rem; }
+.member-homework-group { display: grid; gap: 0.75rem; }
+.member-homework-group > h3 { margin: 0; color: #50645a; font-size: 0.86rem; letter-spacing: 0.02em; }

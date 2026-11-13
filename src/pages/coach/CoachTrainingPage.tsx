@@ -15,7 +15,13 @@ import {
   Users,
 } from "lucide-react";
 import { Dialog } from "../../components/common/Dialog";
+import { useAuth } from "../../hooks/useAuth";
 import { describeError } from "../../services/apiErrors";
+import {
+  homeworkApi,
+  type HomeworkAssignmentDto,
+  type HomeworkTargetType,
+} from "../../services/homeworkApi";
 import { todayDate, addDateDays } from "../../services/membershipService";
 import {
   trainingOperationsApi,
@@ -42,13 +48,25 @@ const RATING_LABELS: Record<ProgressRating, string> = {
   NEEDS_IMPROVEMENT: "Cần cố gắng thêm",
 };
 
+const formatAssignedAt = (value: string): string =>
+  new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+
 export function CoachTrainingPage() {
+  const { currentUser } = useAuth();
+  const canUseHomework = currentUser?.role === "COACH";
   const [tab, setTab] = useState<TabId>("students");
   const [workspace, setWorkspace] = useState<CoachWorkspaceDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [homeworkHistory, setHomeworkHistory] = useState<HomeworkAssignmentDto[]>([]);
+  const [homeworkLoading, setHomeworkLoading] = useState(false);
+  const [homeworkError, setHomeworkError] = useState("");
 
   // Dialog states
   const [editingStudent, setEditingStudent] = useState<CoachStudentProfileDto | null>(null);
@@ -62,11 +80,12 @@ export function CoachTrainingPage() {
 
   const [homeworkModalOpen, setHomeworkModalOpen] = useState(false);
   const [homeworkForm, setHomeworkForm] = useState({
-    targetType: "MEMBER" as "MEMBER" | "CLASS",
+    targetType: "MEMBER" as HomeworkTargetType,
     memberId: "",
     classId: "",
+    sessionId: "",
     title: "",
-    body: "",
+    instructions: "",
   });
 
   // Plan form state
@@ -76,7 +95,6 @@ export function CoachTrainingPage() {
     classId: "",
     title: "",
     goal: "",
-    homework: "",
     startDate: todayDate(),
     endDate: addDateDays(todayDate(), 28),
   });
@@ -108,7 +126,6 @@ export function CoachTrainingPage() {
     progressRating: "ON_TRACK" as ProgressRating,
     resultSummary: "",
     coachFeedback: "",
-    homeworkAssigned: "",
   });
 
   const loadWorkspace = useCallback(async () => {
@@ -141,6 +158,12 @@ export function CoachTrainingPage() {
           classId: prev.classId || String(data.classes[0].id),
         }));
       }
+      if (data.sessions.length > 0) {
+        setHomeworkForm((prev) => ({
+          ...prev,
+          sessionId: prev.sessionId || String(data.sessions[0].id),
+        }));
+      }
     } catch (err) {
       setError(describeError(err));
     } finally {
@@ -148,9 +171,27 @@ export function CoachTrainingPage() {
     }
   }, []);
 
+  const loadHomeworkHistory = useCallback(async () => {
+    if (!canUseHomework) {
+      setHomeworkHistory([]);
+      setHomeworkError("");
+      return;
+    }
+    setHomeworkLoading(true);
+    setHomeworkError("");
+    try {
+      setHomeworkHistory(await homeworkApi.getCoachHistory());
+    } catch (err) {
+      setHomeworkError(describeError(err));
+    } finally {
+      setHomeworkLoading(false);
+    }
+  }, [canUseHomework]);
+
   useEffect(() => {
     void loadWorkspace();
-  }, [loadWorkspace]);
+    void loadHomeworkHistory();
+  }, [loadHomeworkHistory, loadWorkspace]);
 
   function openStudentGoalModal(student: CoachStudentProfileDto) {
     setEditingStudent(student);
@@ -195,14 +236,15 @@ export function CoachTrainingPage() {
     }
   }
 
-  async function submitHomeworkNotice(event: FormEvent) {
+  async function submitHomeworkAssignment(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      const res = await trainingOperationsApi.sendCoachHomeworkNotice({
+      const created = await homeworkApi.assign({
+        targetType: homeworkForm.targetType,
         memberId:
           homeworkForm.targetType === "MEMBER"
             ? homeworkForm.memberId
@@ -211,14 +253,17 @@ export function CoachTrainingPage() {
           homeworkForm.targetType === "CLASS"
             ? Number(homeworkForm.classId)
             : undefined,
+        sessionId:
+          homeworkForm.targetType === "SESSION"
+            ? Number(homeworkForm.sessionId)
+            : undefined,
         title: homeworkForm.title,
-        body: homeworkForm.body,
+        instructions: homeworkForm.instructions,
       });
+      setHomeworkHistory((current) => [...created, ...current]);
       setHomeworkModalOpen(false);
-      setHomeworkForm((prev) => ({ ...prev, title: "", body: "" }));
-      setNotice(
-        `Đã gửi thông báo / bài tập về nhà tới ${res.sentCount} học viên.`,
-      );
+      setHomeworkForm((prev) => ({ ...prev, title: "", instructions: "" }));
+      setNotice(`Đã giao bài tập về nhà cho ${created.length} học viên.`);
     } catch (err) {
       setError(describeError(err));
     } finally {
@@ -247,11 +292,10 @@ export function CoachTrainingPage() {
         title: planForm.title,
         goal: planForm.goal,
         exercises: validExercises,
-        homework: planForm.homework || undefined,
         startDate: planForm.startDate,
         endDate: planForm.endDate,
       });
-      setPlanForm((prev) => ({ ...prev, title: "", goal: "", homework: "" }));
+      setPlanForm((prev) => ({ ...prev, title: "", goal: "" }));
       setNotice("Đã tạo kế hoạch tập luyện và gửi thông báo cho học viên.");
       await loadWorkspace();
     } catch (err) {
@@ -280,14 +324,12 @@ export function CoachTrainingPage() {
         progressRating: resultForm.progressRating,
         resultSummary: resultForm.resultSummary,
         coachFeedback: resultForm.coachFeedback,
-        homeworkAssigned: resultForm.homeworkAssigned || undefined,
       });
       setResultForm((prev) => ({
         ...prev,
         completedExercises: "",
         resultSummary: "",
         coachFeedback: "",
-        homeworkAssigned: "",
       }));
       setNotice(
         "Đã ghi nhận kết quả buổi tập, đánh giá tiến độ và gửi nhận xét cho học viên.",
@@ -311,18 +353,21 @@ export function CoachTrainingPage() {
           </p>
         </div>
         <div className="header-actions-group">
-          <button
+          {canUseHomework && <button
             type="button"
             className="button primary"
             onClick={() => setHomeworkModalOpen(true)}
           >
-            <Bell size={16} /> Giao bài tập về nhà / Thông báo
-          </button>
+            <Bell size={16} /> Giao bài tập về nhà
+          </button>}
           <button
             type="button"
             className="button secondary"
-            onClick={() => void loadWorkspace()}
-            disabled={loading}
+            onClick={() => {
+              void loadWorkspace();
+              void loadHomeworkHistory();
+            }}
+            disabled={loading || homeworkLoading}
           >
             <RefreshCw size={16} /> Làm mới
           </button>
@@ -332,6 +377,14 @@ export function CoachTrainingPage() {
       {error && (
         <div className="error-notice" role="alert">
           <span>{error}</span>
+        </div>
+      )}
+      {homeworkError && (
+        <div className="error-notice" role="alert">
+          <span>Không tải được lịch sử bài tập: {homeworkError}</span>
+          <button type="button" className="button secondary" onClick={() => void loadHomeworkHistory()}>
+            Thử lại
+          </button>
         </div>
       )}
       {notice && (
@@ -754,18 +807,6 @@ export function CoachTrainingPage() {
                     ))}
                   </div>
 
-                  <label className="field">
-                    <span>Bài tập về nhà & Lời dặn của HLV</span>
-                    <textarea
-                      rows={2}
-                      placeholder="VD: Mỗi sáng thực hiện 10 phút giãn cơ cổ vai gáy và 3 hiệp Plank 45 giây tại nhà."
-                      value={planForm.homework}
-                      onChange={(e) =>
-                        setPlanForm({ ...planForm, homework: e.target.value })
-                      }
-                    />
-                  </label>
-
                   <div className="counter-actions">
                     <button type="submit" className="button primary" disabled={busy}>
                       <Dumbbell size={16} /> Lưu kế hoạch & Gửi cho học viên
@@ -840,14 +881,6 @@ export function CoachTrainingPage() {
                           </table>
                         </div>
 
-                        {plan.homework && (
-                          <div className="training-homework-box">
-                            <BookOpen size={17} />
-                            <div>
-                              <strong>Bài tập về nhà:</strong> {plan.homework}
-                            </div>
-                          </div>
-                        )}
                       </article>
                     ))}
                   </div>
@@ -955,10 +988,6 @@ export function CoachTrainingPage() {
                                     .map((ex) => `${ex.name} (${ex.sets}x${ex.reps})`)
                                     .join(", ")
                                 : prev.completedExercises,
-                            homeworkAssigned:
-                              selectedPlan?.homework && !prev.homeworkAssigned
-                                ? selectedPlan.homework
-                                : prev.homeworkAssigned,
                           }));
                         }}
                       >
@@ -1068,20 +1097,6 @@ export function CoachTrainingPage() {
                     />
                   </label>
 
-                  <label className="field">
-                    <span>Bài tập về nhà giao sau buổi tập</span>
-                    <input
-                      placeholder="VD: Giãn cơ gân kheo 10 phút tối nay và uống đủ 2.5L nước"
-                      value={resultForm.homeworkAssigned}
-                      onChange={(e) =>
-                        setResultForm({
-                          ...resultForm,
-                          homeworkAssigned: e.target.value,
-                        })
-                      }
-                    />
-                  </label>
-
                   <div className="counter-actions">
                     <button type="submit" className="button primary" disabled={busy}>
                       <Award size={16} /> Lưu kết quả & Gửi nhận xét
@@ -1158,14 +1173,6 @@ export function CoachTrainingPage() {
                           <strong>Nhận xét của HLV:</strong> {res.coachFeedback}
                         </div>
 
-                        {res.homeworkAssigned && (
-                          <div className="training-homework-box">
-                            <BookOpen size={17} />
-                            <div>
-                              <strong>Bài tập về nhà giao thêm:</strong> {res.homeworkAssigned}
-                            </div>
-                          </div>
-                        )}
                       </article>
                     ))}
                   </div>
@@ -1175,6 +1182,47 @@ export function CoachTrainingPage() {
           )}
         </>
       )}
+
+      {canUseHomework && <section className="panel coach-homework-history">
+        <div className="panel-heading">
+          <div>
+            <h2>Lịch sử bài tập đã giao</h2>
+            <p>Bản ghi riêng của bài tập về nhà; không trộn với kế hoạch hoặc kết quả tập luyện.</p>
+          </div>
+          <span className="count-badge">{homeworkHistory.length} lượt giao</span>
+        </div>
+        {homeworkLoading ? (
+          <div className="empty-state" role="status">Đang tải lịch sử bài tập...</div>
+        ) : homeworkHistory.length === 0 ? (
+          <div className="empty-state">
+            <BookOpen size={32} />
+            <h3>Chưa giao bài tập về nhà</h3>
+            <p>Dùng nút “Giao bài tập về nhà” để giao cho học viên, lớp hoặc một buổi học.</p>
+          </div>
+        ) : (
+          <div className="homework-history-list">
+            {homeworkHistory.map((assignment) => (
+              <article className="homework-history-card" key={assignment.id}>
+                <div className="homework-history-heading">
+                  <div>
+                    <time dateTime={assignment.assignedAtUtc}>
+                      {formatAssignedAt(assignment.assignedAtUtc)}
+                    </time>
+                    <h3>{assignment.title}</h3>
+                  </div>
+                  <span className="status-chip active">{assignment.memberName}</span>
+                </div>
+                <p>{assignment.instructions}</p>
+                <div className="homework-history-context">
+                  <span>Học viên: {assignment.memberName}</span>
+                  {assignment.className && <span>Lớp: {assignment.className}</span>}
+                  {assignment.sessionLabel && <span>Buổi học: {assignment.sessionLabel}</span>}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>}
 
       {editingStudent && (
         <Dialog
@@ -1258,26 +1306,27 @@ export function CoachTrainingPage() {
         </Dialog>
       )}
 
-      {homeworkModalOpen && workspace && (
+      {canUseHomework && homeworkModalOpen && workspace && (
         <Dialog
-          title="Gửi Thông báo hoặc Giao Bài tập về nhà"
+          title="Giao bài tập về nhà"
           onClose={() => setHomeworkModalOpen(false)}
         >
-          <form onSubmit={(e) => void submitHomeworkNotice(e)} className="reception-form">
+          <form onSubmit={(e) => void submitHomeworkAssignment(e)} className="reception-form">
             <div className="field-grid">
               <label className="field">
-                <span>Gửi tới</span>
+                <span>Giao cho</span>
                 <select
                   value={homeworkForm.targetType}
                   onChange={(e) =>
                     setHomeworkForm({
                       ...homeworkForm,
-                      targetType: e.target.value as "MEMBER" | "CLASS",
+                      targetType: e.target.value as HomeworkTargetType,
                     })
                   }
                 >
                   <option value="MEMBER">Học viên cụ thể</option>
                   <option value="CLASS">Tất cả học viên trong lớp</option>
+                  <option value="SESSION">Học viên trong một buổi học</option>
                 </select>
               </label>
               {homeworkForm.targetType === "MEMBER" ? (
@@ -1296,7 +1345,7 @@ export function CoachTrainingPage() {
                     ))}
                   </select>
                 </label>
-              ) : (
+              ) : homeworkForm.targetType === "CLASS" ? (
                 <label className="field">
                   <span>Chọn lớp học</span>
                   <select
@@ -1312,10 +1361,28 @@ export function CoachTrainingPage() {
                     ))}
                   </select>
                 </label>
+              ) : (
+                <label className="field">
+                  <span>Chọn buổi học</span>
+                  <select
+                    value={homeworkForm.sessionId}
+                    onChange={(e) =>
+                      setHomeworkForm({ ...homeworkForm, sessionId: e.target.value })
+                    }
+                  >
+                    {workspace.sessions
+                      .filter((session) => session.status !== "CANCELED")
+                      .map((session) => (
+                        <option key={session.id} value={session.id}>
+                          {session.className} · {formatDate(session.sessionDate)} ({session.startTime}-{session.endTime})
+                        </option>
+                      ))}
+                  </select>
+                </label>
               )}
             </div>
             <label className="field">
-              <span>Tiêu đề thông báo / Bài tập về nhà *</span>
+              <span>Tiêu đề bài tập *</span>
               <input
                 required
                 placeholder="VD: Bài tập về nhà tuần này: Chuỗi giãn cơ & Plank 3 hiệp"
@@ -1331,9 +1398,9 @@ export function CoachTrainingPage() {
                 rows={4}
                 required
                 placeholder="Nhập hướng dẫn chi tiết bài tập về nhà hoặc dặn dò chuẩn bị cho buổi học tới..."
-                value={homeworkForm.body}
+                value={homeworkForm.instructions}
                 onChange={(e) =>
-                  setHomeworkForm({ ...homeworkForm, body: e.target.value })
+                  setHomeworkForm({ ...homeworkForm, instructions: e.target.value })
                 }
               />
             </label>
@@ -1346,7 +1413,7 @@ export function CoachTrainingPage() {
                 Hủy
               </button>
               <button type="submit" className="button primary" disabled={busy}>
-                <Send size={15} /> Gửi ngay
+                <Send size={15} /> Giao bài
               </button>
             </div>
           </form>

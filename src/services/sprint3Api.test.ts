@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 describe("Sprint 3 API & Reporting (UC33 – UC39)", () => {
-  it("UC33: registers a new member at counter atomically with PENDING_PAYMENT status", async () => {
+  it("UC33: creates a member account at counter without a package order", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(
       json(
         {
@@ -53,29 +53,6 @@ describe("Sprint 3 API & Reporting (UC33 – UC39)", () => {
             phone: "0912345678",
             status: "Active",
             createdAt: "2026-10-27T08:00:00Z",
-          },
-          receipt: {
-            invoiceId: 101,
-            invoiceNumber: "INV-20261027-0001",
-            amount: 500000,
-            paymentMethod: "CASH",
-            invoiceStatus: "PENDING_PAYMENT",
-            createdAt: "2026-10-27T08:00:00Z",
-            subscriptionId: 201,
-            subscriptionStatus: "PENDING_PAYMENT",
-            kind: "REGISTER",
-            startDate: "2026-10-27",
-            endDate: "2026-11-26",
-            packageId: 1,
-            packageName: "Gói 1 Tháng",
-            packagePrice: 500000,
-            durationMonths: 1,
-            benefits: ["Gym"],
-            memberAccountId: "acc-new-1",
-            memberCode: "MB2610270001",
-            memberFullName: "Lê Văn Mới",
-            memberEmail: "levanmoi@example.com",
-            memberPhone: "0912345678",
           },
           emailDelivery: "NOT_CONFIGURED",
         },
@@ -89,9 +66,6 @@ describe("Sprint 3 API & Reporting (UC33 – UC39)", () => {
       email: "levanmoi@example.com",
       phone: "0912345678",
       dateOfBirth: "1998-05-12",
-      packageId: "1",
-      expectedPrice: 500000,
-      paymentMethod: "CASH",
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -99,8 +73,10 @@ describe("Sprint 3 API & Reporting (UC33 – UC39)", () => {
       "http://api.test/api/Member/counter-registration",
     );
     expect(result.member.id).toBe("acc-new-1");
-    expect(result.order.invoice.status).toBe("PENDING_PAYMENT");
-    expect(result.order.subscription.status).toBe("PENDING_PAYMENT");
+    expect(result.emailDelivery).toBe("NOT_CONFIGURED");
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      fullName: "Lê Văn Mới", email: "levanmoi@example.com", phone: "0912345678", dateOfBirth: "1998-05-12",
+    });
   });
 
   it("UC34 & UC35: confirms cash payment and supports paginated invoice search", async () => {

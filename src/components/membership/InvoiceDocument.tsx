@@ -81,39 +81,10 @@ export function InvoiceDocument({ invoice }: { invoice: MembershipInvoice }) {
         <span>Tổng cộng</span>
         <strong>{formatMoney(invoice.amount)}</strong>
       </div>
-      {invoice.kind === "UPGRADE" && (
+      {["RENEW", "UPGRADE", "DOWNGRADE", "CHANGE"].includes(invoice.kind) && (
         <p className="invoice-note">
-          {invoice.remainingDays !== undefined &&
-          invoice.previousPeriodDays !== undefined ? (
-            <>
-              Khấu trừ {invoice.remainingDays}/{invoice.previousPeriodDays} ngày
-              chưa sử dụng × {formatMoney(invoice.previousPackagePrice ?? 0)} ={" "}
-              {formatMoney(
-                invoice.creditAmount ??
-                  Math.max(0, invoice.packagePrice - invoice.amount),
-              )}{" "}
-              (làm tròn đến đồng).
-              <br />
-            </>
-          ) : (
-            <>
-              Khấu trừ giá trị ngày còn lại của gói cũ:{" "}
-              {formatMoney(
-                invoice.creditAmount ??
-                  Math.max(0, invoice.packagePrice - invoice.amount),
-              )}
-              .
-              <br />
-            </>
-          )}
-          Phí nâng gói: {formatMoney(invoice.packagePrice)} −{" "}
-          {formatMoney(
-            invoice.creditAmount ??
-              Math.max(0, invoice.packagePrice - invoice.amount),
-          )}{" "}
-          = {formatMoney(invoice.amount)}. Kỳ mới đủ {invoice.durationMonths}{" "}
-          tháng từ ngày thanh toán. Báo giá chờ thanh toán chỉ có hiệu lực trong
-          ngày lập.
+          Đơn được tính nguyên giá và bắt đầu theo lịch sau kỳ đã thanh toán trước đó.
+          Gói hiện tại không thay đổi.
         </p>
       )}
       {invoice.paidAt && (

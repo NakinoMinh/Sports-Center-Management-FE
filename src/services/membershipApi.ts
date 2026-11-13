@@ -99,8 +99,6 @@ interface CounterRegisterMemberResponseDto {
     status: string;
     createdAt: string;
   };
-  receipt: ReceiptDto;
-  initialPassword?: string;
   emailDelivery: "SENT" | "FAILED" | "NOT_CONFIGURED";
 }
 
@@ -109,14 +107,10 @@ export interface CounterRegistrationInput {
   email: string;
   phone: string;
   dateOfBirth: string;
-  packageId: string;
-  expectedPrice: number;
-  paymentMethod: PaymentMethod;
 }
 
 export interface CounterRegistrationResult {
   member: MembershipActor;
-  order: MembershipOrder;
   emailDelivery: "SENT" | "FAILED" | "NOT_CONFIGURED";
 }
 
@@ -317,9 +311,6 @@ export const membershipApi = {
           email: input.email.trim(),
           phone: input.phone.trim(),
           dateOfBirth: input.dateOfBirth,
-          packageId: Number(input.packageId),
-          expectedPrice: input.expectedPrice,
-          paymentMethod: input.paymentMethod,
         }),
       },
     );
@@ -337,7 +328,6 @@ export const membershipApi = {
         failedAttempts: 0,
         isLocked: false,
       },
-      order: orderFromReceipt(result.receipt),
       emailDelivery: result.emailDelivery,
     };
   },

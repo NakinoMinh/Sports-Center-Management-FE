@@ -42,7 +42,6 @@ export interface TrainingPlanDto {
   title: string;
   goal: string;
   exercises: TrainingExerciseItem[];
-  homework?: string | null;
   startDate: string;
   endDate: string;
   createdAt: string;
@@ -61,7 +60,6 @@ export interface TrainingResultDto {
   progressRating: ProgressRating;
   resultSummary: string;
   coachFeedback: string;
-  homeworkAssigned?: string | null;
   createdAt: string;
 }
 
@@ -295,7 +293,6 @@ export const trainingOperationsApi = {
     title: string;
     goal: string;
     exercises: TrainingExerciseItem[];
-    homework?: string;
     startDate: string;
     endDate: string;
   }): Promise<{ id: number }> {
@@ -315,21 +312,8 @@ export const trainingOperationsApi = {
     progressRating: ProgressRating;
     resultSummary: string;
     coachFeedback: string;
-    homeworkAssigned?: string;
   }): Promise<{ id: number }> {
     return apiRequest("/TrainingAndOperations/coach/results", {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-  },
-
-  sendCoachHomeworkNotice(input: {
-    memberId?: string;
-    classId?: number;
-    title: string;
-    body: string;
-  }): Promise<{ sentCount: number }> {
-    return apiRequest("/TrainingAndOperations/coach/homework-notice", {
       method: "POST",
       body: JSON.stringify(input),
     });
