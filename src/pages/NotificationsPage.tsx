@@ -9,8 +9,8 @@ type ReadFilter = "ALL" | "UNREAD" | "READ";
 const TYPE_LABELS: Record<string, string> = {
   CLASS_REGISTERED: "Đăng ký lớp học",
   SESSION_RESCHEDULED: "Đổi lịch buổi học",
-  SESSION_COACH_CHANGED: "Đổi huấn luyện viên",
-  SESSION_CANCELED: "Hủy buổi học",
+  SESSION_COACH_CHANGED: "Phân công huấn luyện viên",
+  SESSION_CANCELED: "Hủy lớp / buổi học",
   TRAINING_PLAN_CREATED: "Giáo án tập luyện mới",
   TRAINING_RESULT_RECORDED: "Kết quả & Đánh giá buổi tập",
   COACH_HOMEWORK_NOTICE: "Bài tập về nhà & Dặn dò HLV",
@@ -23,8 +23,12 @@ const TYPE_LABELS: Record<string, string> = {
   MEMBERSHIP_RESUMED: "Kích hoạt lại gói tập",
 };
 
+// Server stores CreatedAt in UTC but serializes it without an offset; without the
+// "Z" the browser would read it as local time and show it 7 hours early.
+const HAS_TIME_ZONE = /(Z|[+-]\d{2}:?\d{2})$/i;
+
 const formatCreatedAt = (value: string): string => {
-  const date = new Date(value);
+  const date = new Date(HAS_TIME_ZONE.test(value) ? value : `${value}Z`);
   return Number.isNaN(date.getTime())
     ? "Không rõ thời gian"
     : new Intl.DateTimeFormat("vi-VN", {
