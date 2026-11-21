@@ -149,6 +149,25 @@ describe("Sprint 2 backend master contracts", () => {
 
 
 describe("merged Sprint 2 contracts", () => {
+  it("loads calendar history with larger pages and retains canceled sessions and persisted move notes", async () => {
+    const notes = "Dời lịch buổi 2026-10-19 09:00–10:00. Lý do: Học bù";
+    request.mockResolvedValueOnce(paged([session], 2))
+      .mockResolvedValueOnce(paged([{ ...session, id: 8, status: "CANCELED", notes }], 2));
+    const sessions = await classApi.listSessions({}, 100);
+    expect(request.mock.calls.map((call) => call[0])).toEqual([
+      "/ClassSession?page=1&pageSize=100", "/ClassSession?page=2&pageSize=100",
+    ]);
+    expect(sessions[1]).toMatchObject({ id: "8", status: "CANCELED", notes });
+  });
+
+  it("preserves the default session page size and date/status filters for other screens", async () => {
+    request.mockResolvedValue(paged([session]));
+    await classApi.listSessions({ from: "2026-10-20", to: "2026-10-20", status: "SCHEDULED" });
+    expect(request.mock.calls[0][0]).toBe(
+      "/ClassSession?status=SCHEDULED&from=2026-10-20&to=2026-10-20&page=1&pageSize=20",
+    );
+  });
+
   it("preserves room type through reads and writes", async () => {
     const room = { id: 3, name: "Studio", location: null, capacity: 10, roomType: "STUDIO", isActive: true };
     request.mockResolvedValue(room);

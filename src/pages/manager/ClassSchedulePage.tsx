@@ -34,6 +34,11 @@ import {
   weekdayLabel,
 } from "../../utils/classSchedule";
 import { formatDate } from "../../utils/format";
+import {
+  filterCalendarEntries,
+  scheduleCalendarEntries,
+  type CalendarStatusFilter,
+} from "../../utils/makeupSchedule";
 import type {
   CancelScope,
   SessionRosterMember,
@@ -46,7 +51,7 @@ import type {
   TrainingClass,
 } from "../../types/classes";
 
-type StatusFilter = ClassSessionStatus | "ALL";
+type StatusFilter = CalendarStatusFilter;
 
 const SESSION_CHIP: Record<ClassSessionStatus, string> = {
   SCHEDULED: "active",
@@ -103,13 +108,9 @@ export function ClassSchedulePage() {
     try {
       const [sessionList, classList, coachList, roomList] = await Promise.all([
         classApi.listSessions({
-          from: week.from,
-          to: week.to,
+          // Cần đọc cả lịch mới ngoài tuần này để dựng lại dấu dời ở ngày cũ từ ghi chú đã lưu.
           classId: classFilter === "ALL" ? undefined : classFilter,
-          coachId: coachFilter === "ALL" ? undefined : coachFilter,
-          roomId: roomFilter === "ALL" ? undefined : roomFilter,
-          status: statusFilter,
-        }),
+        }, 100),
         classApi.listClasses(),
         classApi.listCoaches(),
         classApi.listRooms(),
@@ -127,12 +128,7 @@ export function ClassSchedulePage() {
     }
   }, [
     currentUser,
-    week.from,
-    week.to,
     classFilter,
-    coachFilter,
-    roomFilter,
-    statusFilter,
   ]);
 
   useEffect(() => {
@@ -142,12 +138,27 @@ export function ClassSchedulePage() {
       void refresh();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [refresh]);
+  }, [refresh, week.from]);
 
-  const filteredSessions = useMemo(
-    () => sessions.filter((item) => matchesTimeSlot(item, slotFilter)),
-    [sessions, slotFilter],
+  const calendarEntries = useMemo(() => scheduleCalendarEntries(sessions), [sessions]);
+  const weekEntries = useMemo(
+    () => filterCalendarEntries(calendarEntries, {
+      from: week.from,
+      to: week.to,
+      slotId: "ALL",
+      status: statusFilter,
+      classId: classFilter === "ALL" ? undefined : classFilter,
+      coachId: coachFilter === "ALL" ? undefined : coachFilter,
+      roomId: roomFilter === "ALL" ? undefined : roomFilter,
+    }),
+    [calendarEntries, week.from, week.to, statusFilter, classFilter, coachFilter, roomFilter],
   );
+  const visibleEntries = useMemo(
+    () => weekEntries.filter((entry) => matchesTimeSlot(entry.schedule, slotFilter)),
+    [weekEntries, slotFilter],
+  );
+  const filteredSessions = visibleEntries.filter((entry) => !entry.isHistorical).map((entry) => entry.session);
+  const movedCount = visibleEntries.filter((entry) => entry.isHistorical).length;
 
   /** Bảy ngày của tuần, mỗi ngày kèm buổi học đã lọc theo slot và sắp theo giờ. */
   const days = useMemo(
@@ -156,10 +167,10 @@ export function ClassSchedulePage() {
         const date = addCalendarDays(week.from, offset);
         return {
           date,
-          items: filteredSessions.filter((item) => item.date === date),
+          items: visibleEntries.filter((entry) => entry.schedule.date === date),
         };
       }),
-    [filteredSessions, week.from],
+    [visibleEntries, week.from],
   );
 
   const selectedClass =
@@ -380,9 +391,10 @@ export function ClassSchedulePage() {
         </div>
 
         <SlotFilterBar
-          sessions={sessions}
+          sessions={weekEntries.filter((entry) => !entry.isHistorical).map((entry) => entry.session)}
           selectedSlotId={slotFilter}
           onSelectSlot={setSlotFilter}
+          subtitle="Số buổi chỉ tính lịch hiện tại; thẻ đã dời ở lịch cũ không chiếm thêm chỗ."
         />
 
         <div className="toolbar">
@@ -443,6 +455,7 @@ export function ClassSchedulePage() {
           >
             <option value="ALL">Tất cả trạng thái</option>
             <option value="SCHEDULED">{sessionStatusLabels.SCHEDULED}</option>
+            <option value="RESCHEDULED">Đã dời lịch</option>
             <option value="CANCELED">{sessionStatusLabels.CANCELED}</option>
             <option value="COMPLETED">{sessionStatusLabels.COMPLETED}</option>
           </select>
@@ -470,28 +483,45 @@ export function ClassSchedulePage() {
               </header>
               {day.items.length ? (
                 <ul>
-                  {day.items.map((session) => {
+                  {day.items.map((entry) => {
+                    const { session, schedule } = entry;
                     const seatsLeft = remainingSeats(session);
                     const isLocked =
+                      entry.isHistorical ||
                       session.status !== "SCHEDULED" ||
                       hasSessionStarted(session);
                     return (
-                      <li key={session.id} className="week-session">
+                      <li key={entry.key} className="week-session">
                         <p className="week-session-time">
-                          {formatSlotLabel(session.startTime, session.endTime)}
+                          {formatSlotLabel(schedule.startTime, schedule.endTime)}
                           <span
-                            className={`status-chip ${SESSION_CHIP[session.status]}`}
+                            className={`status-chip ${entry.isHistorical ? "pending" : SESSION_CHIP[session.status]}`}
                           >
-                            {sessionStatusLabels[session.status]}
+                            {entry.isHistorical || (entry.previousSchedule && session.status === "SCHEDULED")
+                              ? "Đã dời lịch" : sessionStatusLabels[session.status]}
                           </span>
                         </p>
                         <p className="week-session-title">
                           <strong>{session.className}</strong>
                           <small>
-                            Bộ môn: {session.sportName} · HLV quản lý:{" "}
-                            {session.coachName} · Phòng: {session.roomName}
+                            Bộ môn: {session.sportName}
+                            {!entry.isHistorical && <> · HLV quản lý: {session.coachName} · Phòng: {session.roomName}</>}
                           </small>
                         </p>
+                        {entry.isHistorical ? (
+                          <>
+                            <p className="cell-caption">
+                              Đã chuyển sang {formatDate(session.date)} · {formatTimeRange(session.startTime, session.endTime)}.
+                              {session.status === "CANCELED" && " Lịch mới đã hủy."}
+                            </p>
+                            {entry.moveReason && <p className="cell-caption">Lý do dời: {entry.moveReason}</p>}
+                          </>
+                        ) : <>
+                        {entry.previousSchedule && (
+                          <p className="cell-caption">
+                            Dời từ {formatDate(entry.previousSchedule.date)} · {formatTimeRange(entry.previousSchedule.startTime, entry.previousSchedule.endTime)}.
+                          </p>
+                        )}
                         <p className="week-session-seats">
                           <button
                             type="button"
@@ -546,6 +576,7 @@ export function ClassSchedulePage() {
                             <CalendarX size={16} aria-hidden="true" />
                           </button>
                         </div>
+                        </>}
                       </li>
                     );
                   })}
@@ -561,6 +592,7 @@ export function ClassSchedulePage() {
           <span>
             {filteredSessions.length} buổi trong tuần {formatDate(week.from)} –{" "}
             {formatDate(week.to)}
+            {movedCount > 0 && <><br />{movedCount} lịch cũ đã dời</>}
           </span>
           <span>Buổi đã bắt đầu hoặc đã hủy không nhận thao tác nữa.</span>
         </div>
@@ -624,8 +656,19 @@ export function ClassSchedulePage() {
           owningClass={classes.find((item) => item.id === canceling.classId)}
           onClose={() => setCanceling(null)}
           onSubmit={cancelSessions}
+          onRescheduled={(saved) => {
+            setCanceling(null);
+            setStatusFilter("ALL");
+            if (coachFilter !== "ALL" && saved.coachId !== coachFilter) setCoachFilter("ALL");
+            if (roomFilter !== "ALL" && saved.roomId !== roomFilter) setRoomFilter("ALL");
+            toast.success(
+              `Đã chuyển buổi học sang ${formatDate(saved.date)} · ${formatTimeRange(saved.startTime, saved.endTime)} và giữ nguyên các đăng ký.`,
+            );
+            void refresh();
+          }}
           onCanceled={(scope, count) => {
             setCanceling(null);
+            setStatusFilter("ALL");
             toast.success(
               scope === "SESSION"
                 ? "Đã hủy buổi học và các đăng ký liên quan."

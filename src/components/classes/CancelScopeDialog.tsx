@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { AlertTriangle, CalendarX, Users } from "lucide-react";
 import { Dialog } from "../common/Dialog";
+import { MakeupSessionForm } from "./MakeupSessionForm";
 import { classApi } from "../../services/classApi";
 import { describeError, fieldErrorsOf } from "../../services/apiErrors";
 import { formatDate } from "../../utils/format";
 import { formatTimeRange } from "../../utils/classSchedule";
+import * as v from "../../utils/validation";
 import type {
   CancelImpact,
   CancelScope,
@@ -12,7 +14,7 @@ import type {
   TrainingClass,
 } from "../../types/classes";
 
-interface CancelScopeDialogProps {
+type CancelScopeDialogProps = {
   /** Buổi học được chọn; phạm vi lớp dùng chính lớp của buổi này. */
   session: ClassSession;
   owningClass?: TrainingClass;
@@ -20,7 +22,8 @@ interface CancelScopeDialogProps {
   /** Gọi khi đã hủy xong, kèm số buổi bị hủy để trang báo đúng con số. */
   onCanceled: (scope: CancelScope, canceledSessionCount: number) => void;
   onSubmit: (scope: CancelScope, reason: string) => Promise<number>;
-}
+  onRescheduled: (session: ClassSession) => void;
+};
 
 /**
  * Hộp thoại hủy buổi học hoặc toàn bộ buổi tương lai của lớp (UC30).
@@ -35,6 +38,7 @@ export function CancelScopeDialog({
   onClose,
   onCanceled,
   onSubmit,
+  onRescheduled,
 }: CancelScopeDialogProps) {
   const prefix = useId();
   const [scope, setScope] = useState<CancelScope>("SESSION");
@@ -44,42 +48,41 @@ export function CancelScopeDialog({
   const [isWorking, setIsWorking] = useState(false);
   const [error, setError] = useState("");
   const [reasonError, setReasonError] = useState("");
-
-  const loadImpact = useCallback(async () => {
-    setIsLoadingImpact(true);
-    try {
-      const result = await classApi.previewCancel(
-        scope,
-        scope === "SESSION"
-          ? { sessionId: session.id }
-          : { classId: session.classId },
-      );
-      setImpact(result);
-      setError("");
-    } catch (caught) {
-      setImpact(null);
-      setError(describeError(caught));
-    } finally {
-      setIsLoadingImpact(false);
-    }
-  }, [scope, session.id, session.classId]);
+  const [hasMakeupSchedule, setHasMakeupSchedule] = useState(false);
 
   useEffect(() => {
-    // Hoãn một nhịp như các trang khác trong repo: gọi setState đồng bộ ngay
-    // trong effect làm React dựng lại ngay lần render đầu.
-    const timer = window.setTimeout(() => {
-      void loadImpact();
+    let isActive = true;
+    const timer = window.setTimeout(async () => {
+      setIsLoadingImpact(true);
+      try {
+        const result = await classApi.previewCancel(scope, scope === "SESSION"
+          ? { sessionId: session.id } : { classId: session.classId });
+        if (!isActive) return;
+        setImpact(result);
+        setError("");
+      } catch (caught) {
+        if (!isActive) return;
+        setImpact(null);
+        setError(describeError(caught));
+      } finally {
+        if (isActive) setIsLoadingImpact(false);
+      }
     }, 0);
-    return () => window.clearTimeout(timer);
-  }, [loadImpact]);
+    return () => { isActive = false; window.clearTimeout(timer); };
+  }, [scope, session.id, session.classId]);
+
+  function handleClose() {
+    if (!isWorking) onClose();
+  }
 
   async function handleConfirm() {
     if (!impact || isLoadingImpact) return;
+    if (isWorking || hasMakeupSchedule) return;
     const trimmed = reason.trim();
-    if (trimmed.length < 3 || trimmed.length > 500) {
-      setReasonError("Nhập lý do hủy từ 3 đến 500 ký tự.");
-      return;
-    }
+    const errors = v.validateForm({ reason }, {
+      reason: v.all(v.required("Lý do hủy"), v.minLength("Lý do hủy", 3), v.maxLength("Lý do hủy", 500)),
+    });
+    if (v.hasErrors(errors)) { setReasonError(errors.reason ?? ""); return; }
     setReasonError("");
     setIsWorking(true);
     try {
@@ -96,14 +99,16 @@ export function CancelScopeDialog({
   return (
     <Dialog
       title="Hủy buổi học"
-      description="Chọn phạm vi hủy và ghi lý do. Lịch sử đăng ký được giữ lại, hệ thống không tự hoàn tiền gói tập."
-      onClose={onClose}
-      footer={
+      description={hasMakeupSchedule
+        ? "Chọn lịch bù để dời riêng buổi này và giữ các đăng ký. Buổi học không bị đánh dấu là đã hủy."
+        : "Chọn phạm vi hủy và ghi lý do. Lịch sử đăng ký được giữ lại, hệ thống không tự hoàn tiền gói tập."}
+      onClose={handleClose}
+      footer={hasMakeupSchedule ? undefined :
         <>
           <button
             type="button"
             className="button secondary"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isWorking}
           >
             Giữ nguyên lịch
@@ -128,7 +133,7 @@ export function CancelScopeDialog({
         {session.roomName} · {session.coachName}
       </p>
 
-      <fieldset className="cancel-scope-choice">
+      {!hasMakeupSchedule && <fieldset className="cancel-scope-choice">
         <legend>Phạm vi hủy</legend>
         <label htmlFor={`${prefix}-scope-session`}>
           <input
@@ -152,19 +157,33 @@ export function CancelScopeDialog({
             name={`${prefix}-scope`}
             value="CLASS_FUTURE_SESSIONS"
             checked={scope === "CLASS_FUTURE_SESSIONS"}
-            onChange={() => { setImpact(null); setScope("CLASS_FUTURE_SESSIONS"); }}
+            onChange={() => { setImpact(null); setHasMakeupSchedule(false); setScope("CLASS_FUTURE_SESSIONS"); }}
             disabled={isWorking}
           />
           <span>
             Mọi buổi tương lai của lớp “{owningClass?.name ?? session.className}
             ”
             <small>
-              Buổi đã diễn ra không bị thay đổi. Lớp sẽ không nhận đăng ký mới.
+              Buổi đã diễn ra không bị thay đổi. Đăng ký của các buổi bị hủy không còn hiệu lực.
             </small>
           </span>
         </label>
-      </fieldset>
+      </fieldset>}
 
+      <div className="field field-full">
+        <label className="checkbox-chip" htmlFor={`${prefix}-makeup`}>
+          <input id={`${prefix}-makeup`} type="checkbox" checked={hasMakeupSchedule}
+            onChange={(event) => setHasMakeupSchedule(event.target.checked)}
+            disabled={isWorking || scope !== "SESSION" || isLoadingImpact || impact?.affectedSessionCount !== 1} />
+          {" "}Chọn lịch bù cho buổi này
+        </label>
+        {!hasMakeupSchedule && <small>Lịch bù áp dụng cho từng buổi. Chọn “Chỉ buổi này” để giữ đăng ký và chuyển sang ngày, giờ mới.</small>}
+      </div>
+
+      {hasMakeupSchedule ? (
+        <MakeupSessionForm session={session} initialReason={reason} onSaved={onRescheduled}
+          onClose={handleClose} onWorkingChange={setIsWorking} />
+      ) : <>
       <div className="cancel-scope-impact" role="status" aria-live="polite">
         {isLoadingImpact ? (
           <span>Đang tính số đăng ký bị ảnh hưởng…</span>
@@ -190,7 +209,6 @@ export function CancelScopeDialog({
           <span>Chưa lấy được số liệu ảnh hưởng.</span>
         )}
       </div>
-
       <div className="field field-full">
         <label htmlFor={`${prefix}-reason`}>
           Lý do hủy <span aria-hidden="true">*</span>
@@ -224,6 +242,7 @@ export function CancelScopeDialog({
           {error}
         </p>
       )}
+      </>}
     </Dialog>
   );
 }
