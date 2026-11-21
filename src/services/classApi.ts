@@ -616,9 +616,10 @@ export const classApi = {
 
   // --- UC21: lập và sửa lịch ---------------------------------------------
 
-  async listSessions(filter: ClassSessionFilter = {}): Promise<ClassSession[]> {
+  async listSessions(filter: ClassSessionFilter = {}, pageSize = 20): Promise<ClassSession[]> {
     const items = await listAllPages<SessionDto>(
       `/ClassSession${sessionQuery(filter)}`,
+      pageSize,
     );
     return items.map(mapSession);
   },
